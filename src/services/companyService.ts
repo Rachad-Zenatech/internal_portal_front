@@ -1,3 +1,5 @@
+// src/services/companyService.ts
+
 import type { Company, Companies } from '../types/company';
 import.meta.env.VITE_API_BASE_URL;
 
