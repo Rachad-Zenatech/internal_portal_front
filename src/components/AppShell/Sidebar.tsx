@@ -1,31 +1,11 @@
-import {
-  LayoutDashboard,
-  Upload,
-  FileSpreadsheet,
-  Scale,
-  Layers,
-  Download,
-  Settings,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Menu } from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { navigation } from "./Navigation";
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
 }
-
-const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard },
-  { label: "AI Assistant", icon: Sparkles },
-  { label: "Upload Files", icon: Upload },
-  { label: "General Ledger", icon: FileSpreadsheet },
-  { label: "Trial Balance", icon: Scale },
-  { label: "Bank Reconciliation", icon: Layers },
-  { label: "Reports", icon: Download },
-  { label: "Settings", icon: Settings },
-];
 
 export default function Sidebar({
   isOpen,
@@ -49,29 +29,38 @@ export default function Sidebar({
           onClick={onToggle}
           className="rounded-lg p-2 hover:bg-slate-100"
         >
-          {isOpen ? (
-            <ChevronLeft size={18} />
-          ) : (
-            <ChevronRight size={18} />
-          )}
+          <Menu size={20} />
         </button>
       </div>
 
       <nav className="space-y-1 px-2">
-        {navItems.map((item) => {
+        {navigation.map((item) => {
           const Icon = item.icon;
 
           return (
-            <button
-              key={item.label}
-              className="flex w-full items-center gap-3 rounded-lg p-3 hover:bg-slate-100"
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `
+                  flex w-full items-center rounded-lg p-3 transition-colors
+                  ${isOpen ? "gap-3 justify-start" : "justify-center"}
+                  ${
+                    isActive
+                      ? "bg-blue-100 text-blue-600"
+                      : "hover:bg-slate-100"
+                  }
+                `
+              }
             >
               <Icon size={20} />
 
               {isOpen && (
-                <span>{item.label}</span>
+                <span className="text-sm font-medium">
+                  {item.label}
+                </span>
               )}
-            </button>
+            </NavLink>
           );
         })}
       </nav>
