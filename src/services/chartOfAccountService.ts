@@ -1,3 +1,4 @@
+// src/services/chartOfAccountService.ts
 import type { ChartOfAccount, ChartOfAccounts } from '../types/chartOfAccount';
 import.meta.env.VITE_API_BASE_URL;
 

@@ -1,3 +1,4 @@
+// src/services/bankService.ts
 import type { Bank, Banks } from '../types/bank';
 import.meta.env.VITE_API_BASE_URL;
 

@@ -50,7 +50,7 @@ export default function ChartOfAccounts() {
         });
       },
       onError: (error: Error) => {
-        // ✅ Failed Toast
+        //Failed Toast
         toast.error("Insert Failed", {
           description:
             error.message || "There was an issue saving the account.",
@@ -257,7 +257,11 @@ export default function ChartOfAccounts() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => deleteAccount(account.id)}
+                      onClick={() => {
+                        if (account.id !== undefined) {
+                          deleteAccount(account.id);
+                        }
+                      }}
                     >
                       Remove
                     </Button>
