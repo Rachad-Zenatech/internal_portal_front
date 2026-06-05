@@ -1,5 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { getChartOfAccount, getChartOfAccounts } from '../services/index';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getChartOfAccount, getChartOfAccounts, insertChartOfAccount } from '../services/index';
 import type { ChartOfAccount, ChartOfAccounts } from '../types/chartOfAccount';
 
 export const useChartOfAccounts = () => {
@@ -15,3 +15,20 @@ export const useChartOfAccount = (id: number) => {
     queryFn: () => getChartOfAccount(id),
   });
 };
+
+export const useInsertChartOfAccount = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    // 1. Point it to the function we just built
+    mutationFn: (data: ChartOfAccount) => insertChartOfAccount(data),
+    
+    // 2. What to do when the backend successfully saves the data
+    onSuccess: () => {
+      // THE MAGIC TRICK: Tell React Query that the existing table data is stale.
+      // This will automatically trigger your getChartOfAccounts function in the background
+      // and update your UI without requiring a page refresh!
+      queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] });
+    },
+  });
+}

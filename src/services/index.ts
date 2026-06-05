@@ -1,7 +1,7 @@
 import { getCompany, getCompanies } from './companyService';
 import { getBankAccount, getBankAccounts } from './bankAccountService';
 import { getBank, getBanks } from './bankService';
-import {getChartOfAccounts, getChartOfAccount} from './chartOfAccountService';
+import {getChartOfAccounts, getChartOfAccount, insertChartOfAccount} from './chartOfAccountService';
 
 export { 
     getCompany, 
@@ -11,5 +11,6 @@ export {
     getBank, 
     getBanks, 
     getChartOfAccounts, 
-    getChartOfAccount 
+    getChartOfAccount,
+    insertChartOfAccount
 };
