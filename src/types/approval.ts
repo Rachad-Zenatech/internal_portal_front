@@ -17,8 +17,6 @@ export interface ApprovalRequest {
 
   auto_approved: boolean;
 
-  environment: string;
-
   review_required: boolean;
 
   created_at: string;
