@@ -36,9 +36,19 @@ export const navigation = [
     icon: Scale,
   },
   {
+    label: "Consolidated Trial Balance",
+    path: "/consolidated-trial-balance",
+    icon: Scale,
+  },
+  {
     label: "Bank Reconciliation",
     path: "/bank-reconciliation",
     icon: Layers,
+  },
+  {
+    label: "Chart of Accounts",
+    path: "/chart-of-accounts",
+    icon: FileSpreadsheet,
   },
   {
     label: "Reports",

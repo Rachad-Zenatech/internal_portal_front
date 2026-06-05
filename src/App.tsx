@@ -7,6 +7,8 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings"; 
 import TrialBalance from "./pages/TrialBalance";
 import UploadFile from "./pages/UploadFiles" 
+import ConsolidatedTrailBalance from "./pages/ConsolidatedTrailBalance";
+import ChartOfAccounts from "./pages/ChartOfAccounts";
 import { BrowserRouter,  Routes, Route } from "react-router-dom";
 function App() {
   return (
@@ -21,6 +23,14 @@ function App() {
           <Route
             path="/bank-reconciliation"
             element={<BankReconciliation />}
+          />
+          <Route
+            path="/consolidated-trial-balance"
+            element={<ConsolidatedTrailBalance />}
+          />
+          <Route
+            path="/chart-of-accounts"
+            element={<ChartOfAccounts />}
           />
           <Route path="/reports" element={<Reports />} />
           <Route path="/settings" element={<Settings />} />
