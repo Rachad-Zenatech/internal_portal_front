@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getChartOfAccount, getChartOfAccounts, insertChartOfAccount } from '../services/index';
+import { getChartOfAccount, getChartOfAccounts, insertChartOfAccount, deleteChartOfAccount } from '../services/index';
 import type { ChartOfAccount, ChartOfAccounts } from '../types/chartOfAccount';
 
 export const useChartOfAccounts = () => {
@@ -32,3 +32,15 @@ export const useInsertChartOfAccount = () => {
     },
   });
 }
+
+export const useDeleteChartOfAccount = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => deleteChartOfAccount(id),
+    onSuccess: () => {
+      // Refresh the list after deleting
+      queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] });
+    },
+  });
+};

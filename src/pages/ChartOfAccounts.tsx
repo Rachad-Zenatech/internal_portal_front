@@ -5,6 +5,7 @@ import type { ChartOfAccount, ChartOfAccounts } from "@/types/chartOfAccount";
 import {
   useChartOfAccounts,
   useInsertChartOfAccount,
+  useDeleteChartOfAccount
 } from "@/hooks/useChartOfAccount";
 
 import {
@@ -24,6 +25,7 @@ import { toast } from "sonner";
 export default function ChartOfAccounts() {
   const { data: result, isPending: loadingData, error } = useChartOfAccounts();
   const { mutate, isPending: insertingData } = useInsertChartOfAccount();
+  const { mutate: deleteAccount } = useDeleteChartOfAccount();
   const [newAccount, setNewAccount] = useState<ChartOfAccount>({
     account_number: "",
     account_type: "",
@@ -42,8 +44,9 @@ export default function ChartOfAccounts() {
           account_name: "",
         });
 
-        toast("Account Created",{
+        toast("Account has been created",{
           description: "Your new account has been saved successfully.",
+          position: "top-center"
         });
       },
       onError: (error: Error) => {
@@ -51,6 +54,7 @@ export default function ChartOfAccounts() {
         toast.error("Insert Failed", {
           description:
             error.message || "There was an issue saving the account.",
+            position: "top-center"
         });
       },
     });
@@ -72,15 +76,15 @@ export default function ChartOfAccounts() {
   //   setAccounts((current) => [...current, account]);
   // }
 
-  async function deleteAccount(id: number) {
-    // Later:
-    // await fetch(`http://localhost:8000/chart-of-accounts/${id}`, {
-    //   method: "DELETE",
-    // });
-    // setAccounts((current) =>
-    //   current.filter((account) => account.id !== id)
-    // );
-  }
+  // async function deleteAccount(id: number) {
+  //   // Later:
+  //   // await fetch(`http://localhost:8000/chart-of-accounts/${id}`, {
+  //   //   method: "DELETE",
+  //   // });
+  //   // setAccounts((current) =>
+  //   //   current.filter((account) => account.id !== id)
+  //   // );
+  // }
 
   async function replaceChartOfAccounts(file: File | null) {
     if (!file) return;
