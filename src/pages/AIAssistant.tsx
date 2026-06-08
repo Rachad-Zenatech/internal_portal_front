@@ -1,21 +1,23 @@
-// src/pages/AiAssistant.tsx
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Send, Sparkles } from "lucide-react";
 
-import { useState, useRef, useEffect } from "react";
-import { Send, Sparkles, Loader2 } from "lucide-react";
-import type { Message } from "../types/aiAssistant";
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+};
 
 const SUGGESTIONS = [
-  "What can you help me with?",
-  "Summarize my data",
-  "Generate a report",
-  "Show recent activity",
+  "Show pending approvals",
+  "Generate a reconciliation report",
+  "Show chart of accounts",
+  "Generate an annual report",
 ];
 
 export default function AiAssistant() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi! I'm your AI Assistant. How can I help?",
+      content: "Hi! I’m your Zenatech AI Assistant. How can I help?",
     },
   ]);
 
@@ -30,15 +32,15 @@ export default function AiAssistant() {
     });
   }, [messages, loading]);
 
-  const sendMessage = async (text: string) => {
+  async function sendMessage(text: string) {
     const question = text.trim();
 
     if (!question || loading) return;
 
-    const nextMessages = [
+    const nextMessages: Message[] = [
       ...messages,
       {
-        role: "user" as const,
+        role: "user",
         content: question,
       },
     ];
@@ -48,8 +50,7 @@ export default function AiAssistant() {
     setLoading(true);
 
     try {
-      // Replace with API call
-      const response = await fakeAiResponse(question);
+      const response = await askAi(question);
 
       setMessages([
         ...nextMessages,
@@ -58,31 +59,45 @@ export default function AiAssistant() {
           content: response,
         },
       ]);
-    } catch {
+    } catch (error) {
       setMessages([
         ...nextMessages,
         {
           role: "assistant",
-          content: "Something went wrong.",
+          content: "Something went wrong while contacting the AI backend.",
         },
       ]);
     } finally {
       setLoading(false);
     }
-  };
-
-  async function fakeAiResponse(question: string): Promise<string> {
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    return `You asked: "${question}"`;
   }
+
+  
+async function askAi(message: string): Promise<string> {
+  const response = await fetch("http://localhost:8000/ai/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      message,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("AI request failed");
+  }
+
+  const data = await response.json();
+
+  return data.reply;
+}
 
   return (
     <div className="h-[calc(100vh-80px)] flex flex-col p-6">
       <h1 className="text-3xl font-bold mb-4">AI Assistant</h1>
 
       <div className="flex-1 border rounded-xl overflow-hidden flex flex-col bg-white">
-        {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((message, index) => (
             <div
@@ -92,7 +107,7 @@ export default function AiAssistant() {
               }`}
             >
               <div
-                className={`max-w-[80%] px-4 py-3 rounded-xl text-sm ${
+                className={`max-w-[80%] px-4 py-3 rounded-xl text-sm whitespace-pre-wrap ${
                   message.role === "user"
                     ? "bg-blue-600 text-white"
                     : "bg-gray-100 text-gray-900"
@@ -113,7 +128,6 @@ export default function AiAssistant() {
           <div ref={endRef} />
         </div>
 
-        {/* Suggestions */}
         {messages.length === 1 && (
           <div className="px-4 pb-3 flex flex-wrap gap-2">
             {SUGGESTIONS.map((item) => (
@@ -129,7 +143,6 @@ export default function AiAssistant() {
           </div>
         )}
 
-        {/* Input */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -140,7 +153,7 @@ export default function AiAssistant() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask something..."
+            placeholder="Ask about approvals, reports, bank statements..."
             className="flex-1 border rounded-lg px-3 py-2 outline-none"
           />
 
