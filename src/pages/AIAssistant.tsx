@@ -2,11 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Send, Sparkles, Loader2 } from "lucide-react";
-
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-};
+import type { Message } from "../types/aiAssistant";
 
 const SUGGESTIONS = [
   "What can you help me with?",
