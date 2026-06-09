@@ -3,10 +3,33 @@
 import type { Company, Companies } from '../types/company';
 import.meta.env.VITE_API_BASE_URL;
 
-export const getCompany = async (id: number) => {
-    return fetch(`${import.meta.env.VITE_API_BASE_URL}/accounting/companies/${id}`).then((res) => res.json() as Promise<Company>);
-}
+export const CompanyService = {
+    async getCompany(id: number): Promise<Company> {
+        const response = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL}/accounting/companies/${id}`
+        );
 
-export const getCompanies = async () => {
-    return fetch(`${import.meta.env.VITE_API_BASE_URL}/accounting/companies`).then((res) => res.json() as Promise<Companies>);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+            errorData.detail || `Error ${response.status}: Failed to fetch company ${id}`
+            );
+        }
+
+        return response.json();
+    },
+    async getCompanies(): Promise<Companies> {
+        const response = await fetch(
+            `${import.meta.env.VITE_API_BASE_URL}/accounting/companies`
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(
+            errorData.detail || `Error ${response.status}: Failed to fetch companies list`
+            );
+        }
+
+        return response.json();
+    }
 }

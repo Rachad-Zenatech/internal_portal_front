@@ -1,21 +1,36 @@
 // src/pages/BankReconciliation.tsx
 
 import { useEffect, useState } from "react";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 
-interface ChartOfAccounts {
-  id: number;
-  name: string;
-  version: string;
-}
+import type { ChartOfAccounts } from "@/types/chartOfAccount";
+
+
+import { useCompanies } from "@/hooks/useCompany";
+
+// interface ChartOfAccounts {
+//   id: number;
+//   name: string;
+//   version: string;
+// }
 
 export default function BankReconciliation() {
-  const [company, setCompany] = useState("LE");
+
+  const { data: companies, isLoading, isError, error } = useCompanies();
+
+  const [company, setCompany] = useState("");
 
   const [selectedCOA, setSelectedCOA] =
     useState("");
 
   const [availableCOAs, setAvailableCOAs] =
-    useState<ChartOfAccounts[]>([]);
+    useState<ChartOfAccounts>();
 
   const [bankStatements, setBankStatements] =
     useState<FileList | null>(null);
@@ -32,9 +47,8 @@ export default function BankReconciliation() {
   const [result, setResult] =
     useState("");
 
-  useEffect(() => {
-    loadChartOfAccounts();
-  }, []);
+  if (isLoading) return <div>Loading...</div>;
+  if (isError) return <div>Error: {error?.message}</div>;
 
   async function loadChartOfAccounts() {
     /*
@@ -48,24 +62,6 @@ export default function BankReconciliation() {
 
       setAvailableCOAs(data);
     */
-
-    setAvailableCOAs([
-      {
-        id: 1,
-        name: "ZenaTech_USA_COA_2026",
-        version: "2026",
-      },
-      {
-        id: 2,
-        name: "ZenaTech_CAN_COA_2026",
-        version: "2026",
-      },
-      {
-        id: 3,
-        name: "ZenaDrone_COA_2026",
-        version: "2026",
-      },
-    ]);
   }
 
   async function generateReconciliation() {
@@ -131,11 +127,11 @@ export default function BankReconciliation() {
     }
   }
 
-  const selectedChart =
-    availableCOAs.find(
-      (coa) =>
-        coa.id.toString() === selectedCOA
-    );
+  // const selectedChart =
+  //   availableCOAs.find(
+  //     (coa) =>
+  //       coa.id.toString() === selectedCOA
+  //   );
 
   return (
     <div className="p-8">
@@ -160,25 +156,18 @@ export default function BankReconciliation() {
               Company
             </label>
 
-            <select
-              value={company}
-              onChange={(e) =>
-                setCompany(e.target.value)
-              }
-              className="w-full rounded-lg border p-2"
-            >
-              <option value="LE">
-                Lescure Engineers
-              </option>
-
-              <option value="ZT">
-                ZenaTech
-              </option>
-
-              <option value="ZD">
-                ZenaDrone
-              </option>
-            </select>
+            <Select onValueChange={(value) => console.log("Selected company ID:", value)}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Select a company" />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((company) => (
+                  <SelectItem key={company.id} value={company.id.toString()}>
+                    {company.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Chart Of Accounts */}
@@ -200,7 +189,7 @@ export default function BankReconciliation() {
                 Select Chart Of Accounts
               </option>
 
-              {availableCOAs.map(
+              {/* {availableCOAs.map(
                 (coa) => (
                   <option
                     key={coa.id}
@@ -209,12 +198,12 @@ export default function BankReconciliation() {
                     {coa.name}
                   </option>
                 )
-              )}
+              )} */}
             </select>
           </div>
 
           {/* Selected COA */}
-          {selectedChart && (
+          {/* {selectedChart && (
             <div className="rounded-lg border bg-slate-50 p-4">
               <h3 className="mb-2 font-semibold">
                 Selected Chart Of Accounts
@@ -230,7 +219,7 @@ export default function BankReconciliation() {
                 {selectedChart.version}
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Bank Statements */}
           <div>

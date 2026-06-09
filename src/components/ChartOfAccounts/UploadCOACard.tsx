@@ -58,14 +58,14 @@ export default function UploadCOACard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Input type="file" accept=".xlsx, .xls" onChange={handleFileChange} disabled={isPending} className="hidden" id="excel-upload" ref={fileInputRef} />
+          <Input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} disabled={isPending} className="hidden" id="excel-upload" ref={fileInputRef} />
           {!selectedFile ? (
             <label htmlFor="excel-upload" className="flex flex-col items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-slate-300 border-dashed rounded-md cursor-pointer hover:border-slate-400 hover:bg-slate-50 focus:outline-none">
               <span className="flex items-center space-x-2 text-slate-600">
                 <UploadCloud className="w-6 h-6" />
                 <span className="font-medium">Click to browse files</span>
               </span>
-              <span className="mt-1 text-xs text-slate-500">XLSX or XLS files only</span>
+              <span className="mt-1 text-xs text-slate-500">CSV, XLSX or XLS files only</span>
             </label>
           ) : (
             <div className="flex items-center justify-between p-4 border border-blue-200 bg-blue-50 rounded-md h-32">

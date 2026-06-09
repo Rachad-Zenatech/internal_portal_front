@@ -2,17 +2,32 @@
 import type { ChartOfAccount, ChartOfAccounts } from "../types/chartOfAccount";
 import.meta.env.VITE_API_BASE_URL;
 
-export const chartOfAccountService = {
-  async getChartOfAccount(id: number) {
-    return fetch(
+export const ChartOfAccountService = {
+  async getChartOfAccount(id: number): Promise<ChartOfAccount> {
+    const response = await fetch(
       `${import.meta.env.VITE_API_BASE_URL}/accounting/chart-of-accounts/${id}`,
-    ).then((res) => res.json() as Promise<ChartOfAccount>);
+    );
+
+    if (!response.ok) {
+      // Try to get error details from the server, fall back to status text
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Error ${response.status}: Failed to fetch account ${id}`);
+    }
+
+    return response.json();
   },
 
-  async getChartOfAccounts() {
-    return fetch(
+  async getChartOfAccounts(): Promise<ChartOfAccounts> {
+    const response = await fetch(
       `${import.meta.env.VITE_API_BASE_URL}/accounting/chart-of-accounts`,
-    ).then((res) => res.json() as Promise<ChartOfAccounts>);
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Error ${response.status}: Failed to fetch chart of accounts`);
+    }
+
+    return response.json();
   },
   async insertChartOfAccount(
     chartOfAccount: ChartOfAccount,
