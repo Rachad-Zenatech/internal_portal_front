@@ -108,94 +108,106 @@ export default function GeneralLedger() {
       </div>
 
       <Card>
-        <CardContent className="grid gap-4 p-6 md:grid-cols-5">
+        <CardContent className="space-y-6 p-6">
           <div>
-            <label className="mb-2 block text-sm font-medium">Company</label>
+            <h2 className="text-xl font-semibold">Upload Monthly Statement</h2>
 
-            <select
-              className="w-full rounded-md border p-2"
-              value={companyId}
-              onChange={(e) => {
-                setCompanyId(e.target.value);
-                setBankAccountId("");
-              }}
-            >
-              <option value="">Select Company</option>
-
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name} ({company.entity})
-                </option>
-              ))}
-            </select>
+            <p className="text-sm text-muted-foreground">
+              Select a company, bank account, month, and statement file to
+              upload.
+            </p>
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Bank Account
-            </label>
+          <div className="grid gap-4 md:grid-cols-5">
+            <div>
+              <label className="mb-2 block text-sm font-medium">Company</label>
 
-            <select
-              className="w-full rounded-md border p-2"
-              value={bankAccountId}
-              onChange={(e) => setBankAccountId(e.target.value)}
-              disabled={!selectedCompany}
-            >
-              <option value="">Select Bank Account</option>
-
-              {selectedCompany?.bankAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.accountCode} - {account.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Upload Month
-            </label>
-
-            <input
-              type="month"
-              className="w-full rounded-md border p-2"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm font-medium">
-              Upload File
-            </label>
-
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls,.txt"
-                className="hidden"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              />
-
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
+              <select
+                className="w-full rounded-md border p-2"
+                value={companyId}
+                onChange={(e) => {
+                  setCompanyId(e.target.value);
+                  setBankAccountId("");
+                }}
               >
-                Browse File
-              </Button>
+                <option value="">Select Company</option>
 
-              <span className="truncate text-sm text-muted-foreground">
-                {file?.name || "No file selected"}
-              </span>
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name} ({company.entity})
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          <div className="flex items-end">
-            <Button className="w-full" onClick={handleUpload}>
-              Upload & Extract
-            </Button>
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Bank Account
+              </label>
+
+              <select
+                className="w-full rounded-md border p-2"
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId(e.target.value)}
+                disabled={!selectedCompany}
+              >
+                <option value="">Select Bank Account</option>
+
+                {selectedCompany?.bankAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.accountCode} - {account.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Upload Month
+              </label>
+
+              <input
+                type="month"
+                className="w-full rounded-md border p-2"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium">
+                Upload File
+              </label>
+
+              <div className="flex items-center gap-2 rounded-md border p-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls,.txt"
+                  className="hidden"
+                  onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                />
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Browse
+                </Button>
+
+                <span className="truncate text-sm text-muted-foreground">
+                  {file?.name || "No file selected"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-end">
+              <Button className="w-full" onClick={handleUpload}>
+                Upload & Extract
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
