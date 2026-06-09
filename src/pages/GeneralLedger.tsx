@@ -10,17 +10,47 @@ const companies = [
     id: 1,
     name: "LTD King",
     entity: "ZT",
-    bankAccounts: [
-      { id: 1, name: "Vystar Checking", accountCode: "1001" },
-      { id: 2, name: "Ameris Bank", accountCode: "1004" },
+    banks: [
+      {
+        id: 1,
+        name: "Vystar",
+        accounts: [
+          {
+            id: 1,
+            name: "Checking",
+            accountCode: "1001",
+          },
+        ],
+      },
+      {
+        id: 2,
+        name: "Ameris",
+        accounts: [
+          {
+            id: 2,
+            name: "Operating",
+            accountCode: "1004",
+          },
+        ],
+      },
     ],
   },
   {
     id: 2,
     name: "Drone as a Service - CK",
     entity: "ZT",
-    bankAccounts: [
-      { id: 3, name: "Central Bank Checking", accountCode: "1000" },
+    banks: [
+      {
+        id: 3,
+        name: "Central Bank",
+        accounts: [
+          {
+            id: 3,
+            name: "Checking",
+            accountCode: "1000",
+          },
+        ],
+      },
     ],
   },
 ];
@@ -57,19 +87,25 @@ const transactions = [
 
 export default function GeneralLedger() {
   const [companyId, setCompanyId] = useState("");
+  const [bankId, setBankId] = useState("");
   const [bankAccountId, setBankAccountId] = useState("");
   const [month, setMonth] = useState("");
   const [viewMonth, setViewMonth] = useState("");
   const [viewCompanyId, setViewCompanyId] = useState("");
   const [file, setFile] = useState<File | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedCompany = companies.find(
-    (company) => company.id === Number(companyId),
+    (company) => company.id === Number(companyId)
+  );
+
+  const selectedBank = selectedCompany?.banks.find(
+    (bank) => bank.id === Number(bankId)
   );
 
   const selectedViewCompany = companies.find(
-    (company) => company.id === Number(viewCompanyId),
+    (company) => company.id === Number(viewCompanyId)
   );
 
   const companiesToShow = viewCompanyId
@@ -77,20 +113,22 @@ export default function GeneralLedger() {
     : companies;
 
   const handleUpload = () => {
-    if (!companyId || !bankAccountId || !month || !file) {
-      alert("Please select company, bank account, month, and file.");
+    if (!companyId || !bankId || !bankAccountId || !month || !file) {
+      alert("Please select company, bank, bank account, month, and file.");
       return;
     }
 
     const formData = new FormData();
 
     formData.append("company_id", companyId);
+    formData.append("bank_id", bankId);
     formData.append("bank_account_id", bankAccountId);
     formData.append("month", month);
     formData.append("file", file);
 
     console.log("Ready to upload:", {
       companyId,
+      bankId,
       bankAccountId,
       month,
       fileName: file.name,
@@ -113,12 +151,12 @@ export default function GeneralLedger() {
             <h2 className="text-xl font-semibold">Upload Monthly Statement</h2>
 
             <p className="text-sm text-muted-foreground">
-              Select a company, bank account, month, and statement file to
+              Select a company, bank, bank account, month, and statement file to
               upload.
             </p>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-6">
             <div>
               <label className="mb-2 block text-sm font-medium">Company</label>
 
@@ -127,6 +165,7 @@ export default function GeneralLedger() {
                 value={companyId}
                 onChange={(e) => {
                   setCompanyId(e.target.value);
+                  setBankId("");
                   setBankAccountId("");
                 }}
               >
@@ -141,6 +180,28 @@ export default function GeneralLedger() {
             </div>
 
             <div>
+              <label className="mb-2 block text-sm font-medium">Bank</label>
+
+              <select
+                className="w-full rounded-md border p-2"
+                value={bankId}
+                onChange={(e) => {
+                  setBankId(e.target.value);
+                  setBankAccountId("");
+                }}
+                disabled={!selectedCompany}
+              >
+                <option value="">Select Bank</option>
+
+                {selectedCompany?.banks.map((bank) => (
+                  <option key={bank.id} value={bank.id}>
+                    {bank.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <label className="mb-2 block text-sm font-medium">
                 Bank Account
               </label>
@@ -149,11 +210,11 @@ export default function GeneralLedger() {
                 className="w-full rounded-md border p-2"
                 value={bankAccountId}
                 onChange={(e) => setBankAccountId(e.target.value)}
-                disabled={!selectedCompany}
+                disabled={!selectedBank}
               >
                 <option value="">Select Bank Account</option>
 
-                {selectedCompany?.bankAccounts.map((account) => (
+                {selectedBank?.accounts.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.accountCode} - {account.name}
                   </option>
@@ -263,12 +324,12 @@ export default function GeneralLedger() {
           <div className="space-y-6">
             {companiesToShow.map((company) => {
               const companyTransactions = transactions.filter(
-                (transaction) => transaction.companyId === company.id,
+                (transaction) => transaction.companyId === company.id
               );
 
               const companyTotal = companyTransactions.reduce(
                 (sum, transaction) => sum + transaction.amount,
-                0,
+                0
               );
 
               return (
