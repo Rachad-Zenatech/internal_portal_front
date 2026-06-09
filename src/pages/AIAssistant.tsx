@@ -1,3 +1,4 @@
+// src/pages/AiAssistant.tsx
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, Sparkles } from "lucide-react";
 
