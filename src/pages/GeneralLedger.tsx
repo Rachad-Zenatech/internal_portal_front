@@ -1,6 +1,6 @@
 // src/pages/GeneralLedger.tsx
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "lucide-react";
@@ -62,13 +62,14 @@ export default function GeneralLedger() {
   const [viewMonth, setViewMonth] = useState("");
   const [viewCompanyId, setViewCompanyId] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedCompany = companies.find(
-    (company) => company.id === Number(companyId)
+    (company) => company.id === Number(companyId),
   );
 
   const selectedViewCompany = companies.find(
-    (company) => company.id === Number(viewCompanyId)
+    (company) => company.id === Number(viewCompanyId),
   );
 
   const companiesToShow = viewCompanyId
@@ -168,12 +169,27 @@ export default function GeneralLedger() {
               Upload File
             </label>
 
-            <input
-              type="file"
-              accept=".csv,.xlsx,.xls,.txt"
-              className="w-full rounded-md border p-2"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.xlsx,.xls,.txt"
+                className="hidden"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Browse File
+              </Button>
+
+              <span className="truncate text-sm text-muted-foreground">
+                {file?.name || "No file selected"}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-end">
@@ -235,21 +251,19 @@ export default function GeneralLedger() {
           <div className="space-y-6">
             {companiesToShow.map((company) => {
               const companyTransactions = transactions.filter(
-                (transaction) => transaction.companyId === company.id
+                (transaction) => transaction.companyId === company.id,
               );
 
               const companyTotal = companyTransactions.reduce(
                 (sum, transaction) => sum + transaction.amount,
-                0
+                0,
               );
 
               return (
                 <Card key={company.id}>
                   <CardContent className="p-6">
                     <div className="mb-4">
-                      <h3 className="text-lg font-semibold">
-                        {company.name}
-                      </h3>
+                      <h3 className="text-lg font-semibold">{company.name}</h3>
 
                       <p className="text-sm text-muted-foreground">
                         Entity: {company.entity}
