@@ -22,7 +22,7 @@ import { useCompanies } from "@/hooks/useCompany";
 
 export default function BankReconciliation() {
 
-  const { data: companies, isLoading, isError, error } = useCompanies();
+  const { data: result, isLoading, isError, error } = useCompanies();
 
   const [company, setCompany] = useState("");
 
@@ -44,8 +44,8 @@ export default function BankReconciliation() {
   const [isGenerating, setIsGenerating] =
     useState(false);
 
-  const [result, setResult] =
-    useState("");
+  // const [result, setResult] =
+  //   useState("");
 
   if (isLoading) return <div>Loading...</div>;
   if (isError) return <div>Error: {error?.message}</div>;
@@ -64,68 +64,68 @@ export default function BankReconciliation() {
     */
   }
 
-  async function generateReconciliation() {
-    try {
-      setIsGenerating(true);
+  // async function generateReconciliation() {
+  //   try {
+  //     setIsGenerating(true);
 
-      const formData = new FormData();
+  //     const formData = new FormData();
 
-      formData.append("company", company);
+  //     formData.append("company", company);
 
-      formData.append(
-        "chartOfAccountsId",
-        selectedCOA
-      );
+  //     formData.append(
+  //       "chartOfAccountsId",
+  //       selectedCOA
+  //     );
 
-      if (generalLedger) {
-        formData.append(
-          "generalLedger",
-          generalLedger
-        );
-      }
+  //     if (generalLedger) {
+  //       formData.append(
+  //         "generalLedger",
+  //         generalLedger
+  //       );
+  //     }
 
-      if (template) {
-        formData.append(
-          "template",
-          template
-        );
-      }
+  //     if (template) {
+  //       formData.append(
+  //         "template",
+  //         template
+  //       );
+  //     }
 
-      if (bankStatements) {
-        Array.from(bankStatements).forEach(
-          (file) => {
-            formData.append(
-              "bankStatements",
-              file
-            );
-          }
-        );
-      }
+  //     if (bankStatements) {
+  //       Array.from(bankStatements).forEach(
+  //         (file) => {
+  //           formData.append(
+  //             "bankStatements",
+  //             file
+  //           );
+  //         }
+  //       );
+  //     }
 
-      const response = await fetch(
-        "http://localhost:8000/bank-reconciliation/generate",
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
+  //     const response = await fetch(
+  //       "http://localhost:8000/bank-reconciliation/generate",
+  //       {
+  //         method: "POST",
+  //         body: formData,
+  //       }
+  //     );
 
-      const data = await response.json();
+  //     const data = await response.json();
 
-      setResult(
-        data.message ??
-          "Reconciliation completed."
-      );
-    } catch (error) {
-      console.error(error);
+  //     setResult(
+  //       data.message ??
+  //         "Reconciliation completed."
+  //     );
+  //   } catch (error) {
+  //     console.error(error);
 
-      setResult(
-        "Failed to generate reconciliation."
-      );
-    } finally {
-      setIsGenerating(false);
-    }
-  }
+  //     setResult(
+  //       "Failed to generate reconciliation."
+  //     );
+  //   } finally {
+  //     setIsGenerating(false);
+  //   }
+  // }
 
   // const selectedChart =
   //   availableCOAs.find(
@@ -161,7 +161,7 @@ export default function BankReconciliation() {
                 <SelectValue placeholder="Select a company" />
               </SelectTrigger>
               <SelectContent>
-                {companies.map((company) => (
+                {result?.companies.map((company) => (
                   <SelectItem key={company.id} value={company.id.toString()}>
                     {company.name}
                   </SelectItem>
@@ -276,7 +276,7 @@ export default function BankReconciliation() {
           </div>
 
           {/* Generate */}
-          <button
+          {/* <button
             onClick={
               generateReconciliation
             }
@@ -289,14 +289,14 @@ export default function BankReconciliation() {
             {isGenerating
               ? "Generating..."
               : "Generate Reconciliation"}
-          </button>
+          </button> */}
 
           {/* Result */}
-          {result && (
+          {/* {result && (
             <div className="rounded-lg bg-slate-100 p-4">
               {result}
             </div>
-          )}
+          )} */}
         </div>
       </div>
     </div>
