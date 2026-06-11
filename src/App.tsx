@@ -10,6 +10,8 @@ import UploadFile from "./pages/UploadFiles"
 import ConsolidatedTrailBalance from "./pages/ConsolidatedTrailBalance";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
 import { BrowserRouter,  Routes, Route } from "react-router-dom";
+import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
+import CompanyGeneralLedger from "./pages/CompanyGeneralLedger";
 function App() {
   return (
     <BrowserRouter>
@@ -19,6 +21,8 @@ function App() {
           <Route path="/ai-assistant" element={<AiAssistant />} />
           <Route path="/upload-files" element={<UploadFile/>} />
           <Route path="/general-ledger" element={<GeneralLedger />} />
+           <Route path="/general-ledger/company/:companyId" element={<CompanyGeneralLedger />} />
+      <Route path="/general-ledger/upload" element={<GeneralLedgerUpload />} />
           <Route path="/trial-balance" element={<TrialBalance/>} />
           <Route
             path="/bank-reconciliation"
