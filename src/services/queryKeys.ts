@@ -1,0 +1,23 @@
+// ─── Query key factory ────────────────────────────────────────────────────────
+//
+// All React Query cache keys live here so that invalidation calls in
+// useBank.ts always reference the same key shapes as the queries.
+//
+// Usage:
+//   queryKey: queryKeys.statement(id)
+//   qc.invalidateQueries({ queryKey: queryKeys.statements() })
+
+export const queryKeys = {
+  companies:         ():                                                    unknown[] => ["companies"],
+  company:           (id: number):                                          unknown[] => ["companies", id],
+  banks:             ():                                                    unknown[] => ["banks"],
+  bank:              (id: number):                                          unknown[] => ["banks", id],
+  bankAccounts:      (companyId?: number | null):                           unknown[] => ["bank-accounts", { companyId }],
+  bankAccount:       (id: number):                                          unknown[] => ["bank-accounts", id],
+  statements:        (accountId?: number | null):                           unknown[] => ["statements", { accountId }],
+  statement:         (id: number):                                          unknown[] => ["statements", id],
+  statementChecks:   (stmtId: number, section?: string | null):             unknown[] => ["statements", stmtId, "checks",   { section }],
+  statementDeposits: (stmtId: number, section?: string | null):             unknown[] => ["statements", stmtId, "deposits", { section }],
+  byQuarter:         (year: number, quarter: number, acctId?: number | null): unknown[] => ["statements", "by-quarter", { year, quarter, acctId }],
+  quarterlySummary:  (year: number, acctId?: number | null):                unknown[] => ["statements", "quarterly", { year, acctId }],
+};

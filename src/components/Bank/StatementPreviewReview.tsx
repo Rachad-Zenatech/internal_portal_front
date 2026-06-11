@@ -1,0 +1,226 @@
+import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import type {
+  StatementPreview,
+  PreviewCheckTransaction,
+  PreviewDepositTransaction,
+} from "@/types/bank";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+
+const fmt = (n: number | null | undefined): string =>
+  n == null ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: 2 });
+
+const TABS = [
+  "cleared_checks",
+  "outstanding_checks",
+  "cleared_deposits",
+  "outstanding_deposits",
+] as const;
+
+interface Props {
+  preview: StatementPreview;
+  /** Persist the previewed statement. */
+  onConfirm: () => void;
+  /** Discard the preview and return to the upload form. */
+  onCancel: () => void;
+  isCommitting?: boolean;
+  error?: string | null;
+}
+
+export default function StatementPreviewReview({
+  preview,
+  onConfirm,
+  onCancel,
+  isCommitting,
+  error,
+}: Props) {
+  const meta: [string, string][] = [
+    ["Company", preview.company_name ?? "—"],
+    ["Bank", preview.bank_name ?? "—"],
+    ["Account", preview.account_number ? `****${preview.account_number}` : "—"],
+    ["Date", preview.statement_date],
+  ];
+
+  const txCount = preview.checks.length + preview.deposits.length;
+
+  return (
+    <div>
+      <Button variant="link" onClick={onCancel} className="mb-4 px-0">
+        <ArrowLeft />
+        Back to upload
+      </Button>
+
+      <div className="mb-4">
+        <h2 className="text-xl font-semibold">Review Extracted Data</h2>
+        <p className="text-sm text-muted-foreground">
+          Confirm the parsed statement below before it's saved to the database.
+        </p>
+      </div>
+
+      <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-800">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Review the extracted data below. Nothing is saved until you confirm.
+        </AlertDescription>
+      </Alert>
+
+      <Card className="mb-4">
+        <CardContent className="space-y-1.5">
+          {meta.map(([label, val]) => (
+            <div key={label} className="flex gap-2 text-sm">
+              <span className="min-w-24 text-muted-foreground">{label}</span>
+              <span>{val}</span>
+            </div>
+          ))}
+          <hr className="my-3 border-border" />
+          <div className="flex justify-around">
+            <Bal label="Beginning" value={preview.beginning_balance} />
+            <Bal label="+ Additions" value={preview.total_additions} className="text-green-600" />
+            <Bal label="− Subtractions" value={preview.total_subtractions} className="text-destructive" />
+            <Bal label="Ending" value={preview.ending_balance} bold />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue={TABS[0]}>
+        <TabsList variant="line" className="flex-wrap">
+          {TABS.map((t) => {
+            const count = t.includes("deposit")
+              ? preview.deposits.filter((d) => d.section === t).length
+              : preview.checks.filter((c) => c.section === t).length;
+            return (
+              <TabsTrigger key={t} value={t} className="capitalize gap-1.5">
+                {t.replace(/_/g, " ")}
+                <Badge variant="secondary" className="text-xs">{count}</Badge>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+
+        {TABS.map((t) => {
+          const isDeposit = t.includes("deposit");
+          const depositRows = preview.deposits.filter((d) => d.section === t);
+          const checkRows = preview.checks.filter((c) => c.section === t);
+          const empty = isDeposit ? depositRows.length === 0 : checkRows.length === 0;
+
+          return (
+            <TabsContent key={t} value={t} className="mt-4">
+              {empty ? (
+                <p className="py-4 text-sm text-muted-foreground">No transactions</p>
+              ) : isDeposit ? (
+                <DepositTable rows={depositRows} />
+              ) : (
+                <CheckTable rows={checkRows} />
+              )}
+            </TabsContent>
+          );
+        })}
+      </Tabs>
+
+      {error && (
+        <Alert variant="destructive" className="mt-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="mt-6 flex items-center gap-3">
+        <Button onClick={onConfirm} disabled={isCommitting} className="gap-2">
+          <CheckCircle2 className="h-4 w-4" />
+          {isCommitting ? "Saving…" : `Confirm & save (${txCount} transactions)`}
+        </Button>
+        <Button variant="outline" onClick={onCancel} disabled={isCommitting}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface BalProps {
+  label: string;
+  value: number;
+  className?: string;
+  bold?: boolean;
+}
+function Bal({ label, value, className, bold }: BalProps) {
+  return (
+    <div className="text-center">
+      <div className="mb-0.5 text-xs text-muted-foreground">{label}</div>
+      <div className={cn(bold ? "font-bold" : "font-medium", className)}>${fmt(value)}</div>
+    </div>
+  );
+}
+
+function CheckTable({ rows }: { rows: PreviewCheckTransaction[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => (
+            <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
+              {h}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((r, i) => (
+          <TableRow key={i}>
+            <TableCell>{r.date}</TableCell>
+            <TableCell>{r.check_number}</TableCell>
+            <TableCell>{r.type}</TableCell>
+            <TableCell>{r.paid_to}</TableCell>
+            <TableCell>{r.reference}</TableCell>
+            <TableCell className={cn("text-right", (r.amount ?? 0) < 0 && "text-destructive")}>
+              ${fmt(r.amount)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function DepositTable({ rows }: { rows: PreviewDepositTransaction[] }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => (
+            <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
+              {h}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((r, i) => (
+          <TableRow key={i}>
+            <TableCell>{r.date}</TableCell>
+            <TableCell>{r.deposit_id}</TableCell>
+            <TableCell>{r.received_from}</TableCell>
+            <TableCell>{r.reference}</TableCell>
+            <TableCell
+              className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}
+            >
+              ${fmt(r.amount)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
