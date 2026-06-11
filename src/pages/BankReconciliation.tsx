@@ -161,11 +161,11 @@ export default function BankReconciliation() {
                 <SelectValue placeholder="Select a company" />
               </SelectTrigger>
               <SelectContent>
-                {result?.companies.map((company) => (
+                {/*companies.map((company) => (
                   <SelectItem key={company.id} value={company.id.toString()}>
                     {company.name}
                   </SelectItem>
-                ))}
+                ))*/}
               </SelectContent>
             </Select>
           </div>

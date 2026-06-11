@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { CompanyService } from '../services/index';
-import type { Company, Companies } from '../types/company';
+import type { Company } from '../types/company';
 
 export const useCompanies = () => {
-  return useQuery<Companies, Error>({
+  return useQuery<Company[], Error>({
     queryKey: ['companies'], 
     queryFn: CompanyService.getCompanies, 
   });

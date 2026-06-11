@@ -18,7 +18,7 @@ export const CompanyService = {
 
         return response.json();
     },
-    async getCompanies(): Promise<Companies> {
+    async getCompanies(): Promise<Company[]> {
         const response = await fetch(
             `${import.meta.env.VITE_API_BASE_URL}/accounting/companies`
         );
@@ -30,6 +30,8 @@ export const CompanyService = {
             );
         }
 
-        return response.json();
+        // The API returns a bare array; tolerate a { companies: [...] } wrapper too.
+        const data: Company[] | Companies = await response.json();
+        return Array.isArray(data) ? data : data.companies ?? [];
     }
 }
