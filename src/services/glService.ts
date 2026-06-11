@@ -2,18 +2,23 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-export type GLFormat = {
-  id: number;
-  code: string;
-  name: string;
+export type CompanyBook = {
+  book_id: number;
+  company_id: number;
+  company_name: string;
+  book_name: string;
+  format_id: number;
+  format_code: string;
+  format_name: string;
 };
 
-export type GLFormats = {
-  formats: GLFormat[];
+export type CompanyBooksResponse = {
+  books: CompanyBook[];
 };
 
 export type ParseSummary = {
   company_id: number;
+  company_book_id: number;
   company_name: string;
   source_file_id: number;
   accounts_resolved: number;
@@ -26,35 +31,80 @@ export type ParseImportResponse = {
   summary: ParseSummary;
 };
 
-async function handleError(response: Response, fallbackMessage: string): Promise<never> {
-  const errorData = await response.json().catch(() => ({}));
+export type GLVisualTransaction = {
+  entry_id: number;
+  entry_date: string | null;
+  transaction_type: string | null;
+  transaction_number: string | null;
+  name: string | null;
+  memo: string | null;
+  split_account_number: string | null;
+  split_account_name: string | null;
+  amount: number;
+  balance_after: number | null;
+  is_bank_line: boolean;
+};
 
-  throw new Error(
-    errorData.detail || `Error ${response.status}: ${fallbackMessage}`
-  );
+export type GLAccountGroup = {
+  account_number: string;
+  account_name: string;
+  account_type: string | null;
+  is_bank_account: boolean;
+  total_amount: number;
+  transactions: GLVisualTransaction[];
+};
+
+export type GLImportVisual = {
+  id: number;
+  filename: string;
+  format_name: string;
+  imported_at: string;
+  gl_entries: number;
+  gl_entry_lines: number;
+  bank_lines: number;
+  accounts: GLAccountGroup[];
+};
+
+export type CompanyLedger = {
+  company_id: number;
+  company_name: string;
+  entity: string | null;
+  period_label: string;
+  imports: GLImportVisual[];
+};
+
+async function handleError(response: Response, fallbackMessage: string): Promise<never> {
+  const text = await response.text();
+
+  try {
+    const errorData = JSON.parse(text);
+    throw new Error(
+      errorData.detail || `Error ${response.status}: ${fallbackMessage}`
+    );
+  } catch {
+    throw new Error(`Error ${response.status}: ${fallbackMessage}`);
+  }
 }
 
 export const GLService = {
-  async getFormats(): Promise<GLFormat[]> {
-    const response = await fetch(`${API_BASE_URL}/accounting/gl/formats`);
+  async getBooks(): Promise<CompanyBook[]> {
+    const response = await fetch(`${API_BASE_URL}/accounting/gl/books`);
 
     if (!response.ok) {
-      await handleError(response, "Failed to fetch GL formats");
+      await handleError(response, "Failed to fetch company books");
     }
 
-    const data: GLFormats | GLFormat[] = await response.json();
+    const data: CompanyBooksResponse | CompanyBook[] = await response.json();
 
-    return Array.isArray(data) ? data : data.formats;
+    return Array.isArray(data) ? data : data.books;
   },
 
   async parseImport(params: {
-    companyId: number;
-    formatId: number;
+    companyBookId: number;
     file: File;
   }): Promise<ParseImportResponse> {
     const formData = new FormData();
-    formData.append("company_id", String(params.companyId));
-    formData.append("format_id", String(params.formatId));
+    formData.append("company_book_id", String(params.companyBookId));
     formData.append("file", params.file);
 
     const response = await fetch(`${API_BASE_URL}/accounting/gl/imports/parse`, {
@@ -71,7 +121,6 @@ export const GLService = {
 
   async saveImport(params: {
     companyId: number;
-    formatId: number;
     sourceFileId: number;
   }): Promise<void> {
     const response = await fetch(`${API_BASE_URL}/accounting/gl/imports/save`, {
@@ -81,7 +130,6 @@ export const GLService = {
       },
       body: JSON.stringify({
         company_id: params.companyId,
-        format_id: params.formatId,
         source_file_id: params.sourceFileId,
       }),
     });
@@ -105,5 +153,21 @@ export const GLService = {
     if (!response.ok) {
       await handleError(response, "Failed to discard import");
     }
+  },
+
+  async getCompanyLedger(params: {
+    companyId: number;
+    period: string;
+    year: number;
+  }): Promise<CompanyLedger> {
+    const response = await fetch(
+      `${API_BASE_URL}/accounting/gl/company/${params.companyId}?period=${params.period}&year=${params.year}`
+    );
+
+    if (!response.ok) {
+      await handleError(response, "Failed to load company ledger");
+    }
+
+    return response.json();
   },
 };
