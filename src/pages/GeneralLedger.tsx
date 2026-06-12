@@ -1,40 +1,9 @@
 // src/pages/GeneralLedger.tsx
 
 import { useEffect, useMemo, useState } from "react";
+import { GLService, type CompanyGLCard } from "../services/glService";
 
 type PeriodType = "january" | "q1" | "year" | "custom";
-
-type Company = {
-  id: number;
-  name: string;
-  entity: string | null;
-  default_gl_format_id: number | null;
-};
-
-type CompanyGLCard = {
-  company_id: number;
-  company_name: string;
-  entity: string | null;
-  default_format_id: number | null;
-  default_format_name: string | null;
-  period_label: string;
-  import_count: number;
-  last_import_filename: string | null;
-  last_imported_at: string | null;
-  gl_entries: number;
-  gl_entry_lines: number;
-  bank_lines: number;
-  total_amount: number;
-};
-
-const TEMP_COMPANIES: Company[] = [
-  { id: 14, name: "ZenaTech, Inc", entity: "ZT", default_gl_format_id: null },
-  { id: 8, name: "Smith", entity: "ZT", default_gl_format_id: 2 },
-  { id: 25, name: "Morgan Land Services", entity: "ZT", default_gl_format_id: 1 },
-  { id: 20, name: "Miller", entity: "ZT", default_gl_format_id: 2 },
-  { id: 3, name: "KJM Land Surveying LLC", entity: "ZD", default_gl_format_id: 1 },
-  { id: 7, name: "KJM Land Surveying LLC", entity: "ZT", default_gl_format_id: 1 },
-];
 
 export default function GeneralLedger() {
   const [period, setPeriod] = useState<PeriodType>("q1");
@@ -42,42 +11,47 @@ export default function GeneralLedger() {
   const [companyId, setCompanyId] = useState<string>("all");
   const [entityFilter, setEntityFilter] = useState("all");
 
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [cards, setCards] = useState<CompanyGLCard[]>([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    loadCompanies();
-  }, []);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadCompanyCards();
   }, [period, year]);
 
-  async function loadCompanies() {
-    // Later replace with:
-    // const res = await fetch("/api/companies");
-    // setCompanies(await res.json());
-
-    setCompanies(TEMP_COMPANIES);
-  }
-
   async function loadCompanyCards() {
     setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch(
-        `/api/gl/company-cards?period=${period}&year=${year}`
-      );
-
-      setCards(await res.json());
-    } catch {
-      // Temp fallback until backend endpoint is ready.
+      const data = await GLService.getCompanyCards({ period, year });
+      setCards(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load GL cards");
       setCards([]);
     } finally {
       setLoading(false);
     }
   }
+
+  // The company + book/entity filters are derived from the cards themselves, so
+  // the dropdowns always match the GL-enabled companies the backend returns.
+  const companies = useMemo(() => {
+    const seen = new Map<
+      number,
+      { id: number; name: string; entity: string | null }
+    >();
+    for (const card of cards) {
+      if (!seen.has(card.company_id)) {
+        seen.set(card.company_id, {
+          id: card.company_id,
+          name: card.company_name,
+          entity: card.entity,
+        });
+      }
+    }
+    return Array.from(seen.values());
+  }, [cards]);
 
   const entities = useMemo(() => {
     const values = new Set(companies.map((company) => company.entity || "No Entity"));
@@ -114,6 +88,12 @@ export default function GeneralLedger() {
           Upload New GL
         </button>
       </header>
+
+      {error && (
+        <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </section>
+      )}
 
       <section className="rounded-lg border bg-white p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-4">
