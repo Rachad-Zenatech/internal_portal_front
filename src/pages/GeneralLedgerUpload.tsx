@@ -31,6 +31,16 @@ export default function GeneralLedgerUpload() {
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({
+    date: 180,
+    account: 180,
+    type: 180,
+    name: 180,
+    memo: 180,
+    debit: 180,
+    credit: 180,
+  });
+
   const selectedBook = useMemo(
     () => books.find((book) => book.book_id === bookId) ?? null,
     [books, bookId]
@@ -39,6 +49,25 @@ export default function GeneralLedgerUpload() {
   useEffect(() => {
     loadSetup();
   }, []);
+
+  function resizeColumn(column: string, startX: number, startWidth: number) {
+    function onMouseMove(event: MouseEvent) {
+      const nextWidth = Math.max(120, startWidth + event.clientX - startX);
+
+      setColumnWidths((current) => ({
+        ...current,
+        [column]: nextWidth,
+      }));
+    }
+
+    function onMouseUp() {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    }
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  }
 
   async function loadSetup() {
     setIsLoadingSetup(true);
@@ -70,11 +99,11 @@ export default function GeneralLedgerUpload() {
 
       setSummary(data.summary);
 
-      // Pull the actual rows so the user reviews real GL data, not just counts.
       const previewData = await GLService.getImportPreview({
         sourceFileId: data.summary.source_file_id,
         companyId: data.summary.company_id,
       });
+
       setPreview(previewData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
@@ -249,58 +278,149 @@ export default function GeneralLedgerUpload() {
                       {formatMoney(preview.totals.debits)}
                     </p>
                   </div>
+
                   <div>
                     <p className="text-xs uppercase text-gray-500">Credits</p>
                     <p className="font-semibold">
                       {formatMoney(preview.totals.credits)}
                     </p>
                   </div>
+
                   <div>
                     <p className="text-xs uppercase text-gray-500">Balance</p>
                     <p
                       className={`font-semibold ${
-                        Math.abs(preview.totals.debits - preview.totals.credits) < 0.005
+                        Math.abs(
+                          preview.totals.debits - preview.totals.credits
+                        ) < 0.005
                           ? "text-green-700"
                           : "text-red-700"
                       }`}
                     >
-                      {formatMoney(preview.totals.debits - preview.totals.credits)}
+                      {formatMoney(
+                        preview.totals.debits - preview.totals.credits
+                      )}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm">
+              <div className="mt-4 overflow-x-auto rounded-lg border">
+                <table className="table-fixed text-sm">
                   <thead>
-                    <tr className="border-b">
-                      <Th>Date</Th>
-                      <Th>Account</Th>
-                      <Th>Type</Th>
-                      <Th>Name</Th>
-                      <Th>Memo</Th>
-                      <Th align="right">Debit</Th>
-                      <Th align="right">Credit</Th>
+                    <tr className="border-b bg-gray-50">
+                      <ResizableTh
+                        width={columnWidths.date}
+                        onResize={(e) =>
+                          resizeColumn("date", e.clientX, columnWidths.date)
+                        }
+                      >
+                        Date
+                      </ResizableTh>
+
+                      <ResizableTh
+                        width={columnWidths.account}
+                        onResize={(e) =>
+                          resizeColumn(
+                            "account",
+                            e.clientX,
+                            columnWidths.account
+                          )
+                        }
+                      >
+                        Account
+                      </ResizableTh>
+
+                      <ResizableTh
+                        width={columnWidths.type}
+                        onResize={(e) =>
+                          resizeColumn("type", e.clientX, columnWidths.type)
+                        }
+                      >
+                        Type
+                      </ResizableTh>
+
+                      <ResizableTh
+                        width={columnWidths.name}
+                        onResize={(e) =>
+                          resizeColumn("name", e.clientX, columnWidths.name)
+                        }
+                      >
+                        Name
+                      </ResizableTh>
+
+                      <ResizableTh
+                        width={columnWidths.memo}
+                        onResize={(e) =>
+                          resizeColumn("memo", e.clientX, columnWidths.memo)
+                        }
+                      >
+                        Memo
+                      </ResizableTh>
+
+                      <ResizableTh
+                        width={columnWidths.debit}
+                        align="right"
+                        onResize={(e) =>
+                          resizeColumn("debit", e.clientX, columnWidths.debit)
+                        }
+                      >
+                        Debit
+                      </ResizableTh>
+
+                      <ResizableTh
+                        width={columnWidths.credit}
+                        align="right"
+                        onResize={(e) =>
+                          resizeColumn(
+                            "credit",
+                            e.clientX,
+                            columnWidths.credit
+                          )
+                        }
+                      >
+                        Credit
+                      </ResizableTh>
                     </tr>
                   </thead>
+
                   <tbody>
                     {preview.rows.map((row, index) => (
-                      <tr key={index} className="border-b last:border-b-0">
-                        <Td>{row.date || "-"}</Td>
-                        <Td>
+                      <tr
+                        key={index}
+                        className="border-b align-top last:border-b-0"
+                      >
+                        <ResizableTd width={columnWidths.date}>
+                          {row.date || "-"}
+                        </ResizableTd>
+
+                        <ResizableTd width={columnWidths.account}>
                           {row.account_number
-                            ? `${row.account_number} · ${row.account_name || ""}`
+                            ? `${row.account_number} · ${
+                                row.account_name || ""
+                              }`
                             : "-"}
-                        </Td>
-                        <Td>{row.type || "-"}</Td>
-                        <Td>{row.name || "-"}</Td>
-                        <Td>{row.memo || "-"}</Td>
-                        <Td align="right">
+                        </ResizableTd>
+
+                        <ResizableTd width={columnWidths.type}>
+                          {row.type || "-"}
+                        </ResizableTd>
+
+                        <ResizableTd width={columnWidths.name}>
+                          {row.name || "-"}
+                        </ResizableTd>
+
+                        <ResizableTd width={columnWidths.memo} wrap>
+                          {row.memo || "-"}
+                        </ResizableTd>
+
+                        <ResizableTd width={columnWidths.debit} align="right">
                           {row.debit ? formatMoney(row.debit) : "-"}
-                        </Td>
-                        <Td align="right">
+                        </ResizableTd>
+
+                        <ResizableTd width={columnWidths.credit} align="right">
                           {row.credit ? formatMoney(row.credit) : "-"}
-                        </Td>
+                        </ResizableTd>
                       </tr>
                     ))}
                   </tbody>
@@ -358,31 +478,62 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function Th({
+function ResizableTh({
   children,
+  width,
   align = "left",
+  onResize,
 }: {
   children: React.ReactNode;
+  width: number;
   align?: "left" | "right";
+  onResize: (event: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   return (
     <th
-      className={`whitespace-nowrap px-3 py-2 text-${align} font-medium text-gray-600`}
+      className="relative border-r px-3 py-2 font-medium text-gray-600 last:border-r-0"
+      style={{
+        width,
+        minWidth: width,
+        maxWidth: width,
+      }}
     >
-      {children}
+      <div className={align === "right" ? "text-right" : "text-left"}>
+        {children}
+      </div>
+
+      <div
+        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-gray-400"
+        onMouseDown={onResize}
+      />
     </th>
   );
 }
 
-function Td({
+function ResizableTd({
   children,
+  width,
   align = "left",
+  wrap = false,
 }: {
   children: React.ReactNode;
+  width: number;
   align?: "left" | "right";
+  wrap?: boolean;
 }) {
   return (
-    <td className={`whitespace-nowrap px-3 py-2 text-${align}`}>{children}</td>
+    <td
+      className={`border-r px-3 py-2 last:border-r-0 ${
+        align === "right" ? "text-right" : "text-left"
+      } ${wrap ? "whitespace-normal break-words" : "truncate whitespace-nowrap"}`}
+      style={{
+        width,
+        minWidth: width,
+        maxWidth: width,
+      }}
+    >
+      {children}
+    </td>
   );
 }
 
