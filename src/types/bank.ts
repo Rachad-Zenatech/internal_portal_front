@@ -76,6 +76,23 @@ export interface QuarterlySummary {
   closing_balance: number;
   statement_count: number;
 }
+
+export type SummaryPeriod = "monthly" | "quarterly" | "yearly";
+
+export interface Summary {
+  company_name: string;
+  account_number: string;
+  bank_name: string;
+  statement_year: number;
+  // period index within the year: month (1-12), quarter (1-4), or the year
+  // itself when period === "yearly".
+  period: number;
+  total_in: number;
+  total_out: number;
+  beginning_balance: number;
+  closing_balance: number;
+  statement_count: number;
+}
  
 // ─── Statement preview (parse-only, not yet persisted) ─────────────────────────
 
@@ -103,6 +120,10 @@ export interface StatementPreview {
   company_name: string | null;
   bank_name: string | null;
   account_number: string | null;
+  // Account number on the selected bank account and whether it matches the
+  // number parsed from the uploaded PDF (set by the backend preview endpoint).
+  expected_account_number: string | null;
+  account_matches: boolean;
   statement_date: string;
   beginning_balance: number;
   total_additions: number;

@@ -1,4 +1,5 @@
-import { ArrowLeft, CheckCircle2, AlertCircle } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
 import type {
   StatementPreview,
   PreviewCheckTransaction,
@@ -8,6 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -46,6 +57,10 @@ export default function StatementPreviewReview({
   isCommitting,
   error,
 }: Props) {
+  const accountMismatch = !preview.account_matches;
+  // Pop the warning dialog automatically when the parsed account doesn't match.
+  const [dialogOpen, setDialogOpen] = useState(accountMismatch);
+
   const meta: [string, string][] = [
     ["Company", preview.company_name ?? "—"],
     ["Bank", preview.bank_name ?? "—"],
@@ -69,12 +84,27 @@ export default function StatementPreviewReview({
         </p>
       </div>
 
-      <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-800">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Review the extracted data below. Nothing is saved until you confirm.
-        </AlertDescription>
-      </Alert>
+      {accountMismatch ? (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            The account number on this statement
+            {preview.account_number ? ` (****${preview.account_number})` : ""} does
+            not match the selected bank account
+            {preview.expected_account_number
+              ? ` (****${preview.expected_account_number})`
+              : ""}
+            . Go back and choose the correct account before saving.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-800">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Review the extracted data below. Nothing is saved until you confirm.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="mb-4">
         <CardContent className="space-y-1.5">
@@ -137,14 +167,45 @@ export default function StatementPreviewReview({
       )}
 
       <div className="mt-6 flex items-center gap-3">
-        <Button onClick={onConfirm} disabled={isCommitting} className="gap-2">
-          <CheckCircle2 className="h-4 w-4" />
-          {isCommitting ? "Saving…" : `Confirm & save (${txCount} transactions)`}
-        </Button>
+        {/* Confirm is omitted entirely on a mismatch so it can't be re-enabled
+            by editing the DOM — the backend rejects mismatched commits too. */}
+        {!accountMismatch && (
+          <Button onClick={onConfirm} disabled={isCommitting} className="gap-2">
+            <CheckCircle2 className="h-4 w-4" />
+            {isCommitting ? "Saving…" : `Confirm & save (${txCount} transactions)`}
+          </Button>
+        )}
         <Button variant="outline" onClick={onCancel} disabled={isCommitting}>
           Cancel
         </Button>
       </div>
+
+      <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className="bg-destructive/10 text-destructive">
+              <AlertTriangle />
+            </AlertDialogMedia>
+            <AlertDialogTitle>Bank account does not match</AlertDialogTitle>
+            <AlertDialogDescription>
+              The account number on the uploaded statement
+              {preview.account_number ? ` (****${preview.account_number})` : ""} does
+              not match the bank account you selected
+              {preview.expected_account_number
+                ? ` (****${preview.expected_account_number})`
+                : ""}
+              . You can't save this statement — go back and select the correct
+              account, or upload the matching statement.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction variant="outline" onClick={() => setDialogOpen(false)}>
+              Review anyway
+            </AlertDialogAction>
+            <AlertDialogAction onClick={onCancel}>Back to upload</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
