@@ -1,7 +1,11 @@
 // src/pages/GeneralLedgerUpload.tsx
 
 import { useEffect, useMemo, useState } from "react";
-import { GLService, type CompanyBook } from "../services/glService";
+import {
+  GLService,
+  type CompanyBook,
+  type ImportPreview,
+} from "../services/glService";
 
 type ParseSummary = {
   company_id: number;
@@ -20,6 +24,7 @@ export default function GeneralLedgerUpload() {
   const [file, setFile] = useState<File | null>(null);
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [isLoadingSetup, setIsLoadingSetup] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -55,6 +60,7 @@ export default function GeneralLedgerUpload() {
     setIsParsing(true);
     setError(null);
     setSummary(null);
+    setPreview(null);
 
     try {
       const data = await GLService.parseImport({
@@ -63,6 +69,13 @@ export default function GeneralLedgerUpload() {
       });
 
       setSummary(data.summary);
+
+      // Pull the actual rows so the user reviews real GL data, not just counts.
+      const previewData = await GLService.getImportPreview({
+        sourceFileId: data.summary.source_file_id,
+        companyId: data.summary.company_id,
+      });
+      setPreview(previewData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
     } finally {
@@ -95,6 +108,7 @@ export default function GeneralLedgerUpload() {
     } finally {
       setIsDiscarding(false);
       setSummary(null);
+      setPreview(null);
     }
   }
 
@@ -156,6 +170,7 @@ export default function GeneralLedgerUpload() {
                 discardStaged(summary);
                 setBookId(e.target.value ? Number(e.target.value) : null);
                 setSummary(null);
+                setPreview(null);
               }}
             >
               <option value="">
@@ -180,6 +195,7 @@ export default function GeneralLedgerUpload() {
                 discardStaged(summary);
                 setFile(e.target.files?.[0] ?? null);
                 setSummary(null);
+                setPreview(null);
               }}
             />
           </label>
@@ -191,7 +207,7 @@ export default function GeneralLedgerUpload() {
             disabled={!bookId || !file || isParsing}
             onClick={handleParse}
           >
-            {isParsing ? "Parsing..." : "Upload & Parse"}
+            {isParsing ? "Parsing..." : "Parse & Preview"}
           </button>
         </div>
       </section>
@@ -215,11 +231,89 @@ export default function GeneralLedgerUpload() {
             <Metric label="Bank Lines" value={summary.bank_lines} />
           </section>
 
+          {preview && (
+            <section className="rounded-lg border bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-medium">Review Parsed GL</h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Showing the first {preview.rows.length} of{" "}
+                    {preview.totals.line_count} parsed lines.
+                  </p>
+                </div>
+
+                <div className="flex gap-6 text-right text-sm">
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Debits</p>
+                    <p className="font-semibold">
+                      {formatMoney(preview.totals.debits)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Credits</p>
+                    <p className="font-semibold">
+                      {formatMoney(preview.totals.credits)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-gray-500">Balance</p>
+                    <p
+                      className={`font-semibold ${
+                        Math.abs(preview.totals.debits - preview.totals.credits) < 0.005
+                          ? "text-green-700"
+                          : "text-red-700"
+                      }`}
+                    >
+                      {formatMoney(preview.totals.debits - preview.totals.credits)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <Th>Date</Th>
+                      <Th>Account</Th>
+                      <Th>Type</Th>
+                      <Th>Name</Th>
+                      <Th>Memo</Th>
+                      <Th align="right">Debit</Th>
+                      <Th align="right">Credit</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.map((row, index) => (
+                      <tr key={index} className="border-b last:border-b-0">
+                        <Td>{row.date || "-"}</Td>
+                        <Td>
+                          {row.account_number
+                            ? `${row.account_number} · ${row.account_name || ""}`
+                            : "-"}
+                        </Td>
+                        <Td>{row.type || "-"}</Td>
+                        <Td>{row.name || "-"}</Td>
+                        <Td>{row.memo || "-"}</Td>
+                        <Td align="right">
+                          {row.debit ? formatMoney(row.debit) : "-"}
+                        </Td>
+                        <Td align="right">
+                          {row.credit ? formatMoney(row.credit) : "-"}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
           <section className="rounded-lg border bg-white p-4 shadow-sm">
-            <h2 className="text-lg font-medium">Ready to Save</h2>
+            <h2 className="text-lg font-medium">Save Import</h2>
             <p className="mt-1 text-sm text-gray-500">
-              This import has been parsed. Save it to make it available on the
-              company GL dashboard.
+              Review the parsed rows above, then save to make this import
+              available on the company GL dashboard.
             </p>
 
             <div className="mt-4 flex justify-end gap-3">
@@ -262,4 +356,39 @@ function Metric({ label, value }: { label: string; value: number }) {
       <p className="mt-1 text-2xl font-semibold">{value}</p>
     </div>
   );
+}
+
+function Th({
+  children,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
+  return (
+    <th
+      className={`whitespace-nowrap px-3 py-2 text-${align} font-medium text-gray-600`}
+    >
+      {children}
+    </th>
+  );
+}
+
+function Td({
+  children,
+  align = "left",
+}: {
+  children: React.ReactNode;
+  align?: "left" | "right";
+}) {
+  return (
+    <td className={`whitespace-nowrap px-3 py-2 text-${align}`}>{children}</td>
+  );
+}
+
+function formatMoney(value: number) {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }

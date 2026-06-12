@@ -31,6 +31,43 @@ export type ParseImportResponse = {
   summary: ParseSummary;
 };
 
+export type ImportPreviewRow = {
+  date: string | null;
+  account_number: string | null;
+  account_name: string | null;
+  type: string | null;
+  name: string | null;
+  memo: string | null;
+  debit: number;
+  credit: number;
+};
+
+export type ImportPreview = {
+  source_file_id: number;
+  totals: {
+    debits: number;
+    credits: number;
+    line_count: number;
+  };
+  rows: ImportPreviewRow[];
+};
+
+export type CompanyGLCard = {
+  company_id: number;
+  company_name: string;
+  entity: string | null;
+  default_format_id: number | null;
+  default_format_name: string | null;
+  period_label: string;
+  import_count: number;
+  last_import_filename: string | null;
+  last_imported_at: string | null;
+  gl_entries: number;
+  gl_entry_lines: number;
+  bank_lines: number;
+  total_amount: number;
+};
+
 export type GLVisualTransaction = {
   entry_id: number;
   entry_date: string | null;
@@ -153,6 +190,38 @@ export const GLService = {
     if (!response.ok) {
       await handleError(response, "Failed to discard import");
     }
+  },
+
+  async getImportPreview(params: {
+    sourceFileId: number;
+    companyId: number;
+    limit?: number;
+  }): Promise<ImportPreview> {
+    const limit = params.limit ?? 100;
+    const response = await fetch(
+      `${API_BASE_URL}/accounting/gl/imports/${params.sourceFileId}/preview?company_id=${params.companyId}&limit=${limit}`
+    );
+
+    if (!response.ok) {
+      await handleError(response, "Failed to load import preview");
+    }
+
+    return response.json();
+  },
+
+  async getCompanyCards(params: {
+    period: string;
+    year: number;
+  }): Promise<CompanyGLCard[]> {
+    const response = await fetch(
+      `${API_BASE_URL}/accounting/gl/company-cards?period=${params.period}&year=${params.year}`
+    );
+
+    if (!response.ok) {
+      await handleError(response, "Failed to load company cards");
+    }
+
+    return response.json();
   },
 
   async getCompanyLedger(params: {
