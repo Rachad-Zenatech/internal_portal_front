@@ -187,6 +187,7 @@ export default function SummaryPage() {
               <TableHead>Company</TableHead>
               <TableHead>Account</TableHead>
               <TableHead>Bank</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>
                 {activePeriod === "monthly"
                   ? "Month"
@@ -209,6 +210,7 @@ export default function SummaryPage() {
                 <TableCell>{r.company_name}</TableCell>
                 <TableCell>****{r.account_number}</TableCell>
                 <TableCell>{r.bank_name}</TableCell>
+                <TableCell className="capitalize">{r.statement_type}</TableCell>
                 <TableCell>{periodLabel(activePeriod, r.period)}</TableCell>
                 {activePeriod === "monthly" && (
                   <TableCell className="text-right">
