@@ -129,6 +129,31 @@ export type TrialBalance = {
   };
 };
 
+export type ReconcilingItem = {
+  date: string | null;
+  description: string;
+  amount: number;
+  kind?: string;
+};
+
+export type ConsolidatedCompany = {
+  company_id: number;
+  company_name: string;
+  entity: string | null;
+  book_balance: number;
+  bank_balance: number;
+  difference: number;
+  in_bank_not_in_books: ReconcilingItem[];
+  in_books_not_in_bank: ReconcilingItem[];
+};
+
+export type ConsolidatedReconciliation = {
+  period_label: string;
+  year: number;
+  quarter: number;
+  companies: ConsolidatedCompany[];
+};
+
 async function handleError(response: Response, fallbackMessage: string): Promise<never> {
   const text = await response.text();
 
@@ -270,6 +295,21 @@ export const GLService = {
 
     if (!response.ok) {
       await handleError(response, "Failed to load trial balance");
+    }
+
+    return response.json();
+  },
+
+  async getConsolidated(params: {
+    year: number;
+    quarter: number;
+  }): Promise<ConsolidatedReconciliation> {
+    const response = await fetch(
+      `${API_BASE_URL}/accounting/gl/consolidated?year=${params.year}&quarter=${params.quarter}`
+    );
+
+    if (!response.ok) {
+      await handleError(response, "Failed to load consolidated reconciliation");
     }
 
     return response.json();
