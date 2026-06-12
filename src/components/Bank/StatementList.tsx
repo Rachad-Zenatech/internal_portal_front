@@ -28,6 +28,10 @@ const ALL = "all";
 const fmt = (n: number): string =>
   Number(n).toLocaleString("en-US", { minimumFractionDigits: 2 });
 
+// Capitalize the statement type for display (e.g. "savings" -> "Savings").
+const typeLabel = (t: string): string =>
+  t ? t.charAt(0).toUpperCase() + t.slice(1) : "—";
+
 interface Props {
   onSelect: (id: number) => void;
 }
@@ -95,6 +99,9 @@ export default function StatementList({ onSelect }: Props) {
               <div className="mb-1 flex items-center justify-between">
                 <span className="text-sm font-semibold">{stmt.company_name}</span>
                 <div className="flex items-center gap-2">
+                  <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium capitalize text-muted-foreground">
+                    {typeLabel(stmt.statement_type)}
+                  </span>
                   <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                     Q{stmt.statement_quarter} {stmt.statement_year}
                   </span>

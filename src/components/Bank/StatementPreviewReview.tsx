@@ -65,6 +65,9 @@ export default function StatementPreviewReview({
     ["Company", preview.company_name ?? "—"],
     ["Bank", preview.bank_name ?? "—"],
     ["Account", preview.account_number ? `****${preview.account_number}` : "—"],
+    ["Type", preview.statement_type
+      ? preview.statement_type.charAt(0).toUpperCase() + preview.statement_type.slice(1)
+      : "—"],
     ["Date", preview.statement_date],
   ];
 

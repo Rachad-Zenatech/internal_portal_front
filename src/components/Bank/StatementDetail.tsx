@@ -56,6 +56,9 @@ export default function StatementDetail({ statementId, onBack }: Props) {
     ["Company", statement.company_name],
     ["Bank", statement.bank_name],
     ["Account", `****${statement.account_number}`],
+    ["Type", statement.statement_type
+      ? statement.statement_type.charAt(0).toUpperCase() + statement.statement_type.slice(1)
+      : "—"],
     [
       "Date",
       `${statement.statement_date}  —  Q${statement.statement_quarter} ${statement.statement_year}`,

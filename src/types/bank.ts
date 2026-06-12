@@ -29,6 +29,7 @@ export interface BankStatement {
   id: number;
   account_id: number;
   statement_date: string;
+  statement_type: string;  // 'checking' | 'savings'
   statement_year: number;
   statement_month: number;
   statement_quarter: number;
@@ -69,6 +70,7 @@ export interface QuarterlySummary {
   company_name: string;
   account_number: string;
   bank_name: string;
+  statement_type: string;  // 'checking' | 'savings'
   statement_year: number;
   statement_quarter: number;
   total_in: number;
@@ -83,6 +85,7 @@ export interface Summary {
   company_name: string;
   account_number: string;
   bank_name: string;
+  statement_type: string;  // 'checking' | 'savings'
   statement_year: number;
   // period index within the year: month (1-12), quarter (1-4), or the year
   // itself when period === "yearly".
@@ -125,6 +128,7 @@ export interface StatementPreview {
   expected_account_number: string | null;
   account_matches: boolean;
   statement_date: string;
+  statement_type: string;  // 'checking' | 'savings'
   beginning_balance: number;
   total_additions: number;
   total_subtractions: number;
@@ -143,6 +147,7 @@ export interface BankAccountCreate { company_id: number; bank_id: number; accoun
 export interface BankAccountUpdate { company_id?: number; bank_id?: number; account_number?: string; }
 export interface StatementCreate {
   account_id: number; statement_date: string;
+  statement_type?: string;  // 'checking' | 'savings' (defaults to 'checking')
   beginning_balance: number; total_additions: number;
   total_subtractions: number; ending_balance: number;
 }
