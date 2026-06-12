@@ -110,6 +110,25 @@ export type CompanyLedger = {
   imports: GLImportVisual[];
 };
 
+export type TrialBalanceRow = {
+  account_number: string;
+  account_name: string;
+  account_type: string | null;
+  debit: number;
+  credit: number;
+};
+
+export type TrialBalance = {
+  company_id: number;
+  company_name: string;
+  period_label: string;
+  rows: TrialBalanceRow[];
+  totals: {
+    debit: number;
+    credit: number;
+  };
+};
+
 async function handleError(response: Response, fallbackMessage: string): Promise<never> {
   const text = await response.text();
 
@@ -235,6 +254,22 @@ export const GLService = {
 
     if (!response.ok) {
       await handleError(response, "Failed to load company ledger");
+    }
+
+    return response.json();
+  },
+
+  async getTrialBalance(params: {
+    companyId: number;
+    period: string;
+    year: number;
+  }): Promise<TrialBalance> {
+    const response = await fetch(
+      `${API_BASE_URL}/accounting/gl/company/${params.companyId}/trial-balance?period=${params.period}&year=${params.year}`
+    );
+
+    if (!response.ok) {
+      await handleError(response, "Failed to load trial balance");
     }
 
     return response.json();
