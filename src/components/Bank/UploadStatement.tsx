@@ -13,9 +13,11 @@ import { Label }  from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge }  from "@/components/ui/badge";
-import { AlertCircle, Upload } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { AlertCircle, Upload, Building2, CreditCard, FileUp, Terminal } from "lucide-react";
 import { toast } from "sonner";
 import StatementPreviewReview from "./StatementPreviewReview";
+import { cn } from "@/lib/utils";
 
 interface Props { onUploaded?: (stmt: BankStatement) => void; }
 
@@ -39,6 +41,7 @@ export default function UploadStatement({ onUploaded }: Props) {
   function handleCompanyChange(value: string) {
     setCompanyId(value);
     setAccountId("");
+    setFile(null); // Clear active file block on corporate pipeline context shift
   }
 
   // Step 1 — parse the PDF and show the preview (nothing persisted yet).
@@ -78,6 +81,9 @@ export default function UploadStatement({ onUploaded }: Props) {
     commitMut.reset();
   }
 
+  const toggleItemStyles = 
+    "px-4 text-xs font-bold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90";
+
   // ── Preview / confirm screen ─────────────────────────────────────────────
   if (preview) {
     return (
@@ -93,117 +99,154 @@ export default function UploadStatement({ onUploaded }: Props) {
 
   // ── Upload form ──────────────────────────────────────────────────────────
   return (
-    <Card>
+    <Card className="border-muted-foreground/15 shadow-sm max-w-3xl animate-in fade-in duration-200">
       <CardContent className="space-y-6 p-6">
-        <div>
-          <h2 className="text-xl font-semibold">Upload Bank Statement</h2>
+        <div className="border-b pb-4">
+          <h2 className="text-xl font-bold tracking-tight mb-1">Upload Bank Statement</h2>
           <p className="text-sm text-muted-foreground">
-            Select a company and bank account, then upload a PDF. You'll review
-            the extracted data before it's saved to the database.
+            Select a target company and statement account, then deploy the document pipeline tracker.
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-
-      {/* Company */}
-      <div className="flex flex-col gap-1.5">
-        <Label>Company</Label>
-        <Select value={companyId} onValueChange={handleCompanyChange} required>
-          <SelectTrigger>
-            <SelectValue placeholder="Select a company" />
-          </SelectTrigger>
-          <SelectContent>
-            {companies.map((c) => (
-              <SelectItem key={c.id} value={String(c.id)}>
-                {c.name}
-                {c.entity && (
-                  <span className="ml-2 text-xs text-muted-foreground">{c.entity}</span>
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Bank account — filtered by selected company */}
-      {companyId && (
-        <div className="flex flex-col gap-1.5">
-          <Label>Bank account</Label>
-          {accounts.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No bank accounts linked to this company.
-            </p>
-          ) : (
-            <Select value={accountId} onValueChange={setAccountId} required>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a bank account" />
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Company Selection Dropdown Wrapper */}
+          <div className="space-y-2">
+            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5" />
+              Company
+            </Label>
+            <Select value={companyId} onValueChange={handleCompanyChange} required>
+              <SelectTrigger className="w-full max-w-sm h-10 rounded-lg border-muted-foreground/20 font-semibold text-sm focus:ring-primary">
+                <SelectValue placeholder="Select company" />
               </SelectTrigger>
               <SelectContent>
-                {accounts.map((a) => (
-                  <SelectItem key={a.id} value={String(a.id)}>
-                    {a.bank_name} — ****{a.account_number}
+                {companies.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)} className="font-medium text-sm">
+                    {c.name}
+                    {c.entity && (
+                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{c.entity}</span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          )}
+          </div>
 
-          {/* Bank type resolved automatically — shown as read-only badge */}
-          {selectedAccount && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-muted-foreground">Parser:</span>
-              <Badge variant="secondary" className="text-xs">{bankType}</Badge>
+          {/* Bank Account Toggle Group (Visible once corporate entity is defined) */}
+          {companyId && (
+            <div className="space-y-2 border-t pt-4 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <CreditCard className="h-3.5 w-3.5" />
+                Linked Account Vector
+              </Label>
+              
+              {accounts.length === 0 ? (
+                <div className="h-10 px-3 flex items-center text-xs font-semibold text-muted-foreground rounded-lg border border-dashed bg-muted/20 w-max">
+                  No account channels matched to this system instance.
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <ToggleGroup
+                    type="single"
+                    variant="outline"
+                    size="sm"
+                    className="w-max max-w-full justify-start gap-1 rounded-xl bg-muted p-1 border shadow-inner flex-wrap h-auto min-h-10"
+                    value={accountId}
+                    onValueChange={(v) => { if (v) setAccountId(v); }}
+                  >
+                    {accounts.map((a) => (
+                      <ToggleGroupItem key={a.id} value={String(a.id)} className={toggleItemStyles}>
+                        <span className="capitalize">{a.bank_name}</span> (****{a.account_number})
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+
+                  {/* Active Auto-Resolved Parser Badge Indicator */}
+                  {selectedAccount && (
+                    <div className="flex items-center gap-2 mt-1 px-1">
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Resolved Pipeline:</span>
+                      <Badge className="text-xs bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 font-bold border-none hover:bg-sky-100/80 tracking-wide uppercase px-2 py-0">
+                        {bankType}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* PDF file */}
-      {accountId && (
-        <div className="flex flex-col gap-1.5">
-          <Label>PDF file</Label>
-          <Input
-            type="file"
-            accept=".pdf"
-            required
-            onChange={(e: ChangeEvent<HTMLInputElement>) =>
-              setFile(e.target.files?.[0] ?? null)
-            }
-          />
-        </div>
-      )}
+          {/* Interactive Drag Drop-Zone Style File Input Container */}
+          {accountId && (
+            <div className="space-y-2 border-t pt-4 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <FileUp className="h-3.5 w-3.5" />
+                Target Ledger Document (PDF)
+              </Label>
+              
+              <div className="relative group border-2 border-dashed border-muted-foreground/20 rounded-xl hover:border-primary/40 transition-colors bg-muted/5 hover:bg-muted/10 p-5 flex flex-col items-center justify-center text-center gap-2">
+                <Input
+                  type="file"
+                  accept=".pdf"
+                  required
+                  onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                    setFile(e.target.files?.[0] ?? null)
+                  }
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                />
+                <div className="p-3 bg-background border rounded-lg shadow-sm group-hover:scale-105 transition-transform duration-200">
+                  <Upload className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">
+                    {file ? file.name : "Select or drag statement PDF"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : "System ledger files capped at 32MB standard"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-      {/* Tesseract path — only for firstbank, Windows only */}
-      {isFirstbank && (
-        <div className="flex flex-col gap-1.5">
-          <Label>
-            Tesseract path
-            <span className="ml-2 text-xs text-muted-foreground">(Windows only)</span>
-          </Label>
-          <Input
-            type="text"
-            value={tesseractCmd}
-            onChange={(e) => setTesseractCmd(e.target.value)}
-            placeholder="C:/Program Files/Tesseract-OCR/tesseract.exe"
-          />
-        </div>
-      )}
+          {/* Advanced OCR Parsing Environment Path Override Fields */}
+          {isFirstbank && (
+            <div className="space-y-2 border-t pt-4 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
+              <Label htmlFor="tesseract" className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Terminal className="h-3.5 w-3.5" />
+                OCR Engine Binary Path
+                <span className="text-[10px] bg-muted px-1 rounded font-normal text-muted-foreground lowercase">win-only</span>
+              </Label>
+              <Input
+                id="tesseract"
+                type="text"
+                value={tesseractCmd}
+                onChange={(e) => setTesseractCmd(e.target.value)}
+                placeholder="C:/Program Files/Tesseract-OCR/tesseract.exe"
+                className="w-full h-10 rounded-lg border-muted-foreground/20 font-mono text-xs focus-visible:ring-primary placeholder:text-muted-foreground/40 bg-muted/20"
+              />
+            </div>
+          )}
 
-      <Button
-        type="submit"
-        disabled={previewMut.isPending || !file || !accountId}
-        className="self-start gap-2"
-      >
-        <Upload className="h-4 w-4" />
-        {previewMut.isPending ? "Parsing…" : "Upload & preview"}
-      </Button>
+          {/* Form Action Infrastructure Button Container Row */}
+          <div className="pt-3 border-t flex flex-col gap-3">
+            <Button
+              type="submit"
+              disabled={previewMut.isPending || !file || !accountId}
+              className="w-max gap-2 px-5 font-bold text-sm shadow-sm transition-transform active:scale-95 self-end"
+            >
+              <Upload className={cn("h-4 w-4", previewMut.isPending && "animate-bounce")} />
+              {previewMut.isPending ? "Parsing Ledger Pipeline..." : "Execute Upload & Preview"}
+            </Button>
 
-      {previewMut.isError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{(previewMut.error as Error).message}</AlertDescription>
-        </Alert>
-      )}
+            {previewMut.isError && (
+              <Alert variant="destructive" className="rounded-xl border-destructive/20 bg-destructive/5 text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="font-semibold text-xs tracking-wide">
+                  {(previewMut.error as Error).message}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </form>
       </CardContent>
     </Card>

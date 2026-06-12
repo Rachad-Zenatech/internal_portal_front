@@ -1,295 +1,3 @@
-// // src/pages/BankReconciliation.tsx
-
-// import { useEffect, useState } from "react";
-// import { 
-//   Select, 
-//   SelectContent, 
-//   SelectItem, 
-//   SelectTrigger, 
-//   SelectValue 
-// } from "@/components/ui/select";
-
-// import type { ChartOfAccounts } from "@/types/chartOfAccount";
-
-// export default function BankReconciliation() {
-
-
-//   const [company, setCompany] = useState("");
-
-//   const [selectedCOA, setSelectedCOA] =
-//     useState("");
-
-//   const [availableCOAs, setAvailableCOAs] =
-//     useState<ChartOfAccounts>();
-
-//   const [bankStatements, setBankStatements] =
-//     useState<FileList | null>(null);
-
-//   const [generalLedger, setGeneralLedger] =
-//     useState<File | null>(null);
-
-//   const [template, setTemplate] =
-//     useState<File | null>(null);
-
-//   const [isGenerating, setIsGenerating] =
-//     useState(false);
-
-//   // const [result, setResult] =
-//   //   useState("");
-
-//   async function loadChartOfAccounts() {
-//     /*
-//       Later:
-
-//       const response = await fetch(
-//         "http://localhost:8000/chart-of-accounts"
-//       );
-
-//       const data = await response.json();
-
-//       setAvailableCOAs(data);
-//     */
-//   }
-
-//   // async function generateReconciliation() {
-//   //   try {
-//   //     setIsGenerating(true);
-
-//   //     const formData = new FormData();
-
-//   //     formData.append("company", company);
-
-//   //     formData.append(
-//   //       "chartOfAccountsId",
-//   //       selectedCOA
-//   //     );
-
-//   //     if (generalLedger) {
-//   //       formData.append(
-//   //         "generalLedger",
-//   //         generalLedger
-//   //       );
-//   //     }
-
-//   //     if (template) {
-//   //       formData.append(
-//   //         "template",
-//   //         template
-//   //       );
-//   //     }
-
-//   //     if (bankStatements) {
-//   //       Array.from(bankStatements).forEach(
-//   //         (file) => {
-//   //           formData.append(
-//   //             "bankStatements",
-//   //             file
-//   //           );
-//   //         }
-//   //       );
-//   //     }
-
-//   //     const response = await fetch(
-//   //       "http://localhost:8000/bank-reconciliation/generate",
-//   //       {
-//   //         method: "POST",
-//   //         body: formData,
-//   //       }
-//   //     );
-
-//   //     const data = await response.json();
-
-//   //     setResult(
-//   //       data.message ??
-//   //         "Reconciliation completed."
-//   //     );
-//   //   } catch (error) {
-//   //     console.error(error);
-
-//   //     setResult(
-//   //       "Failed to generate reconciliation."
-//   //     );
-//   //   } finally {
-//   //     setIsGenerating(false);
-//   //   }
-//   // }
-
-//   // const selectedChart =
-//   //   availableCOAs.find(
-//   //     (coa) =>
-//   //       coa.id.toString() === selectedCOA
-//   //   );
-
-//   return (
-//     <div className="p-8">
-//       <div className="mb-8">
-//         <h1 className="text-3xl font-bold">
-//           Bank Reconciliation
-//         </h1>
-
-//         <p className="text-slate-500">
-//           Generate reconciliation workbooks
-//           using the approved Chart of
-//           Accounts.
-//         </p>
-//       </div>
-
-//       <div className="rounded-xl border bg-white p-6">
-//         <div className="space-y-6">
-
-//           {/* Company */}
-//           {/* <div>
-//             <label className="mb-2 block font-medium">
-//               Company
-//             </label>
-
-//             <Select onValueChange={(value) => console.log("Selected company ID:", value)}>
-//               <SelectTrigger className="w-[280px]">
-//                 <SelectValue placeholder="Select a company" />
-//               </SelectTrigger>
-//               <SelectContent>
-//                 {result?.companies.map((company) => (
-//                   <SelectItem key={company.id} value={company.id.toString()}>
-//                     {company.name}
-//                   </SelectItem>
-//                 ))}
-//               </SelectContent>
-//             </Select>
-//           </div> */}
-
-//           {/* Chart Of Accounts */}
-//           <div>
-//             <label className="mb-2 block font-medium">
-//               Chart Of Accounts
-//             </label>
-
-//             <select
-//               value={selectedCOA}
-//               onChange={(e) =>
-//                 setSelectedCOA(
-//                   e.target.value
-//                 )
-//               }
-//               className="w-full rounded-lg border p-2"
-//             >
-//               <option value="">
-//                 Select Chart Of Accounts
-//               </option>
-
-//               {/* {availableCOAs.map(
-//                 (coa) => (
-//                   <option
-//                     key={coa.id}
-//                     value={coa.id}
-//                   >
-//                     {coa.name}
-//                   </option>
-//                 )
-//               )} */}
-//             </select>
-//           </div>
-
-//           {/* Selected COA */}
-//           {/* {selectedChart && (
-//             <div className="rounded-lg border bg-slate-50 p-4">
-//               <h3 className="mb-2 font-semibold">
-//                 Selected Chart Of Accounts
-//               </h3>
-
-//               <div>
-//                 <strong>Name:</strong>{" "}
-//                 {selectedChart.name}
-//               </div>
-
-//               <div>
-//                 <strong>Version:</strong>{" "}
-//                 {selectedChart.version}
-//               </div>
-//             </div>
-//           )} */}
-
-//           {/* Bank Statements */}
-//           <div>
-//             <label className="mb-2 block font-medium">
-//               Bank Statement PDFs
-//             </label>
-
-//             <input
-//               type="file"
-//               multiple
-//               accept=".pdf"
-//               onChange={(e) =>
-//                 setBankStatements(
-//                   e.target.files
-//                 )
-//               }
-//             />
-//           </div>
-
-//           {/* General Ledger */}
-//           <div>
-//             <label className="mb-2 block font-medium">
-//               General Ledger
-//             </label>
-
-//             <input
-//               type="file"
-//               accept=".xlsx,.xls"
-//               onChange={(e) =>
-//                 setGeneralLedger(
-//                   e.target.files?.[0] ??
-//                     null
-//                 )
-//               }
-//             />
-//           </div>
-
-//           {/* Template */}
-//           <div>
-//             <label className="mb-2 block font-medium">
-//               Reconciliation Template
-//             </label>
-
-//             <input
-//               type="file"
-//               accept=".xlsx,.xls"
-//               onChange={(e) =>
-//                 setTemplate(
-//                   e.target.files?.[0] ??
-//                     null
-//                 )
-//               }
-//             />
-//           </div>
-
-//           {/* Generate */}
-//           {/* <button
-//             onClick={
-//               generateReconciliation
-//             }
-//             disabled={
-//               isGenerating ||
-//               !selectedCOA
-//             }
-//             className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 disabled:bg-slate-400"
-//           >
-//             {isGenerating
-//               ? "Generating..."
-//               : "Generate Reconciliation"}
-//           </button> */}
-
-//           {/* Result */}
-//           {/* {result && (
-//             <div className="rounded-lg bg-slate-100 p-4">
-//               {result}
-//             </div>
-//           )} */}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, Upload, BarChart3 } from "lucide-react";
@@ -324,23 +32,38 @@ export default function BankReconciliation() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="mb-6">
-          <TabsTrigger value="statements" className="gap-2">
-            <Building2 className="h-4 w-4" />
+        {/* Added smooth hover transitions and dynamic scale-down press effects */}
+        <TabsList className="mb-8 h-12 w-max items-center justify-start gap-1 rounded-xl bg-muted p-1 border shadow-inner">
+          <TabsTrigger 
+            value="statements" 
+            className="h-full px-5 text-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10 gap-2"
+          >
+            <Building2 className="h-4 w-4 transition-transform duration-200 data-[state=active]:scale-110" />
             Statements
           </TabsTrigger>
-          <TabsTrigger value="upload" className="gap-2">
-            <Upload className="h-4 w-4" />
+          
+          <TabsTrigger 
+            value="upload" 
+            className="h-full px-5 text-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10 gap-2"
+          >
+            <Upload className="h-4 w-4 transition-transform duration-200 data-[state=active]:scale-110" />
             Upload
           </TabsTrigger>
-          <TabsTrigger value="summary" className="gap-2">
-            <BarChart3 className="h-4 w-4" />
+          
+          <TabsTrigger 
+            value="summary" 
+            className="h-full px-5 text-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10 gap-2"
+          >
+            <BarChart3 className="h-4 w-4 transition-transform duration-200 data-[state=active]:scale-110" />
             Summary
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Statements tab ─────────────────────────────────────────── */}
-        <TabsContent value="statements">
+        {/* ── Tabs Content with Added Subtle Entrance Animations ────── */}
+        <TabsContent 
+          value="statements" 
+          className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2"
+        >
           {selectedId == null ? (
             <StatementList onSelect={setSelectedId} />
           ) : (
@@ -351,13 +74,17 @@ export default function BankReconciliation() {
           )}
         </TabsContent>
 
-        {/* ── Upload tab ─────────────────────────────────────────────── */}
-        <TabsContent value="upload">
+        <TabsContent 
+          value="upload" 
+          className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2"
+        >
           <UploadStatement onUploaded={handleUploaded} />
         </TabsContent>
 
-        {/* ── Summary tab ────────────────────────────────────────────── */}
-        <TabsContent value="summary">
+        <TabsContent 
+          value="summary" 
+          className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2"
+        >
           <SummaryPage />
         </TabsContent>
       </Tabs>
