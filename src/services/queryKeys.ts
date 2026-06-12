@@ -19,5 +19,6 @@ export const queryKeys = {
   statementChecks:   (stmtId: number, section?: string | null):             unknown[] => ["statements", stmtId, "checks",   { section }],
   statementDeposits: (stmtId: number, section?: string | null):             unknown[] => ["statements", stmtId, "deposits", { section }],
   byQuarter:         (year: number, quarter: number, acctId?: number | null): unknown[] => ["statements", "by-quarter", { year, quarter, acctId }],
-  quarterlySummary:  (year: number, acctId?: number | null):                unknown[] => ["statements", "quarterly", { year, acctId }],
+  quarterlySummary:  (year: number, companyId?: number | null, acctId?: number | null): unknown[] => ["statements", "quarterly", { year, companyId, acctId }],
+  summary:           (period: string, year: number, companyId?: number | null, acctId?: number | null): unknown[] => ["statements", "summary", { period, year, companyId, acctId }],
 };

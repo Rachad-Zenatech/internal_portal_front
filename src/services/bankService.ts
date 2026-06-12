@@ -7,7 +7,8 @@ import type {
     BankStatement, StatementUpdate,
     CheckTransaction, CheckCreate, CheckUpdate,
     DepositCreate, DepositTransaction, DepositUpdate,
-    QuarterlySummary, StatementCreate, StatementPreview
+    QuarterlySummary, StatementCreate, StatementPreview,
+    Summary, SummaryPeriod
 } from "@/types/bank";
 import { handleResponse } from "./helper";
 import.meta.env.VITE_API_BASE_URL;
@@ -180,9 +181,24 @@ export const statementService = {
  
   async getQuarterlySummary(
     year: number,
+    companyId?: number | null,
     accountId?: number | null,
   ): Promise<QuarterlySummary[]> {
     let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/quarterly?year=${year}`;
+    if (companyId) url += `&company_id=${companyId}`;
+    if (accountId) url += `&account_id=${accountId}`;
+    const response = await fetch(url);
+    return handleResponse(response);
+  },
+
+  async getSummary(
+    period: SummaryPeriod,
+    year: number,
+    companyId?: number | null,
+    accountId?: number | null,
+  ): Promise<Summary[]> {
+    let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/summary?year=${year}&period=${period}`;
+    if (companyId) url += `&company_id=${companyId}`;
     if (accountId) url += `&account_id=${accountId}`;
     const response = await fetch(url);
     return handleResponse(response);

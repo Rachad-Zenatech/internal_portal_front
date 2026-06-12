@@ -10,7 +10,8 @@ import {
   type BankStatement, type StatementCreate, type StatementUpdate,
   type CheckTransaction, type CheckCreate, type CheckUpdate,
   type DepositTransaction, type DepositCreate, type DepositUpdate,
-  type QuarterlySummary, type StatementPreview
+  type QuarterlySummary, type StatementPreview,
+  type Summary, type SummaryPeriod
 } from "../types/bank";
 import { queryKeys } from '../services/queryKeys';
 
@@ -165,10 +166,27 @@ export function useStatementsByQuarter(year: number, quarter: number, accountId?
   });
 }
  
-export function useQuarterlySummary(year: number | null, accountId?: number | null) {
+export function useQuarterlySummary(
+  year: number | null,
+  companyId?: number | null,
+  accountId?: number | null,
+) {
   return useQuery<QuarterlySummary[]>({
-    queryKey: queryKeys.quarterlySummary(year!, accountId),
-    queryFn:  () => statementService.getQuarterlySummary(year!, accountId),
+    queryKey: queryKeys.quarterlySummary(year!, companyId, accountId),
+    queryFn:  () => statementService.getQuarterlySummary(year!, companyId, accountId),
+    enabled:  year != null,
+  });
+}
+
+export function useSummary(
+  period: SummaryPeriod,
+  year: number | null,
+  companyId?: number | null,
+  accountId?: number | null,
+) {
+  return useQuery<Summary[]>({
+    queryKey: queryKeys.summary(period, year!, companyId, accountId),
+    queryFn:  () => statementService.getSummary(period, year!, companyId, accountId),
     enabled:  year != null,
   });
 }

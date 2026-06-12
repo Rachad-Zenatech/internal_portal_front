@@ -293,10 +293,10 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, Upload, BarChart3 } from "lucide-react";
-import StatementList        from "@/components/Bank/StatementList";
-import StatementDetail      from "@/components/Bank/StatementDetail";
-import QuarterlySummaryPage from "@/components/Bank/QuarterlySummary";
-import UploadStatement      from "@/components/Bank/UploadStatement";
+import StatementList   from "@/components/Bank/StatementList";
+import StatementDetail from "@/components/Bank/StatementDetail";
+import SummaryPage     from "@/components/Bank/Summary";
+import UploadStatement from "@/components/Bank/UploadStatement";
 
 export default function BankReconciliation() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -333,9 +333,9 @@ export default function BankReconciliation() {
             <Upload className="h-4 w-4" />
             Upload
           </TabsTrigger>
-          <TabsTrigger value="quarterly" className="gap-2">
+          <TabsTrigger value="summary" className="gap-2">
             <BarChart3 className="h-4 w-4" />
-            Quarterly
+            Summary
           </TabsTrigger>
         </TabsList>
 
@@ -356,9 +356,9 @@ export default function BankReconciliation() {
           <UploadStatement onUploaded={handleUploaded} />
         </TabsContent>
 
-        {/* ── Quarterly tab ──────────────────────────────────────────── */}
-        <TabsContent value="quarterly">
-          <QuarterlySummaryPage />
+        {/* ── Summary tab ────────────────────────────────────────────── */}
+        <TabsContent value="summary">
+          <SummaryPage />
         </TabsContent>
       </Tabs>
     </div>
