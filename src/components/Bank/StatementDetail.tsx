@@ -1,4 +1,5 @@
-import { ArrowLeft, Calendar, CreditCard, Layers, ArrowUpRight, ArrowDownLeft, Scale } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, Calendar, CreditCard, Layers, ArrowUpRight, ArrowDownLeft, Scale, ArrowUp, ArrowDown } from "lucide-react";
 import { useStatement, useChecks, useDeposits } from "@/hooks/useBank";
 import type { CheckTransaction, DepositTransaction } from "@/types/bank";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,33 @@ const fmt = (n: number | null | undefined): string =>
 
 const typeLabel = (t: string | undefined): string =>
   t ? t.charAt(0).toUpperCase() + t.slice(1) : "—";
+
+type SortDir = "asc" | "desc";
+
+// Sort rows by their date string; rows with no date always sort to the bottom.
+const sortByDate = <T extends { date: string | null }>(rows: T[], dir: SortDir): T[] =>
+  [...rows].sort((a, b) => {
+    const ta = a.date ? new Date(a.date).getTime() : NaN;
+    const tb = b.date ? new Date(b.date).getTime() : NaN;
+    if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+    if (Number.isNaN(ta)) return 1;
+    if (Number.isNaN(tb)) return -1;
+    return dir === "asc" ? ta - tb : tb - ta;
+  });
+
+function DateSortHead({ dir, onToggle }: { dir: SortDir; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="inline-flex items-center gap-1 uppercase tracking-wider hover:text-foreground"
+      aria-label={`Sort by date ${dir === "asc" ? "ascending" : "descending"}`}
+    >
+      Date
+      {dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+    </button>
+  );
+}
 
 const TABS = [
   "cleared_checks",
@@ -213,6 +241,9 @@ function Bal({ label, value, className, bold, icon }: BalProps) {
 }
 
 function CheckTable({ rows }: { rows: CheckTransaction[] }) {
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
+  const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -221,14 +252,14 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
             {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map(
               (h) => (
                 <TableHead key={h} className={cn("font-bold text-foreground/80 h-11 text-xs uppercase tracking-wider", h === "Amount" ? "text-right" : "")}>
-                  {h}
+                  {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
                 </TableHead>
               )
             )}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
+          {sorted.map((r) => (
             <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
               <TableCell className="font-medium text-sm">{r.date}</TableCell>
               <TableCell className="font-mono font-semibold text-sm text-foreground/80">{r.check_number || "—"}</TableCell>
@@ -247,6 +278,9 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
 }
 
 function DepositTable({ rows }: { rows: DepositTransaction[] }) {
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
+  const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
     <div className="overflow-x-auto">
       <Table>
@@ -255,14 +289,14 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
             {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map(
               (h) => (
                 <TableHead key={h} className={cn("font-bold text-foreground/80 h-11 text-xs uppercase tracking-wider", h === "Amount" ? "text-right" : "")}>
-                  {h}
+                  {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
                 </TableHead>
               )
             )}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
+          {sorted.map((r) => (
             <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
               <TableCell className="font-medium text-sm">{r.date}</TableCell>
               <TableCell className="font-mono font-semibold text-sm text-foreground/80">{r.deposit_id || "—"}</TableCell>

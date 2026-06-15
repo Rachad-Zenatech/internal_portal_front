@@ -1,7 +1,7 @@
 import AppShell from "./components/AppShell/AppShell";
 import Dashboard from "./pages/Dashboard";
 import AiAssistant from "./pages/AIAssistant";
-import BankReconciliation from "./pages/BankReconciliation";
+import BankStatements from "./pages/BankStatements";
 import GeneralLedger from "./pages/GeneralLedger";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings"; 
@@ -25,8 +25,8 @@ function App() {
       <Route path="/general-ledger/upload" element={<GeneralLedgerUpload />} />
           <Route path="/trial-balance" element={<TrialBalance/>} />
           <Route
-            path="/bank-reconciliation"
-            element={<BankReconciliation />}
+            path="/bank-statements"
+            element={<BankStatements />}
           />
           <Route
             path="/consolidated-trial-balance"

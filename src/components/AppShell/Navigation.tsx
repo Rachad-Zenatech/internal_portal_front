@@ -41,8 +41,8 @@ export const navigation = [
     icon: Scale,
   },
   {
-    label: "Bank Reconciliation",
-    path: "/bank-reconciliation",
+    label: "Bank Statements",
+    path: "/bank-statements",
     icon: Layers,
   },
   {
