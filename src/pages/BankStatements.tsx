@@ -6,7 +6,7 @@ import StatementDetail from "@/components/Bank/StatementDetail";
 import SummaryPage     from "@/components/Bank/Summary";
 import UploadStatement from "@/components/Bank/UploadStatement";
 
-export default function BankReconciliation() {
+export default function BankStatements() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activeTab,  setActiveTab]  = useState<string>("statements");
 
@@ -23,7 +23,7 @@ export default function BankReconciliation() {
   return (
     <div className="space-y-6 p-8">
       <div>
-        <h1 className="text-3xl font-bold">Bank Reconciliation</h1>
+        <h1 className="text-3xl font-bold">Bank Statements</h1>
 
         <p className="text-muted-foreground">
           Upload bank statements, review the extracted data, and confirm before

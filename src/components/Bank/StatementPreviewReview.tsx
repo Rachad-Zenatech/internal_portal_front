@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import type {
   StatementPreview,
   PreviewCheckTransaction,
@@ -32,6 +32,33 @@ import { cn } from "@/lib/utils";
 
 const fmt = (n: number | null | undefined): string =>
   n == null ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: 2 });
+
+type SortDir = "asc" | "desc";
+
+// Sort rows by their date string; rows with no date always sort to the bottom.
+const sortByDate = <T extends { date: string | null }>(rows: T[], dir: SortDir): T[] =>
+  [...rows].sort((a, b) => {
+    const ta = a.date ? new Date(a.date).getTime() : NaN;
+    const tb = b.date ? new Date(b.date).getTime() : NaN;
+    if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+    if (Number.isNaN(ta)) return 1;
+    if (Number.isNaN(tb)) return -1;
+    return dir === "asc" ? ta - tb : tb - ta;
+  });
+
+function DateSortHead({ dir, onToggle }: { dir: SortDir; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="inline-flex items-center gap-1 hover:text-foreground"
+      aria-label={`Sort by date ${dir === "asc" ? "ascending" : "descending"}`}
+    >
+      Date
+      {dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+    </button>
+  );
+}
 
 const TABS = [
   "cleared_checks",
@@ -229,19 +256,22 @@ function Bal({ label, value, className, bold }: BalProps) {
 }
 
 function CheckTable({ rows }: { rows: PreviewCheckTransaction[] }) {
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
+  const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
     <Table>
       <TableHeader>
         <TableRow>
           {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => (
             <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
-              {h}
+              {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
             </TableHead>
           ))}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((r, i) => (
+        {sorted.map((r, i) => (
           <TableRow key={i}>
             <TableCell>{r.date}</TableCell>
             <TableCell>{r.check_number}</TableCell>
@@ -259,19 +289,22 @@ function CheckTable({ rows }: { rows: PreviewCheckTransaction[] }) {
 }
 
 function DepositTable({ rows }: { rows: PreviewDepositTransaction[] }) {
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
+  const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
     <Table>
       <TableHeader>
         <TableRow>
           {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => (
             <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
-              {h}
+              {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
             </TableHead>
           ))}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((r, i) => (
+        {sorted.map((r, i) => (
           <TableRow key={i}>
             <TableCell>{r.date}</TableCell>
             <TableCell>{r.deposit_id}</TableCell>
