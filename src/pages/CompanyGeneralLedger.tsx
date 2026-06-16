@@ -296,10 +296,10 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b">
+            <tr className="sticky top-0 z-10 bg-gray-50 border-b">
               <Th>Date</Th>
               <Th>Type</Th>
               <Th>Num</Th>

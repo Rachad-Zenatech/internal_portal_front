@@ -141,7 +141,7 @@ export default function TrialBalance() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border bg-white">
+      <div className="overflow-x-auto overflow-y-auto max-h-[600px] rounded-xl border bg-white">
         <div className="border-b bg-slate-50 p-4">
           <h2 className="text-xl font-semibold">
             {trialBalance?.company_name ?? "—"} Trial Balance
@@ -151,14 +151,14 @@ export default function TrialBalance() {
           </p>
         </div>
 
-        <table className="w-full">
-          <thead className="bg-slate-100">
+        <table className="w-full table-fixed">
+          <thead className="sticky top-0 z-10 bg-slate-100">
             <tr>
-              <th className="p-3 text-left">Account</th>
-              <th className="p-3 text-left">Description</th>
-              <th className="p-3 text-left">Type</th>
-              <th className="p-3 text-right">Debit</th>
-              <th className="p-3 text-right">Credit</th>
+              <th className="p-3 text-left w-1/5">Account</th>
+              <th className="p-3 text-left w-1/5">Description</th>
+              <th className="p-3 text-left w-1/5">Type</th>
+              <th className="p-3 text-right w-1/5">Debit</th>
+              <th className="p-3 text-right w-1/5">Credit</th>
             </tr>
           </thead>
 
@@ -192,9 +192,7 @@ export default function TrialBalance() {
             )}
 
             <tr className="bg-slate-50 font-bold">
-              <td colSpan={3} className="p-3">
-                Totals
-              </td>
+              <td colSpan={3} className="p-3">Totals</td>
               <td className="p-3 text-right">
                 {totalDebit.toLocaleString(undefined, {
                   minimumFractionDigits: 2,
