@@ -11,9 +11,12 @@ import {
 export default function CompanyGeneralLedger() {
   const companyId = Number(window.location.pathname.split("/").pop());
 
-  const params = new URLSearchParams(window.location.search);
-  const period = params.get("period") || "q1";
-  const year = Number(params.get("year") || 2026);
+  const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const initialPeriod = initialParams.get("period") || "q1";
+  const initialYear = Number(initialParams.get("year") || 2026);
+
+  const [period, setPeriod] = useState<string>(initialPeriod);
+  const [year, setYear] = useState<number>(initialYear);
 
   const [data, setData] = useState<CompanyLedger | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +24,12 @@ export default function CompanyGeneralLedger() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    const newParams = new URLSearchParams(window.location.search);
+    newParams.set("period", period);
+    newParams.set("year", String(year));
+    const newSearch = newParams.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}?${newSearch}`);
+
     loadCompanyLedger();
   }, [companyId, period, year]);
 
@@ -135,7 +144,7 @@ export default function CompanyGeneralLedger() {
       </section>
 
       <section className="rounded-lg border bg-white p-4 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-5">
           <label className="space-y-1 md:col-span-2">
             <span className="text-sm font-medium">Search Transactions</span>
             <input
@@ -143,6 +152,48 @@ export default function CompanyGeneralLedger() {
               placeholder="Search name, memo, account, num..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+            />
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-sm font-medium">Period</span>
+            <select
+              className="w-full rounded-md border px-3 py-2"
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
+            >
+              <optgroup label="Months">
+                <option value="january">January</option>
+                <option value="february">February</option>
+                <option value="march">March</option>
+                <option value="april">April</option>
+                <option value="may">May</option>
+                <option value="june">June</option>
+                <option value="july">July</option>
+                <option value="august">August</option>
+                <option value="september">September</option>
+                <option value="october">October</option>
+                <option value="november">November</option>
+                <option value="december">December</option>
+              </optgroup>
+              <optgroup label="Quarters">
+                <option value="q1">Q1</option>
+                <option value="q2">Q2</option>
+                <option value="q3">Q3</option>
+                <option value="q4">Q4</option>
+              </optgroup>
+              <option value="year">Year</option>
+              <option value="custom">Custom</option>
+            </select>
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-sm font-medium">Year</span>
+            <input
+              className="w-full rounded-md border px-3 py-2"
+              type="number"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
             />
           </label>
 
@@ -245,10 +296,10 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b">
+            <tr className="sticky top-0 z-10 bg-gray-50 border-b">
               <Th>Date</Th>
               <Th>Type</Th>
               <Th>Num</Th>

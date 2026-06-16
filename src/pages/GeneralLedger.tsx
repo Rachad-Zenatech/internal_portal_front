@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { GLService, type CompanyGLCard } from "../services/glService";
 
-type PeriodType = "january" | "q1" | "year" | "custom";
+type PeriodType = "january" | "february" | "march" | "april" | "may" | "june" | "july" | "august" | "september" | "october" | "november" | "december" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
 
 export default function GeneralLedger() {
   const [period, setPeriod] = useState<PeriodType>("q1");
@@ -120,8 +120,26 @@ export default function GeneralLedger() {
               value={period}
               onChange={(e) => setPeriod(e.target.value as PeriodType)}
             >
-              <option value="january">January</option>
-              <option value="q1">Q1</option>
+              <optgroup label="Months">
+                <option value="january">January</option>
+                <option value="february">February</option>
+                <option value="march">March</option>
+                <option value="april">April</option>
+                <option value="may">May</option>
+                <option value="june">June</option>
+                <option value="july">July</option>
+                <option value="august">August</option>
+                <option value="september">September</option>
+                <option value="october">October</option>
+                <option value="november">November</option>
+                <option value="december">December</option>
+              </optgroup>
+              <optgroup label="Quarters">
+                <option value="q1">Q1</option>
+                <option value="q2">Q2</option>
+                <option value="q3">Q3</option>
+                <option value="q4">Q4</option>
+              </optgroup>
               <option value="year">Year</option>
               <option value="custom">Custom</option>
             </select>
