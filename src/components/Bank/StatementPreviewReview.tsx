@@ -67,10 +67,18 @@ const TABS = [
   "outstanding_deposits",
 ] as const;
 
+type EditableCheck = PreviewCheckTransaction & { _id: string };
+type EditableDeposit = PreviewDepositTransaction & { _id: string };
+
+type EditablePreview = Omit<StatementPreview, "checks" | "deposits"> & {
+  checks: EditableCheck[];
+  deposits: EditableDeposit[];
+};
+
 interface Props {
   preview: StatementPreview;
   /** Persist the previewed statement. */
-  onConfirm: () => void;
+  onConfirm: (preview: StatementPreview) => void;
   /** Discard the preview and return to the upload form. */
   onCancel: () => void;
   isCommitting?: boolean;
@@ -85,20 +93,50 @@ export default function StatementPreviewReview({
   error,
 }: Props) {
   const accountMismatch = !preview.account_matches;
-  // Pop the warning dialog automatically when the parsed account doesn't match.
   const [dialogOpen, setDialogOpen] = useState(accountMismatch);
 
+  // Initialize editable local state with UUIDs to avoid input focus loss on sort
+  const [localPreview, setLocalPreview] = useState<EditablePreview>(() => ({
+    ...preview,
+    checks: preview.checks.map(c => ({ ...c, _id: crypto.randomUUID() })),
+    deposits: preview.deposits.map(d => ({ ...d, _id: crypto.randomUUID() })),
+  }));
+
   const meta: [string, string][] = [
-    ["Company", preview.company_name ?? "—"],
-    ["Bank", preview.bank_name ?? "—"],
-    ["Account", preview.account_number ? `****${preview.account_number}` : "—"],
-    ["Type", preview.statement_type
-      ? preview.statement_type.charAt(0).toUpperCase() + preview.statement_type.slice(1)
+    ["Company", localPreview.company_name ?? "—"],
+    ["Bank", localPreview.bank_name ?? "—"],
+    ["Account", localPreview.account_number ? `****${localPreview.account_number}` : "—"],
+    ["Type", localPreview.statement_type
+      ? localPreview.statement_type.charAt(0).toUpperCase() + localPreview.statement_type.slice(1)
       : "—"],
-    ["Date", preview.statement_date],
+    ["Date", localPreview.statement_date],
   ];
 
-  const txCount = preview.checks.length + preview.deposits.length;
+  const txCount = localPreview.checks.length + localPreview.deposits.length;
+
+  const updateCheck = (id: string, field: keyof EditableCheck, value: any) => {
+    setLocalPreview(prev => ({
+      ...prev,
+      checks: prev.checks.map(c => c._id === id ? { ...c, [field]: value } : c)
+    }));
+  };
+
+  const updateDeposit = (id: string, field: keyof EditableDeposit, value: any) => {
+    setLocalPreview(prev => ({
+      ...prev,
+      deposits: prev.deposits.map(d => d._id === id ? { ...d, [field]: value } : d)
+    }));
+  };
+
+  const handleConfirm = () => {
+    // Strip the temporary `_id` before saving
+    const payload: StatementPreview = {
+      ...localPreview,
+      checks: localPreview.checks.map(({ _id, ...c }) => c),
+      deposits: localPreview.deposits.map(({ _id, ...d }) => d),
+    };
+    onConfirm(payload);
+  };
 
   return (
     <div>
@@ -110,7 +148,7 @@ export default function StatementPreviewReview({
       <div className="mb-4">
         <h2 className="text-xl font-semibold">Review Extracted Data</h2>
         <p className="text-sm text-muted-foreground">
-          Confirm the parsed statement below before it's saved to the database.
+          Confirm and edit the parsed statement below before it's saved to the database. All fields are editable.
         </p>
       </div>
 
@@ -146,10 +184,10 @@ export default function StatementPreviewReview({
           ))}
           <hr className="my-3 border-border" />
           <div className="flex justify-around">
-            <Bal label="Beginning" value={preview.beginning_balance} />
-            <Bal label="+ Additions" value={preview.total_additions} className="text-green-600" />
-            <Bal label="− Subtractions" value={preview.total_subtractions} className="text-destructive" />
-            <Bal label="Ending" value={preview.ending_balance} bold />
+            <Bal label="Beginning" value={localPreview.beginning_balance} />
+            <Bal label="+ Additions" value={localPreview.total_additions} className="text-green-600" />
+            <Bal label="− Subtractions" value={localPreview.total_subtractions} className="text-destructive" />
+            <Bal label="Ending" value={localPreview.ending_balance} bold />
           </div>
         </CardContent>
       </Card>
@@ -158,8 +196,8 @@ export default function StatementPreviewReview({
         <TabsList variant="line" className="flex-wrap">
           {TABS.map((t) => {
             const count = t.includes("deposit")
-              ? preview.deposits.filter((d) => d.section === t).length
-              : preview.checks.filter((c) => c.section === t).length;
+              ? localPreview.deposits.filter((d) => d.section === t).length
+              : localPreview.checks.filter((c) => c.section === t).length;
             return (
               <TabsTrigger key={t} value={t} className="capitalize gap-1.5">
                 {t.replace(/_/g, " ")}
@@ -171,8 +209,8 @@ export default function StatementPreviewReview({
 
         {TABS.map((t) => {
           const isDeposit = t.includes("deposit");
-          const depositRows = preview.deposits.filter((d) => d.section === t);
-          const checkRows = preview.checks.filter((c) => c.section === t);
+          const depositRows = localPreview.deposits.filter((d) => d.section === t);
+          const checkRows = localPreview.checks.filter((c) => c.section === t);
           const empty = isDeposit ? depositRows.length === 0 : checkRows.length === 0;
 
           return (
@@ -180,9 +218,9 @@ export default function StatementPreviewReview({
               {empty ? (
                 <p className="py-4 text-sm text-muted-foreground">No transactions</p>
               ) : isDeposit ? (
-                <DepositTable rows={depositRows} />
+                <DepositTable rows={depositRows} onUpdate={updateDeposit} />
               ) : (
-                <CheckTable rows={checkRows} />
+                <CheckTable rows={checkRows} onUpdate={updateCheck} />
               )}
             </TabsContent>
           );
@@ -197,10 +235,8 @@ export default function StatementPreviewReview({
       )}
 
       <div className="mt-6 flex items-center gap-3">
-        {/* Confirm is omitted entirely on a mismatch so it can't be re-enabled
-            by editing the DOM — the backend rejects mismatched commits too. */}
         {!accountMismatch && (
-          <Button onClick={onConfirm} disabled={isCommitting} className="gap-2">
+          <Button onClick={handleConfirm} disabled={isCommitting} className="gap-2">
             <CheckCircle2 className="h-4 w-4" />
             {isCommitting ? "Saving…" : `Confirm & save (${txCount} transactions)`}
           </Button>
@@ -255,13 +291,34 @@ function Bal({ label, value, className, bold }: BalProps) {
   );
 }
 
-function CheckTable({ rows }: { rows: PreviewCheckTransaction[] }) {
+// Convert MM/DD/YYYY to YYYY-MM-DD
+const toHTMLDate = (d: string | null) => {
+  if (!d) return "";
+  const parts = d.split("/");
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+  }
+  return d;
+};
+// Convert YYYY-MM-DD to MM/DD/YYYY
+const fromHTMLDate = (d: string) => {
+  if (!d) return null;
+  const parts = d.split("-");
+  if (parts.length === 3) {
+    return `${parts[1]}/${parts[2]}/${parts[0]}`;
+  }
+  return d;
+};
+
+const inputCls = "w-full bg-transparent border border-transparent hover:border-border focus:border-ring rounded p-1 transition-colors text-sm";
+
+function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: string, field: keyof EditableCheck, val: any) => void }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <Table>
-      <TableHeader>
+    <Table containerClassName="max-h-[calc(100vh-400px)]">
+      <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
           {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => (
             <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
@@ -271,15 +328,25 @@ function CheckTable({ rows }: { rows: PreviewCheckTransaction[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sorted.map((r, i) => (
-          <TableRow key={i}>
-            <TableCell>{r.date}</TableCell>
-            <TableCell>{r.check_number}</TableCell>
-            <TableCell>{r.type}</TableCell>
-            <TableCell>{r.paid_to}</TableCell>
-            <TableCell>{r.reference}</TableCell>
+        {sorted.map((r) => (
+          <TableRow key={r._id}>
+            <TableCell>
+              <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+            </TableCell>
+            <TableCell>
+              <input type="text" value={r.check_number ?? ""} onChange={e => onUpdate(r._id, "check_number", e.target.value)} className={inputCls} />
+            </TableCell>
+            <TableCell>
+              <input type="text" value={r.type ?? ""} onChange={e => onUpdate(r._id, "type", e.target.value)} className={inputCls} />
+            </TableCell>
+            <TableCell className="min-w-[200px] whitespace-normal break-words">
+              <textarea rows={3} value={r.paid_to ?? ""} onChange={e => onUpdate(r._id, "paid_to", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+            </TableCell>
+            <TableCell className="min-w-[200px] whitespace-normal break-words">
+              <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
+            </TableCell>
             <TableCell className={cn("text-right", (r.amount ?? 0) < 0 && "text-destructive")}>
-              ${fmt(r.amount)}
+              <input type="number" step="0.01" value={r.amount === null ? "" : r.amount} onChange={e => onUpdate(r._id, "amount", e.target.value === "" ? null : parseFloat(e.target.value))} className={cn(inputCls, "text-right w-24")} />
             </TableCell>
           </TableRow>
         ))}
@@ -288,13 +355,13 @@ function CheckTable({ rows }: { rows: PreviewCheckTransaction[] }) {
   );
 }
 
-function DepositTable({ rows }: { rows: PreviewDepositTransaction[] }) {
+function DepositTable({ rows, onUpdate }: { rows: EditableDeposit[], onUpdate: (id: string, field: keyof EditableDeposit, val: any) => void }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <Table>
-      <TableHeader>
+    <Table containerClassName="max-h-[calc(100vh-400px)]">
+      <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
           {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => (
             <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
@@ -304,16 +371,22 @@ function DepositTable({ rows }: { rows: PreviewDepositTransaction[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sorted.map((r, i) => (
-          <TableRow key={i}>
-            <TableCell>{r.date}</TableCell>
-            <TableCell>{r.deposit_id}</TableCell>
-            <TableCell>{r.received_from}</TableCell>
-            <TableCell>{r.reference}</TableCell>
-            <TableCell
-              className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}
-            >
-              ${fmt(r.amount)}
+        {sorted.map((r) => (
+          <TableRow key={r._id}>
+            <TableCell>
+              <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+            </TableCell>
+            <TableCell>
+              <input type="text" value={r.deposit_id ?? ""} onChange={e => onUpdate(r._id, "deposit_id", e.target.value)} className={inputCls} />
+            </TableCell>
+            <TableCell className="min-w-[200px] whitespace-normal break-words">
+              <textarea rows={3} value={r.received_from ?? ""} onChange={e => onUpdate(r._id, "received_from", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+            </TableCell>
+            <TableCell className="min-w-[200px] whitespace-normal break-words">
+              <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
+            </TableCell>
+            <TableCell className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}>
+              <input type="number" step="0.01" value={r.amount === null ? "" : r.amount} onChange={e => onUpdate(r._id, "amount", e.target.value === "" ? null : parseFloat(e.target.value))} className={cn(inputCls, "text-right w-24")} />
             </TableCell>
           </TableRow>
         ))}

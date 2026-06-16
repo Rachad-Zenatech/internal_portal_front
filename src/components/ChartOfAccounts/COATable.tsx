@@ -62,12 +62,9 @@ export default function COATable({ result, loadingData }: COATableProps) {
   return (
     <>
       <Card className="overflow-hidden p-0">
-        {/* Added w-full and removed any potential margins/padding */}
-        <div className="overflow-x-auto w-full p-0 m-0">
-          <Table className="m-0">
-            <TableHeader>
-              {/* Removed default borders that might double-up with the Card border */}
-              <TableRow className="bg-slate-50 hover:bg-slate-50 border-t-0">
+        <Table className="m-0 relative" containerClassName="max-h-[calc(100vh-16rem)]">
+          <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-sm">
+            <TableRow className="bg-slate-50 hover:bg-slate-50 border-t-0">
                 <TableHead className="w-[150px] h-12">Account #</TableHead>
                 <TableHead className="h-12">Account Name</TableHead>
                 <TableHead className="h-12">Type</TableHead>
@@ -112,7 +109,6 @@ export default function COATable({ result, loadingData }: COATableProps) {
               )}
             </TableBody>
           </Table>
-        </div>
       </Card>
 
       {/* EDIT MODAL */}

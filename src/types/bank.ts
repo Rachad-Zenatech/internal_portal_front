@@ -3,6 +3,9 @@ export interface Company {
   name: string;
   entity: string | null;
   description: string | null;
+  group?: string | null;
+  state?: string | null;
+  country?: string | null;
   created_at: string;
 }
  
@@ -139,8 +142,8 @@ export interface StatementPreview {
 
 // ─── Request payload types ────────────────────────────────────────────────────
  
-export interface CompanyCreate     { name: string; entity?: string | null; description?: string | null; }
-export interface CompanyUpdate     { name?: string; entity?: string | null; description?: string | null; }
+export interface CompanyCreate     { name: string; entity?: string | null; description?: string | null; group?: string | null; state?: string | null; country?: string | null; }
+export interface CompanyUpdate     { name?: string; entity?: string | null; description?: string | null; group?: string | null; state?: string | null; country?: string | null; }
 export interface BankCreate        { name: string; type: string; notes?: string | null; }
 export interface BankUpdate        { name?: string; type?: string; notes?: string | null; }
 export interface BankAccountCreate { company_id: number; bank_id: number; account_number: string; }

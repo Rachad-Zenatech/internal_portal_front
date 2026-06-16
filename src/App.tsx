@@ -8,8 +8,12 @@ import Settings from "./pages/Settings";
 import TrialBalance from "./pages/TrialBalance";
 import UploadFile from "./pages/UploadFiles" 
 import ConsolidatedTrailBalance from "./pages/ConsolidatedTrailBalance";
+import ConsolidatedTrialBalanceMatrix from "./pages/ConsolidatedTrialBalanceMatrix";
 import ChartOfAccounts from "./pages/ChartOfAccounts";
-import { BrowserRouter,  Routes, Route } from "react-router-dom";
+import CompanySettings from "./pages/Settings/CompanySettings";
+import BankSettings from "./pages/Settings/BankSettings";
+import BankAccountSettings from "./pages/Settings/BankAccountSettings";
+import { BrowserRouter,  Routes, Route, Navigate } from "react-router-dom";
 import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
 import CompanyGeneralLedger from "./pages/CompanyGeneralLedger";
 function App() {
@@ -33,11 +37,18 @@ function App() {
             element={<ConsolidatedTrailBalance />}
           />
           <Route
+            path="/consolidated-trial-balance-matrix"
+            element={<ConsolidatedTrialBalanceMatrix />}
+          />
+          <Route
             path="/chart-of-accounts"
             element={<ChartOfAccounts />}
           />
           <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
+          <Route path="/settings" element={<Navigate to="/settings/company" replace />} />
+          <Route path="/settings/company" element={<CompanySettings />} />
+          <Route path="/settings/bank" element={<BankSettings />} />
+          <Route path="/settings/bank-account" element={<BankAccountSettings />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

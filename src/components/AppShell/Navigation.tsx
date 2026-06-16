@@ -36,8 +36,13 @@ export const navigation = [
     icon: Scale,
   },
   {
-    label: "Consolidated Trial Balance",
+    label: "Consol. Bank Recon",
     path: "/consolidated-trial-balance",
+    icon: Scale,
+  },
+  {
+    label: "Consolidated Trial Balance",
+    path: "/consolidated-trial-balance-matrix",
     icon: Scale,
   },
   {
@@ -57,7 +62,11 @@ export const navigation = [
   },
   {
     label: "Settings",
-    path: "/settings",
     icon: Settings,
+    subItems: [
+      { label: "Company", path: "/settings/company" },
+      { label: "Bank", path: "/settings/bank" },
+      { label: "Bank Account", path: "/settings/bank-account" },
+    ]
   },
 ];
