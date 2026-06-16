@@ -162,22 +162,26 @@ export default function CompanyGeneralLedger() {
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
             >
-              <option value="january">January</option>
-              <option value="february">February</option>
-              <option value="march">March</option>
-              <option value="april">April</option>
-              <option value="may">May</option>
-              <option value="june">June</option>
-              <option value="july">July</option>
-              <option value="august">August</option>
-              <option value="september">September</option>
-              <option value="october">October</option>
-              <option value="november">November</option>
-              <option value="december">December</option>
-              <option value="q1">Q1</option>
-              <option value="q2">Q2</option>
-              <option value="q3">Q3</option>
-              <option value="q4">Q4</option>
+              <optgroup label="Months">
+                <option value="january">January</option>
+                <option value="february">February</option>
+                <option value="march">March</option>
+                <option value="april">April</option>
+                <option value="may">May</option>
+                <option value="june">June</option>
+                <option value="july">July</option>
+                <option value="august">August</option>
+                <option value="september">September</option>
+                <option value="october">October</option>
+                <option value="november">November</option>
+                <option value="december">December</option>
+              </optgroup>
+              <optgroup label="Quarters">
+                <option value="q1">Q1</option>
+                <option value="q2">Q2</option>
+                <option value="q3">Q3</option>
+                <option value="q4">Q4</option>
+              </optgroup>
               <option value="year">Year</option>
               <option value="custom">Custom</option>
             </select>

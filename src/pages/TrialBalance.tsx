@@ -7,7 +7,7 @@ import {
   type TrialBalance as TrialBalanceData,
 } from "../services/glService";
 
-const PERIODS = ["q1", "q2", "q3", "q4", "year"];
+const PERIODS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "q1", "q2", "q3", "q4", "year"];
 
 export default function TrialBalance() {
   const [companies, setCompanies] = useState<CompanyGLCard[]>([]);
@@ -21,16 +21,39 @@ export default function TrialBalance() {
   const [error, setError] = useState<string | null>(null);
 
   // Load the company list once (reuses the GL dashboard cards endpoint).
+  // Initialize state from URL query parameters
   useEffect(() => {
-    GLService.getCompanyCards({ period: "q1", year: 2026 })
+    const params = new URLSearchParams(window.location.search);
+    const periodParam = params.get('period');
+    const yearParam = params.get('year');
+    const companyParam = params.get('companyId');
+
+    if (periodParam) setPeriod(periodParam as any);
+    if (yearParam && !isNaN(Number(yearParam))) setYear(Number(yearParam));
+    if (companyParam && !isNaN(Number(companyParam))) setCompanyId(Number(companyParam));
+  }, []);
+
+  // Sync URL when state changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (companyId !== null) params.set('companyId', String(companyId));
+    params.set('period', period);
+    params.set('year', String(year));
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+  }, [companyId, period, year]);
+
+  // Load the company list once (reuses the GL dashboard cards endpoint).
+  useEffect(() => {
+    GLService.getCompanyCards({ period, year })
       .then((cards) => {
         setCompanies(cards);
-        if (cards.length > 0) setCompanyId(cards[0].company_id);
+        if (cards.length > 0 && companyId === null) setCompanyId(cards[0].company_id);
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load companies")
       );
-  }, []);
+  }, [period, year]);
 
   // Load the trial balance whenever the company/period/year changes.
   useEffect(() => {
@@ -82,11 +105,22 @@ export default function TrialBalance() {
             onChange={(e) => setPeriod(e.target.value)}
             className="w-full rounded-lg border p-2"
           >
-            {PERIODS.map((p) => (
-              <option key={p} value={p}>
-                {p.toUpperCase()}
-              </option>
-            ))}
+            <optgroup label="Months">
+              {PERIODS.filter(p => !p.startsWith('q') && p !== 'year' && p !== 'custom').map((p) => (
+                <option key={p} value={p}>
+                  {p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Quarters">
+              {PERIODS.filter(p => p.startsWith('q')).map((p) => (
+                <option key={p} value={p}>
+                  {p.toUpperCase()}
+                </option>
+              ))}
+            </optgroup>
+            <option value="year">Year</option>
+            <option value="custom">Custom</option>
           </select>
         </div>
 
