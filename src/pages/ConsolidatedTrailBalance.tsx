@@ -1,6 +1,7 @@
 // src/pages/ConsolidatedTrialBalance.tsx
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   GLService,
   type ConsolidatedCompany,
@@ -9,6 +10,7 @@ import {
 } from "../services/glService";
 
 const QUARTERS = [1, 2, 3, 4];
+const EMPTY_COMPANIES: ConsolidatedCompany[] = [];
 
 // The view selector encodes one of: all companies, a single entity, or a
 // single company. Value format: "all" | "entity:<entity>" | "company:<id>".
@@ -21,6 +23,28 @@ function money(value: number) {
   });
 }
 
+function compareCompanies(a: ConsolidatedCompany, b: ConsolidatedCompany) {
+  return (
+    a.company_name.localeCompare(b.company_name, undefined, {
+      sensitivity: "base",
+    }) ||
+    (a.entity ?? "").localeCompare(b.entity ?? "", undefined, {
+      sensitivity: "base",
+    }) ||
+    a.company_id - b.company_id
+  );
+}
+
+function compareReconcilingItems(a: ReconcilingItem, b: ReconcilingItem) {
+  return (
+    (a.date ?? "").localeCompare(b.date ?? "") ||
+    a.description.localeCompare(b.description, undefined, {
+      sensitivity: "base",
+    }) ||
+    a.amount - b.amount
+  );
+}
+
 export default function ConsolidatedTrialBalance() {
   const [year, setYear] = useState(2026);
   const [quarter, setQuarter] = useState(1);
@@ -30,19 +54,29 @@ export default function ConsolidatedTrialBalance() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setError(null);
+    let isCurrent = true;
+
     GLService.getConsolidated({ year, quarter })
-      .then(setData)
-      .catch((err) =>
+      .then((reconciliation) => {
+        if (!isCurrent) return;
+        setData(reconciliation);
+        setError(null);
+      })
+      .catch((err) => {
+        if (!isCurrent) return;
         setError(
           err instanceof Error
             ? err.message
             : "Failed to load consolidated reconciliation"
-        )
-      );
+        );
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [year, quarter]);
 
-  const companies = data?.companies ?? [];
+  const companies = data?.companies ?? EMPTY_COMPANIES;
 
   const entities = useMemo(() => {
     const set = new Set<string>();
@@ -267,12 +301,14 @@ export default function ConsolidatedTrialBalance() {
         <ReconcilingTable
           title="In Bank, Not Yet in Books"
           subtitle="Cleared the bank — not yet recorded in the GL."
-          items={summary.inBankNotInBooks}
+          companies={selected}
+          getItems={(c) => c.in_bank_not_in_books}
         />
         <ReconcilingTable
           title="In Books, Not in Bank"
           subtitle="Recorded in the GL — not yet cleared (outstanding)."
-          items={summary.inBooksNotInBank}
+          companies={selected}
+          getItems={(c) => c.in_books_not_in_bank}
         />
       </div>
     </div>
@@ -282,13 +318,43 @@ export default function ConsolidatedTrialBalance() {
 function ReconcilingTable({
   title,
   subtitle,
-  items,
+  companies,
+  getItems,
 }: {
   title: string;
   subtitle: string;
-  items: ReconcilingItem[];
+  companies: ConsolidatedCompany[];
+  getItems: (c: ConsolidatedCompany) => ReconcilingItem[];
 }) {
-  const total = items.reduce((s, i) => s + i.amount, 0);
+  // Build per-company groups, skipping companies with no items.
+  const groups = companies
+    .map((c) => ({
+      company: c,
+      items: [...getItems(c)].sort(compareReconcilingItems),
+    }))
+    .filter((g) => g.items.length > 0)
+    .sort((a, b) => compareCompanies(a.company, b.company));
+
+  const grandTotal = groups.reduce(
+    (s, g) => s + g.items.reduce((ss, i) => ss + i.amount, 0),
+    0
+  );
+  const grandCount = groups.reduce((s, g) => s + g.items.length, 0);
+  const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<number>>(
+    () => new Set()
+  );
+
+  const toggleCompany = (companyId: number) => {
+    setCollapsedCompanyIds((current) => {
+      const next = new Set(current);
+      if (next.has(companyId)) {
+        next.delete(companyId);
+      } else {
+        next.add(companyId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="overflow-hidden rounded-xl border bg-white">
@@ -305,26 +371,91 @@ function ReconcilingTable({
           </tr>
         </thead>
         <tbody>
-          {items.length === 0 ? (
+          {groups.length === 0 ? (
             <tr>
               <td colSpan={3} className="p-4 text-center text-slate-500">
                 Nothing outstanding.
               </td>
             </tr>
           ) : (
-            items.map((i, idx) => (
-              <tr key={idx} className="border-b">
-                <td className="p-2">{i.date ?? "-"}</td>
-                <td className="p-2">{i.description}</td>
-                <td className="p-2 text-right">{money(i.amount)}</td>
-              </tr>
-            ))
+            groups.map(({ company, items }) => {
+              const companyTotal = items.reduce((s, i) => s + i.amount, 0);
+              const isCollapsed = collapsedCompanyIds.has(company.company_id);
+              const ToggleIcon = isCollapsed ? ChevronRight : ChevronDown;
+
+              return (
+                <Fragment key={company.company_id}>
+                  {/* Company header row */}
+                  <tr className="bg-slate-200">
+                    <td
+                      colSpan={3}
+                      className="px-2 py-1.5 font-semibold text-slate-700"
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${
+                          company.company_name
+                        }`}
+                        title={`${isCollapsed ? "Expand" : "Collapse"} ${
+                          company.company_name
+                        }`}
+                        onClick={() => toggleCompany(company.company_id)}
+                        className="flex w-full items-center justify-between gap-3 rounded px-1 py-0.5 text-left outline-none hover:bg-slate-300 focus-visible:ring-2 focus-visible:ring-slate-500"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <ToggleIcon className="size-4 shrink-0" />
+                          <span className="truncate">
+                            {company.company_name}
+                          </span>
+                          {company.entity ? (
+                            <span className="shrink-0 text-xs font-normal text-slate-500">
+                              ({company.entity})
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="shrink-0 text-xs font-medium text-slate-600">
+                          {items.length} | {money(companyTotal)}
+                        </span>
+                      </button>
+                    </td>
+                  </tr>
+
+                  {/* Item rows */}
+                  {!isCollapsed &&
+                    items.map((i, idx) => (
+                      <tr
+                        key={`${company.company_id}-${idx}`}
+                        className="border-b"
+                      >
+                        <td className="p-2">{i.date ?? "-"}</td>
+                        <td className="p-2">{i.description}</td>
+                        <td className="p-2 text-right">{money(i.amount)}</td>
+                      </tr>
+                    ))}
+
+                  {/* Company subtotal */}
+                  {!isCollapsed && (
+                    <tr className="bg-slate-50 text-slate-600">
+                    <td colSpan={2} className="p-2 pl-3 italic">
+                      Subtotal — {company.company_name} ({items.length})
+                    </td>
+                    <td className="p-2 text-right font-medium">
+                      {money(companyTotal)}
+                    </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })
           )}
-          <tr className="bg-slate-50 font-semibold">
+
+          {/* Grand total */}
+          <tr className="bg-slate-100 font-semibold">
             <td colSpan={2} className="p-2">
-              Total ({items.length})
+              Total ({grandCount})
             </td>
-            <td className="p-2 text-right">{money(total)}</td>
+            <td className="p-2 text-right">{money(grandTotal)}</td>
           </tr>
         </tbody>
       </table>

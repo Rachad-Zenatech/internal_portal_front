@@ -291,7 +291,7 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
           )}
 
           <span className="text-sm font-semibold">
-            {formatMoney(account.total_amount)}
+            Total Amount: {formatMoney(account.total_amount)}
           </span>
         </div>
       </div>
@@ -322,9 +322,8 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
                 <Td>{txn.memo || "-"}</Td>
                 <Td>
                   {txn.split_account_number
-                    ? `${txn.split_account_number} · ${
-                        txn.split_account_name || ""
-                      }`
+                    ? `${txn.split_account_number} · ${txn.split_account_name || ""
+                    }`
                     : "-"}
                 </Td>
                 <Td align="right">{formatMoney(txn.amount)}</Td>
@@ -343,6 +342,24 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
               </tr>
             ))}
           </tbody>
+
+          <tfoot>
+            <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+              <td colSpan={7} className="px-3 py-2 text-sm text-right text-gray-600">
+                Closing Balance
+              </td>
+              <td className="px-3 py-2 text-sm text-right text-gray-900">
+                {(() => {
+                  const txns = account.transactions;
+                  const last = txns[txns.length - 1];
+                  return last?.balance_after != null
+                    ? formatMoney(last.balance_after)
+                    : formatMoney(account.total_amount);
+                })()}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>
