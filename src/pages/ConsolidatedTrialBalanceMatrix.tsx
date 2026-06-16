@@ -7,6 +7,7 @@ import { Loader2, Network, Layers, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function money(value: number) {
   if (!value || Math.abs(value) < 0.005) return "-";
@@ -65,8 +66,28 @@ export default function ConsolidatedTrialBalanceMatrix() {
 
   if (loading) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-80" />
+            <Skeleton className="h-5 w-64" />
+          </div>
+        </div>
+        <div className="space-y-6">
+          <Skeleton className="h-10 w-64 rounded-md" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-6 w-24" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+            <Skeleton className="h-6 w-20 rounded-full" />
+          </div>
+          <Card className="overflow-hidden p-4 border-slate-200 shadow-sm space-y-4">
+            <Skeleton className="h-10 w-full" />
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </Card>
+        </div>
       </div>
     );
   }
@@ -128,8 +149,8 @@ export default function ConsolidatedTrialBalanceMatrix() {
                         }}
                         className={`px-3 py-1 text-xs rounded-full border transition-colors ${
                           isHidden
-                            ? "bg-white border-slate-200 text-slate-400 hover:bg-slate-50"
-                            : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                            ? "bg-slate-200 border-slate-300 text-slate-900 hover:bg-slate-300"
+                            : "bg-black border-black text-white hover:bg-slate-800"
                         }`}
                       >
                         {col}
