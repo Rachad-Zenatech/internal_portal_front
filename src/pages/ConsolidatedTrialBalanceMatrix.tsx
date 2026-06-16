@@ -140,21 +140,21 @@ export default function ConsolidatedTrialBalanceMatrix() {
               </div>
 
               <Card className="overflow-hidden p-0 border-slate-200 shadow-sm">
-                <Table className="m-0 relative border-collapse" containerClassName="max-h-[calc(100vh-20rem)] w-full relative">
+                <Table className="m-0 relative border-collapse table-fixed" containerClassName="max-h-[calc(100vh-20rem)] w-full relative">
                     <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
                       <TableRow className="bg-slate-50 hover:bg-slate-50 border-b-slate-200">
-                        <TableHead className="sticky left-0 z-30 min-w-[120px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
+                        <TableHead className="sticky left-0 z-30 w-[120px] min-w-[120px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
                           Account
                         </TableHead>
-                        <TableHead className="sticky left-[120px] z-30 min-w-[200px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
+                        <TableHead className="sticky left-[120px] z-30 w-[250px] min-w-[250px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
                           Name
                         </TableHead>
                         {visibleColumns.map((col) => (
-                          <TableHead key={col} className="min-w-[120px] text-right font-semibold text-slate-700">
+                          <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words border-r border-slate-200 text-center font-semibold text-slate-700 leading-tight py-2">
                             {col}
                           </TableHead>
                         ))}
-                        <TableHead className="sticky right-0 z-30 min-w-[120px] bg-slate-50 text-right font-bold text-slate-900 shadow-[-1px_0_0_0_#e2e8f0]">
+                        <TableHead className="sticky right-0 z-30 w-[150px] min-w-[150px] bg-slate-50 text-right font-bold text-slate-900 shadow-[-1px_0_0_0_#e2e8f0]">
                           Total
                         </TableHead>
                       </TableRow>
@@ -177,21 +177,21 @@ export default function ConsolidatedTrialBalanceMatrix() {
                           );
                           return (
                             <TableRow key={acct.account_number} className="group hover:bg-slate-50 border-b-slate-100">
-                              <TableCell className="sticky left-0 bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] font-medium text-slate-900">
+                              <TableCell className="sticky left-0 w-[120px] min-w-[120px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] font-medium text-slate-900">
                                 {acct.account_number}
                               </TableCell>
-                              <TableCell className="sticky left-[120px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] text-slate-600 truncate max-w-[300px]">
+                              <TableCell className="sticky left-[120px] w-[250px] min-w-[250px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] text-slate-600 truncate">
                                 {acct.account_name}
                               </TableCell>
                               {visibleColumns.map((col) => {
                                 const val = acct.balances[col] || 0;
                                 return (
-                                  <TableCell key={col} className="text-right text-slate-600">
+                                  <TableCell key={col} className="w-[150px] min-w-[150px] border-r border-slate-100 text-right text-slate-600">
                                     {money(val)}
                                   </TableCell>
                                 );
                               })}
-                              <TableCell className={`sticky right-0 bg-slate-50 shadow-[-1px_0_0_0_#e2e8f0] group-hover:bg-slate-100 text-right font-bold ${getColorClass(rowTotal)}`}>
+                              <TableCell className={`sticky right-0 w-[150px] min-w-[150px] bg-slate-50 shadow-[-1px_0_0_0_#e2e8f0] group-hover:bg-slate-100 text-right font-bold ${getColorClass(rowTotal)}`}>
                                 {moneyTotal(rowTotal)}
                               </TableCell>
                             </TableRow>
@@ -202,8 +202,8 @@ export default function ConsolidatedTrialBalanceMatrix() {
                     {activeTabData.accounts.length > 0 && (
                       <TableFooter className="sticky bottom-0 z-30 bg-slate-100 border-t-[24px] border-white">
                         <TableRow className="hover:bg-slate-100 border-t-[3px] border-slate-300">
-                          <TableCell className="sticky left-0 z-40 bg-slate-100 shadow-[1px_0_0_0_#e2e8f0]"></TableCell>
-                          <TableCell className="sticky left-[120px] z-40 bg-slate-100 text-right font-bold text-slate-900 shadow-[1px_0_0_0_#e2e8f0]">
+                          <TableCell className="sticky left-0 z-40 w-[120px] min-w-[120px] bg-slate-100 shadow-[1px_0_0_0_#e2e8f0]"></TableCell>
+                          <TableCell className="sticky left-[120px] z-40 w-[250px] min-w-[250px] bg-slate-100 text-right font-bold text-slate-900 shadow-[1px_0_0_0_#e2e8f0]">
                             Total:
                           </TableCell>
                           {visibleColumns.map((col) => {
@@ -212,12 +212,12 @@ export default function ConsolidatedTrialBalanceMatrix() {
                               0
                             );
                             return (
-                              <TableCell key={col} className={`text-right font-bold ${getColorClass(colTotal)}`}>
+                              <TableCell key={col} className={`w-[150px] min-w-[150px] border-r border-slate-300 text-right font-bold ${getColorClass(colTotal)}`}>
                                 {moneyTotal(colTotal)}
                               </TableCell>
                             );
                           })}
-                          <TableCell className="sticky right-0 z-40 bg-slate-100 text-right font-bold shadow-[-1px_0_0_0_#e2e8f0]">
+                          <TableCell className="sticky right-0 z-40 w-[150px] min-w-[150px] bg-slate-100 text-right font-bold shadow-[-1px_0_0_0_#e2e8f0]">
                             {(() => {
                               const grandTotal = activeTabData.accounts.reduce((sum, acct) => {
                                 const rowSum = visibleColumns.reduce(
