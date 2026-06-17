@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { GLService, type ConsolidatedMatrixResponse } from '../services/glService';
 
-export const useConsolidatedMatrix = () => {
+export const useConsolidatedMatrix = (period: string = "annual", year: number = 2026) => {
   return useQuery<ConsolidatedMatrixResponse, Error>({
-    queryKey: ['consolidated-matrix'],
-    queryFn: GLService.getConsolidatedTrialBalanceMatrix,
+    queryKey: ['consolidated-matrix', period, year],
+    queryFn: () => GLService.getConsolidatedTrialBalanceMatrix(period, year),
   });
 };

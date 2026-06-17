@@ -331,8 +331,8 @@ export const GLService = {
     return response.json();
   },
 
-  async getConsolidatedTrialBalanceMatrix(): Promise<ConsolidatedMatrixResponse> {
-    const response = await fetch(`${API_BASE_URL}/reports/consolidated-trial-balance-matrix`);
+  async getConsolidatedTrialBalanceMatrix(period: string = "annual", year: number = 2026): Promise<ConsolidatedMatrixResponse> {
+    const response = await fetch(`${API_BASE_URL}/reports/consolidated-trial-balance-matrix?period=${period}&year=${year}`);
 
     if (!response.ok) {
       await handleError(response, "Failed to load consolidated trial balance matrix");

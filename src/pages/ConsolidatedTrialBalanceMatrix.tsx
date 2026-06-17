@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function money(value: number) {
   if (!value || Math.abs(value) < 0.005) return "-";
@@ -36,7 +37,9 @@ function getTabIcon(name: string) {
 }
 
 export default function ConsolidatedTrialBalanceMatrix() {
-  const { data, isLoading: loading, error } = useConsolidatedMatrix();
+  const [period, setPeriod] = useState<string>("annual");
+  const [year, setYear] = useState<number>(2026);
+  const { data, isLoading: loading, error } = useConsolidatedMatrix(period, year);
   const [activeTab, setActiveTab] = useState<string>("");
   const [hiddenCompanies, setHiddenCompanies] = useState<Set<string>>(new Set());
 
@@ -56,6 +59,45 @@ export default function ConsolidatedTrialBalanceMatrix() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Consolidated Trial Balance</h1>
           <p className="text-slate-500 mt-1">Chart of Accounts matrix by company group.</p>
+        </div>
+
+        <div className="flex gap-4">
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[180px] bg-white">
+              <SelectValue placeholder="Select Period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Yearly</SelectLabel>
+                <SelectItem value="annual">Annual</SelectItem>
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>Quarterly</SelectLabel>
+                <SelectItem value="q1">Q1</SelectItem>
+                <SelectItem value="q2">Q2</SelectItem>
+                <SelectItem value="q3">Q3</SelectItem>
+                <SelectItem value="q4">Q4</SelectItem>
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel>Monthly</SelectLabel>
+                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
+                  <SelectItem key={m} value={m.toLowerCase()}>{m}</SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+          
+          <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+            <SelectTrigger className="w-[120px] bg-white">
+              <SelectValue placeholder="Select Year" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2024">2024</SelectItem>
+              <SelectItem value="2025">2025</SelectItem>
+              <SelectItem value="2026">2026</SelectItem>
+              <SelectItem value="2027">2027</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
