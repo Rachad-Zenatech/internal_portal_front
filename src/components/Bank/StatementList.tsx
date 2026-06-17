@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { X, Calendar, CreditCard } from "lucide-react";
+import { X, Calendar, CreditCard, ChevronDown, ChevronRight } from "lucide-react";
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,14 @@ interface Props {
 export default function StatementList({ onSelect }: Props) {
   const [selectedCompany, setSelectedCompany] = useState<string>(ALL);
   const [accountId, setAccountId] = useState<number | null>(null);
+  const [expandedCompanies, setExpandedCompanies] = useState<Record<string, boolean>>({});
+
+  const toggleCompany = (companyName: string) => {
+    setExpandedCompanies((prev) => ({
+      ...prev,
+      [companyName]: !prev[companyName]
+    }));
+  };
 
   const { data: accounts = [] } = useBankAccounts();
   const { data: statements = [], isLoading, error } = useStatements(accountId);
@@ -68,6 +76,16 @@ export default function StatementList({ onSelect }: Props) {
       if (!groups[c]) groups[c] = [];
       groups[c].push(stmt);
     }
+    
+    // Sort statements in each group by descending statement_date
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => {
+        if (!a.statement_date) return 1;
+        if (!b.statement_date) return -1;
+        return new Date(b.statement_date).getTime() - new Date(a.statement_date).getTime();
+      });
+    }
+
     // Sort keys alphabetically
     return Object.keys(groups).sort().reduce((acc, key) => {
       acc[key] = groups[key];
@@ -80,15 +98,10 @@ export default function StatementList({ onSelect }: Props) {
     "px-3 transition-all data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90";
 
   return (
-    <div className="p-4 space-y-5">
+    <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-bold mb-3">Statements</h2>
-        
         {/* Company Toggle Section */}
-        <div className="rounded-lg border bg-muted/10 p-3 mb-3">
-          <div className="mb-2 text-xs font-medium text-muted-foreground">
-            Filter by Company:
-          </div>
+        <div className="rounded-lg bg-muted/10 mb-3">
           <ToggleGroup
             type="single"
             variant="outline"
@@ -111,9 +124,6 @@ export default function StatementList({ onSelect }: Props) {
         {/* Account Toggle Section (Visible only when a specific company is selected) */}
         {selectedCompany !== ALL && filteredAccounts.length > 0 && (
           <div className="rounded-lg border bg-muted/30 p-3">
-            <div className="mb-2 text-xs font-medium text-muted-foreground">
-              Filter by Account:
-            </div>
             <ToggleGroup
               type="single"
               variant="outline"
@@ -159,10 +169,22 @@ export default function StatementList({ onSelect }: Props) {
       )}
 
       {/* Statement Cards Grid Grouped by Company */}
-      {Object.entries(groupedStatements).map(([companyName, companyStmts]) => (
+      {Object.entries(groupedStatements).map(([companyName, companyStmts]) => {
+        const isExpanded = !!expandedCompanies[companyName]; // Default to false
+        return (
         <div key={companyName} className="space-y-4 mb-8">
-          <h3 className="text-xl font-bold border-b pb-2 text-foreground/80">{companyName}</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div 
+            className="flex items-center justify-between border-b pb-2 cursor-pointer hover:bg-muted/30 group px-2 rounded-t-md transition-colors"
+            onClick={() => toggleCompany(companyName)}
+          >
+            <h3 className="text-xl font-bold text-foreground/80 group-hover:text-foreground transition-colors">{companyName}</h3>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 transition-transform duration-200" tabIndex={-1}>
+              <ChevronRight className={`h-5 w-5 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
+            </Button>
+          </div>
+          
+          {isExpanded && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in zoom-in-95 duration-200">
             {companyStmts.map((stmt) => (
               <Card
                 key={stmt.id}
@@ -175,102 +197,92 @@ export default function StatementList({ onSelect }: Props) {
                     onSelect(stmt.id);
                   }
                 }}
-                className="cursor-pointer flex flex-col justify-between transition-all hover:bg-muted/30 hover:shadow-md border-muted-foreground/15 shadow-sm"
+                className="cursor-pointer flex flex-col justify-between transition-all hover:bg-muted/30 hover:shadow-md border-muted-foreground/15 shadow-sm relative"
               >
-                <CardContent className="p-5 flex flex-col h-full justify-between gap-5">
+                <CardContent className="p-4 flex flex-col h-full gap-3">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="Delete statement"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete statement?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete this statement and all of
+                          its transactions. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteStatement.mutate(stmt.id)}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   {/* Header Container */}
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-bold text-base text-foreground tracking-tight line-clamp-1">
-                        {stmt.company_name}
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h3 className="font-bold text-sm text-foreground tracking-tight line-clamp-1">
+                        {stmt.bank_name}
                       </h3>
-                      
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary uppercase tracking-wide">
-                          Q{stmt.statement_quarter} {stmt.statement_year}
-                        </span>
-                        
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
-                              onClick={(e) => e.stopPropagation()}
-                              aria-label="Delete statement"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete statement?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently delete this statement and all of
-                                its transactions. This action cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteStatement.mutate(stmt.id)}
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
+                        <CreditCard className="h-3 w-3" /> ****{stmt.account_number}
                       </div>
                     </div>
+                    <div className="flex flex-col items-end gap-1 pr-6">
+                      <span className="text-[10px] bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wider">
+                        {typeLabel(stmt.statement_type)}
+                      </span>
+                      <span className="text-[11px] font-bold text-primary">
+                        Q{stmt.statement_quarter} {stmt.statement_year}
+                      </span>
+                    </div>
+                  </div>
 
-                    {/* Enhanced & Emphasized Meta Fields */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold text-sm text-foreground/90">{stmt.bank_name}</span>
-                        <span className="text-xs bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                          {typeLabel(stmt.statement_type)}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded font-mono text-foreground font-semibold text-[13px]">
-                          <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                          ****{stmt.account_number}
-                        </span>
-                        
-                        <span className="flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 px-2 py-1 rounded font-medium text-[13px]">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {stmt.statement_date}
-                        </span>
-                      </div>
+                  <div className="flex items-center text-xs border-y border-dashed py-2 text-muted-foreground mt-auto">
+                    <div className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-500">
+                      <Calendar className="h-3.5 w-3.5" />
+                      {stmt.statement_date}
                     </div>
                   </div>
 
                   {/* Ledger Value Metrics Block */}
-                  <div className="pt-3 border-t border-dashed space-y-2 text-sm">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Beginning Balance</span>
-                      <span className="font-semibold text-foreground">${fmt(stmt.beginning_balance)}</span>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Beg.</span>
+                      <span className="font-medium">${fmt(stmt.beginning_balance)}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Additions</span>
-                      <span className="font-bold text-green-600">+${fmt(stmt.total_additions)}</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Add</span>
+                      <span className="font-medium text-green-600">+{fmt(stmt.total_additions)}</span>
                     </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Subtractions</span>
-                      <span className="font-bold text-destructive">−${fmt(stmt.total_subtractions)}</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">End</span>
+                      <span className="font-medium">${fmt(stmt.ending_balance)}</span>
                     </div>
-                    <div className="flex justify-between items-center pt-2 font-bold border-t border-muted">
-                      <span className="text-foreground text-sm">Ending Balance</span>
-                      <span className="text-primary text-xl tracking-tight">${fmt(stmt.ending_balance)}</span>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Sub</span>
+                      <span className="font-medium text-red-600">-{fmt(stmt.total_subtractions)}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
+          )}
         </div>
-      ))}
+      )})}
     </div>
   );
 }

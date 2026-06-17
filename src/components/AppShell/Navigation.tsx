@@ -35,11 +35,11 @@ export const navigation = [
     path: "/trial-balance",
     icon: Scale,
   },
-  {
-    label: "Consol. Bank Recon",
-    path: "/consolidated-trial-balance",
-    icon: Scale,
-  },
+  // {
+  //   label: "Consol. Bank Recon",
+  //   path: "/consolidated-trial-balance",
+  //   icon: Scale,
+  // },
   {
     label: "Consolidated Trial Balance",
     path: "/consolidated-trial-balance-matrix",

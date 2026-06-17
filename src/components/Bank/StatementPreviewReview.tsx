@@ -139,23 +139,24 @@ export default function StatementPreviewReview({
   };
 
   return (
-    <div>
-      <Button variant="link" onClick={onCancel} className="mb-4 px-0">
-        <ArrowLeft />
-        Back to upload
-      </Button>
-
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold">Review Extracted Data</h2>
-        <p className="text-sm text-muted-foreground">
-          Confirm and edit the parsed statement below before it's saved to the database. All fields are editable.
-        </p>
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex items-center justify-between mb-2 shrink-0">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Review Extracted Data</h2>
+          <p className="text-xs text-muted-foreground">
+            Confirm and edit the parsed statement before saving. All fields are editable.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onCancel} className="shrink-0">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to upload
+        </Button>
       </div>
 
       {accountMismatch ? (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="mb-2 shrink-0 py-2">
           <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="text-xs mt-0.5">
             The account number on this statement
             {preview.account_number ? ` (****${preview.account_number})` : ""} does
             not match the selected bank account
@@ -166,24 +167,25 @@ export default function StatementPreviewReview({
           </AlertDescription>
         </Alert>
       ) : (
-        <Alert className="mb-4 border-amber-200 bg-amber-50 text-amber-800">
+        <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-800 shrink-0 py-2">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
+          <AlertDescription className="text-xs mt-0.5">
             Review the extracted data below. Nothing is saved until you confirm.
           </AlertDescription>
         </Alert>
       )}
 
-      <Card className="mb-4">
-        <CardContent className="space-y-1.5">
-          {meta.map(([label, val]) => (
-            <div key={label} className="flex gap-2 text-sm">
-              <span className="min-w-24 text-muted-foreground">{label}</span>
-              <span>{val}</span>
-            </div>
-          ))}
-          <hr className="my-3 border-border" />
-          <div className="flex justify-around">
+      <Card className="mb-3 shrink-0">
+        <CardContent className="p-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {meta.map(([label, val]) => (
+              <div key={label} className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</span>
+                <span className="text-sm font-medium">{val}</span>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-6 md:border-l md:pl-6">
             <Bal label="Beginning" value={localPreview.beginning_balance} />
             <Bal label="+ Additions" value={localPreview.total_additions} className="text-green-600" />
             <Bal label="− Subtractions" value={localPreview.total_subtractions} className="text-destructive" />
@@ -192,8 +194,8 @@ export default function StatementPreviewReview({
         </CardContent>
       </Card>
 
-      <Tabs defaultValue={TABS[0]}>
-        <TabsList variant="line" className="flex-wrap">
+      <Tabs defaultValue={TABS[0]} className="flex-1 flex flex-col min-h-0 mb-1">
+        <TabsList variant="line" className="flex-wrap shrink-0">
           {TABS.map((t) => {
             const count = t.includes("deposit")
               ? localPreview.deposits.filter((d) => d.section === t).length
@@ -214,7 +216,7 @@ export default function StatementPreviewReview({
           const empty = isDeposit ? depositRows.length === 0 : checkRows.length === 0;
 
           return (
-            <TabsContent key={t} value={t} className="mt-4">
+            <TabsContent key={t} value={t} className="mt-2 flex-1 min-h-0 flex flex-col overflow-hidden">
               {empty ? (
                 <p className="py-4 text-sm text-muted-foreground">No transactions</p>
               ) : isDeposit ? (
@@ -228,13 +230,13 @@ export default function StatementPreviewReview({
       </Tabs>
 
       {error && (
-        <Alert variant="destructive" className="mt-4">
+        <Alert variant="destructive" className="mt-4 shrink-0">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="mt-6 flex items-center gap-3">
+      <div className="mt-4 flex items-center gap-3 shrink-0 pb-2">
         {!accountMismatch && (
           <Button onClick={handleConfirm} disabled={isCommitting} className="gap-2">
             <CheckCircle2 className="h-4 w-4" />
@@ -284,9 +286,9 @@ interface BalProps {
 }
 function Bal({ label, value, className, bold }: BalProps) {
   return (
-    <div className="text-center">
-      <div className="mb-0.5 text-xs text-muted-foreground">{label}</div>
-      <div className={cn(bold ? "font-bold" : "font-medium", className)}>${fmt(value)}</div>
+    <div className="text-center md:text-left">
+      <div className="mb-0.5 text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{label}</div>
+      <div className={cn(bold ? "font-bold text-base" : "font-medium text-sm", className)}>${fmt(value)}</div>
     </div>
   );
 }
@@ -364,7 +366,7 @@ function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: 
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <Table containerClassName="max-h-[calc(100vh-400px)]">
+    <Table containerClassName="flex-1 overflow-auto custom-scrollbar border rounded-md">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
           {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => {
@@ -418,7 +420,7 @@ function DepositTable({ rows, onUpdate }: { rows: EditableDeposit[], onUpdate: (
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <Table containerClassName="max-h-[calc(100vh-400px)]">
+    <Table containerClassName="flex-1 overflow-auto custom-scrollbar border rounded-md">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
           {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => {

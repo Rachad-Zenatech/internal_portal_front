@@ -246,7 +246,7 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
     <Table containerClassName="max-h-[calc(100vh-450px)]">
-      <TableHeader className="bg-muted/40 sticky top-0 z-10 shadow-sm">
+      <TableHeader className="bg-muted sticky top-0 z-10 shadow-sm">
           <TableRow>
             {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map(
               (h) => (
@@ -281,7 +281,7 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
     <Table containerClassName="max-h-[calc(100vh-450px)]">
-      <TableHeader className="bg-muted/40 sticky top-0 z-10 shadow-sm">
+      <TableHeader className="bg-muted sticky top-0 z-10 shadow-sm">
           <TableRow>
             {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map(
               (h) => (
