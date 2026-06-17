@@ -125,7 +125,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
         <div className="text-slate-500">No data available.</div>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-slate-100/50">
+          <TabsList variant="line">
           {data.tabs.map((tab) => (
             <TabsTrigger key={tab.name} value={tab.name} className="flex items-center">
               {getTabIcon(tab.name)}

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
 import Sidebar from "./Sidebar";
+import TopBar from "./TopBar";
 
 interface Props {
   children: ReactNode;
@@ -10,15 +11,18 @@ export default function AppShell({ children }: Props) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-slate-50/50">
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       />
 
-      <main className="flex-1 overflow-auto bg-slate-50">
-        {children}
-      </main>
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <TopBar />
+        <main className="flex-1 overflow-auto p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

@@ -1,10 +1,10 @@
-import { useState, useMemo } from "react";
-import { X, Calendar, CreditCard, ChevronDown, ChevronRight } from "lucide-react";
+import { useState, useMemo, Fragment } from "react";
+import { X, Calendar, ChevronRight, Layers } from "lucide-react";
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,23 +45,20 @@ export default function StatementList({ onSelect }: Props) {
   const { data: statements = [], isLoading, error } = useStatements(accountId);
   const deleteStatement = useDeleteStatement();
 
-  // 1. Extract unique companies for the company toggle group
   const companies = useMemo(() => {
     const names = accounts.map((a) => a.company_name);
     return Array.from(new Set(names));
   }, [accounts]);
 
-  // 2. Filter accounts based on the selected company
   const filteredAccounts = useMemo(() => {
     if (selectedCompany === ALL) return [];
     return accounts.filter((a) => a.company_name === selectedCompany);
   }, [accounts, selectedCompany]);
 
-  // Handle company change: update selection and reset account filter
   const handleCompanyChange = (company: string) => {
     if (company) {
       setSelectedCompany(company);
-      setAccountId(null); // Reset account selection when company changes
+      setAccountId(null);
     }
   };
 
@@ -77,7 +74,6 @@ export default function StatementList({ onSelect }: Props) {
       groups[c].push(stmt);
     }
     
-    // Sort statements in each group by descending statement_date
     for (const key of Object.keys(groups)) {
       groups[key].sort((a, b) => {
         if (!a.statement_date) return 1;
@@ -86,203 +82,221 @@ export default function StatementList({ onSelect }: Props) {
       });
     }
 
-    // Sort keys alphabetically
     return Object.keys(groups).sort().reduce((acc, key) => {
       acc[key] = groups[key];
       return acc;
     }, {} as Record<string, typeof statements>);
   }, [filteredStatements]);
 
-  // Shared styling for active toggle items (Primary background color when active)
   const toggleItemStyles = 
-    "px-3 transition-all data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90";
+    "px-3 transition-all data-[state=on]:bg-blue-50 data-[state=on]:text-blue-600 font-medium";
 
   return (
-    <div className="space-y-5">
-      <div>
-        {/* Company Toggle Section */}
-        <div className="rounded-lg bg-muted/10 mb-3">
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            className="justify-start gap-2 flex-wrap"
-            value={selectedCompany}
-            onValueChange={handleCompanyChange}
-          >
-            <ToggleGroupItem value={ALL} className={toggleItemStyles}>
-              All Companies
-            </ToggleGroupItem>
-            {companies.map((company) => (
-              <ToggleGroupItem key={company} value={company} className={toggleItemStyles}>
-                {company}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-        </div>
-
-        {/* Account Toggle Section (Visible only when a specific company is selected) */}
-        {selectedCompany !== ALL && filteredAccounts.length > 0 && (
-          <div className="rounded-lg border bg-muted/30 p-3">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4">
+        {/* Filters and Actions Row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <ToggleGroup
               type="single"
               variant="outline"
               size="sm"
-              className="justify-start gap-2 flex-wrap"
-              value={accountId ? String(accountId) : ALL}
-              onValueChange={(val) => {
-                if (val) {
-                  setAccountId(val === ALL ? null : Number(val));
-                }
-              }}
+              className="justify-start gap-2 flex-wrap bg-transparent border-0"
+              value={selectedCompany}
+              onValueChange={handleCompanyChange}
             >
               <ToggleGroupItem value={ALL} className={toggleItemStyles}>
-                All Accounts
+                All Companies
               </ToggleGroupItem>
-              {filteredAccounts.map((a) => (
-                <ToggleGroupItem key={a.id} value={String(a.id)} className={toggleItemStyles}>
-                  <span className="capitalize">{a.bank_name}</span> (****{a.account_number})
+              {companies.map((company) => (
+                <ToggleGroupItem key={company} value={company} className={toggleItemStyles}>
+                  {company}
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
+            
+            {selectedCompany !== ALL && filteredAccounts.length > 0 && (
+              <>
+                <div className="w-px h-6 bg-slate-200 mx-2" />
+                <ToggleGroup
+                  type="single"
+                  variant="outline"
+                  size="sm"
+                  className="justify-start gap-2 flex-wrap"
+                  value={accountId ? String(accountId) : ALL}
+                  onValueChange={(val) => {
+                    if (val) setAccountId(val === ALL ? null : Number(val));
+                  }}
+                >
+                  <ToggleGroupItem value={ALL} className={toggleItemStyles}>
+                    All Accounts
+                  </ToggleGroupItem>
+                  {filteredAccounts.map((a) => (
+                    <ToggleGroupItem key={a.id} value={String(a.id)} className={toggleItemStyles}>
+                      <span className="capitalize">{a.bank_name}</span> (****{a.account_number})
+                    </ToggleGroupItem>
+                  ))}
+                </ToggleGroup>
+              </>
+            )}
           </div>
-        )}
+          
+          <div className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-3 py-1.5 border rounded-md">
+            <span>{filteredStatements.length} Statements</span>
+          </div>
+        </div>
       </div>
 
-      {/* Loading States (Updated to mirror the 3-column grid shape) */}
       {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-56 w-full rounded-xl" />
-          ))}
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-full rounded-lg" />
+          <Skeleton className="h-12 w-full rounded-lg" />
+          <Skeleton className="h-12 w-full rounded-lg" />
         </div>
       )}
       
-      {/* Error handling */}
       {error && (
         <p className="text-sm text-destructive">{(error as Error).message}</p>
       )}
       
-      {/* Empty State */}
       {!isLoading && statements.length === 0 && (
-        <p className="text-sm text-muted-foreground">No statements found</p>
+        <div className="flex flex-col items-center justify-center py-24 text-slate-400 bg-white border rounded-xl border-dashed">
+          <Layers className="h-12 w-12 mb-4 text-slate-200" />
+          <p>No bank statements found.</p>
+        </div>
       )}
 
-      {/* Statement Cards Grid Grouped by Company */}
-      {Object.entries(groupedStatements).map(([companyName, companyStmts]) => {
-        const isExpanded = !!expandedCompanies[companyName]; // Default to false
-        return (
-        <div key={companyName} className="space-y-4 mb-8">
-          <div 
-            className="flex items-center justify-between border-b pb-2 cursor-pointer hover:bg-muted/30 group px-2 rounded-t-md transition-colors"
-            onClick={() => toggleCompany(companyName)}
-          >
-            <h3 className="text-xl font-bold text-foreground/80 group-hover:text-foreground transition-colors">{companyName}</h3>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 transition-transform duration-200" tabIndex={-1}>
-              <ChevronRight className={`h-5 w-5 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
-            </Button>
-          </div>
-          
-          {isExpanded && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in zoom-in-95 duration-200">
-            {companyStmts.map((stmt) => (
-              <Card
-                key={stmt.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => onSelect(stmt.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSelect(stmt.id);
-                  }
-                }}
-                className="cursor-pointer flex flex-col justify-between transition-all hover:bg-muted/30 hover:shadow-md border-muted-foreground/15 shadow-sm relative"
-              >
-                <CardContent className="p-4 flex flex-col h-full gap-3">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
-                        onClick={(e) => e.stopPropagation()}
-                        aria-label="Delete statement"
+      {/* Main Data Table */}
+      {!isLoading && statements.length > 0 && (
+        <div className="bg-white rounded-xl pb-4">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-b border-slate-100 hover:bg-transparent">
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pl-4">Company</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Bank & Account</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Statement Date</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Type</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Beg Bal</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Additions</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Deductions</TableHead>
+                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">End Bal</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {Object.entries(groupedStatements).map(([companyName, companyStmts]) => {
+                const isExpanded = expandedCompanies[companyName] ?? false;
+                return (
+                  <Fragment key={companyName}>
+                    {/* Group Header Row */}
+                    <TableRow 
+                      className="cursor-pointer hover:bg-slate-50/50 border-b border-slate-50 transition-colors"
+                      onClick={() => toggleCompany(companyName)}
+                    >
+                      <TableCell colSpan={9} className="py-3 pl-4">
+                        <div className="flex items-center gap-4">
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full hover:bg-slate-200 text-slate-500" tabIndex={-1}>
+                            <ChevronRight className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
+                          </Button>
+                          <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">
+                            {companyName.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-bold text-slate-700">{companyName}</span>
+                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                            {companyStmts.length} statements
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    
+                    {/* Expanded Rows */}
+                    {isExpanded && companyStmts.map((stmt) => (
+                      <TableRow 
+                        key={stmt.id}
+                        className="cursor-pointer group hover:bg-slate-50 transition-colors border-b border-slate-50"
+                        onClick={() => onSelect(stmt.id)}
                       >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete statement?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete this statement and all of
-                          its transactions. This action cannot be undone.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteStatement.mutate(stmt.id)}
-                        >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                  {/* Header Container */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="font-bold text-sm text-foreground tracking-tight line-clamp-1">
-                        {stmt.bank_name}
-                      </h3>
-                      <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
-                        <CreditCard className="h-3 w-3" /> ****{stmt.account_number}
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 pr-6">
-                      <span className="text-[10px] bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wider">
-                        {typeLabel(stmt.statement_type)}
-                      </span>
-                      <span className="text-[11px] font-bold text-primary">
-                        Q{stmt.statement_quarter} {stmt.statement_year}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center text-xs border-y border-dashed py-2 text-muted-foreground mt-auto">
-                    <div className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-500">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {stmt.statement_date}
-                    </div>
-                  </div>
-
-                  {/* Ledger Value Metrics Block */}
-                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Beg.</span>
-                      <span className="font-medium">${fmt(stmt.beginning_balance)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Add</span>
-                      <span className="font-medium text-green-600">+{fmt(stmt.total_additions)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">End</span>
-                      <span className="font-medium">${fmt(stmt.ending_balance)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Sub</span>
-                      <span className="font-medium text-red-600">-{fmt(stmt.total_subtractions)}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-          )}
+                        <TableCell className="pl-16 py-3">
+                          {/* Empty cell under company avatar */}
+                        </TableCell>
+                        
+                        <TableCell className="py-3">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-slate-700 capitalize">{stmt.bank_name}</span>
+                            <span className="text-[11px] text-blue-600 font-medium">****{stmt.account_number}</span>
+                          </div>
+                        </TableCell>
+                        
+                        <TableCell className="text-slate-500 text-sm py-3">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-3.5 w-3.5 text-slate-300" />
+                            {stmt.statement_date}
+                          </div>
+                        </TableCell>
+                        
+                        <TableCell className="py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
+                              {typeLabel(stmt.statement_type)}
+                            </span>
+                            <span className="text-xs font-medium text-slate-400">
+                              Q{stmt.statement_quarter} {stmt.statement_year}
+                            </span>
+                          </div>
+                        </TableCell>
+                        
+                        <TableCell className="text-right py-3">
+                          <span className="font-medium text-slate-600 text-[13px]">${fmt(stmt.beginning_balance)}</span>
+                        </TableCell>
+                        <TableCell className="text-right py-3">
+                          <span className="font-medium text-green-600 text-[13px]">+${fmt(stmt.total_additions)}</span>
+                        </TableCell>
+                        <TableCell className="text-right py-3">
+                          <span className="font-medium text-red-600 text-[13px]">-${fmt(stmt.total_subtractions)}</span>
+                        </TableCell>
+                        <TableCell className="text-right py-3">
+                          <span className="font-bold text-slate-700 text-[15px]">${fmt(stmt.ending_balance)}</span>
+                        </TableCell>
+                        
+                        <TableCell className="py-3 pr-4">
+                          <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-full"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete statement?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will permanently delete this statement.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteStatement.mutate(stmt.id)}>
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
-      )})}
+      )}
     </div>
   );
 }

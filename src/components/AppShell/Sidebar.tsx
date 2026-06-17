@@ -18,6 +18,13 @@ export default function Sidebar({
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
+  const groupedNavigation = navigation.reduce((acc, item) => {
+    const section = item.section || "GENERAL";
+    if (!acc[section]) acc[section] = [];
+    acc[section].push(item);
+    return acc;
+  }, {} as Record<string, typeof navigation>);
+
   return (
     <aside
       className={`
@@ -42,9 +49,19 @@ export default function Sidebar({
         </button>
       </div>
 
-      <nav className="space-y-1 px-3 mt-4">
-        {navigation.map((item) => {
-          const Icon = item.icon;
+      <nav className="space-y-6 px-3 mt-6 pb-6 overflow-y-auto scrollbar-hide flex-1">
+        {Object.entries(groupedNavigation).map(([section, items]) => (
+          <div key={section} className="space-y-1">
+            {isOpen ? (
+              <div className="px-3 mb-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+                {section}
+              </div>
+            ) : (
+              <div className="h-4" /> // Spacing when collapsed
+            )}
+            
+            {items.map((item) => {
+              const Icon = item.icon;
 
           if (item.subItems) {
             const isExpanded = expandedItems[item.label];
@@ -86,7 +103,7 @@ export default function Sidebar({
                       to={sub.path}
                       className={({ isActive }) => `
                         flex items-center h-10 px-3 rounded-lg text-sm transition-all duration-300
-                        ${isActive ? "bg-blue-100 text-blue-600 font-medium" : "text-slate-600 hover:bg-slate-100"}
+                        ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-slate-600 hover:bg-slate-50"}
                       `}
                     >
                       {sub.label}
@@ -108,8 +125,8 @@ export default function Sidebar({
                   ${isOpen ? "px-3 justify-start" : "px-0 justify-center"}
                   ${
                     isActive
-                      ? "bg-blue-100 text-blue-600"
-                      : "hover:bg-slate-100 text-slate-700"
+                      ? "bg-blue-50 text-blue-600 font-semibold"
+                      : "hover:bg-slate-50 text-slate-700 font-medium"
                   }
                 `
               }
@@ -127,6 +144,8 @@ export default function Sidebar({
             </NavLink>
           );
         })}
+        </div>
+        ))}
       </nav>
     </aside>
   );

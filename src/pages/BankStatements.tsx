@@ -32,7 +32,7 @@ export default function BankStatements() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="bg-slate-100/50 mb-8">
+        <TabsList variant="line" className="mb-8">
           <TabsTrigger value="statements" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Statements
