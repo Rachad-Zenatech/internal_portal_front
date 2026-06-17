@@ -32,29 +32,17 @@ export default function BankStatements() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        {/* Added smooth hover transitions and dynamic scale-down press effects */}
-        <TabsList className="mb-8 h-12 w-max items-center justify-start gap-1 rounded-xl bg-muted p-1 border shadow-inner">
-          <TabsTrigger 
-            value="statements" 
-            className="h-full px-5 text-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10 gap-2"
-          >
-            <Building2 className="h-4 w-4 transition-transform duration-200 data-[state=active]:scale-110" />
+        <TabsList className="bg-slate-100/50 mb-8">
+          <TabsTrigger value="statements" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
             Statements
           </TabsTrigger>
-          
-          <TabsTrigger 
-            value="upload" 
-            className="h-full px-5 text-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10 gap-2"
-          >
-            <Upload className="h-4 w-4 transition-transform duration-200 data-[state=active]:scale-110" />
+          <TabsTrigger value="upload" className="flex items-center gap-2">
+            <Upload className="h-4 w-4" />
             Upload
           </TabsTrigger>
-          
-          <TabsTrigger 
-            value="summary" 
-            className="h-full px-5 text-sm font-semibold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10 gap-2"
-          >
-            <BarChart3 className="h-4 w-4 transition-transform duration-200 data-[state=active]:scale-110" />
+          <TabsTrigger value="summary" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
             Summary
           </TabsTrigger>
         </TabsList>

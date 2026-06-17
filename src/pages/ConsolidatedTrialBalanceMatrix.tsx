@@ -1,8 +1,6 @@
-import { useEffect, useState } from "react";
-import {
-  GLService,
-  type ConsolidatedMatrixResponse,
-} from "../services/glService";
+import { useState, useEffect } from "react";
+import { type ConsolidatedMatrixResponse } from "../services/glService";
+import { useConsolidatedMatrix } from "../hooks/useGL";
 import { Loader2, Network, Layers, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
@@ -38,10 +36,8 @@ function getTabIcon(name: string) {
 }
 
 export default function ConsolidatedTrialBalanceMatrix() {
-  const [data, setData] = useState<ConsolidatedMatrixResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading: loading, error } = useConsolidatedMatrix();
   const [activeTab, setActiveTab] = useState<string>("");
-  const [loading, setLoading] = useState(true);
   const [hiddenCompanies, setHiddenCompanies] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -49,30 +45,21 @@ export default function ConsolidatedTrialBalanceMatrix() {
   }, [activeTab]);
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    GLService.getConsolidatedTrialBalanceMatrix()
-      .then((res) => {
-        setData(res);
-        if (res.tabs.length > 0) {
-          setActiveTab(res.tabs[0].name);
-        }
-      })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load matrix")
-      )
-      .finally(() => setLoading(false));
-  }, []);
+    if (data && data.tabs.length > 0 && !activeTab) {
+      setActiveTab(data.tabs[0].name);
+    }
+  }, [data, activeTab]);
 
-  if (loading) {
-    return (
-      <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-80" />
-            <Skeleton className="h-5 w-64" />
-          </div>
+  return (
+    <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Consolidated Trial Balance</h1>
+          <p className="text-slate-500 mt-1">Chart of Accounts matrix by company group.</p>
         </div>
+      </div>
+
+      {loading ? (
         <div className="space-y-6">
           <Skeleton className="h-10 w-64 rounded-md" />
           <div className="flex items-center gap-2">
@@ -88,35 +75,15 @@ export default function ConsolidatedTrialBalanceMatrix() {
             ))}
           </Card>
         </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-8">
+      ) : error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          {error.message || "Failed to load matrix"}
         </div>
-      </div>
-    );
-  }
-
-  if (!data || data.tabs.length === 0) {
-    return <div className="p-8 text-slate-500">No data available.</div>;
-  }
-
-  return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Consolidated Trial Balance</h1>
-          <p className="text-slate-500 mt-1">Chart of Accounts matrix by company group.</p>
-        </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-slate-100/50">
+      ) : !data || data.tabs.length === 0 ? (
+        <div className="text-slate-500">No data available.</div>
+      ) : (
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="bg-slate-100/50">
           {data.tabs.map((tab) => (
             <TabsTrigger key={tab.name} value={tab.name} className="flex items-center">
               {getTabIcon(tab.name)}
@@ -130,7 +97,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
           const visibleColumns = activeTabData.columns.filter(c => !hiddenCompanies.has(c));
           
           return (
-            <TabsContent key={tab.name} value={tab.name} className="space-y-4">
+            <TabsContent key={tab.name} value={tab.name} className="space-y-4 mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2">
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-slate-500 mr-2">Filter Columns:</span>
@@ -171,7 +138,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
                           Name
                         </TableHead>
                         {visibleColumns.map((col) => (
-                          <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words border-r border-slate-200 text-center font-semibold text-slate-700 leading-tight py-2">
+                          <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words font-semibold text-slate-700 leading-tight py-2">
                             {col}
                           </TableHead>
                         ))}
@@ -207,7 +174,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
                               {visibleColumns.map((col) => {
                                 const val = acct.balances[col] || 0;
                                 return (
-                                  <TableCell key={col} className="w-[150px] min-w-[150px] border-r border-slate-100 text-right text-slate-600">
+                                  <TableCell key={col} className="w-[150px] min-w-[150px] text-right text-slate-600">
                                     {money(val)}
                                   </TableCell>
                                 );
@@ -233,7 +200,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
                               0
                             );
                             return (
-                              <TableCell key={col} className={`w-[150px] min-w-[150px] border-r border-slate-300 text-right font-bold ${getColorClass(colTotal)}`}>
+                              <TableCell key={col} className={`w-[150px] min-w-[150px] text-right font-bold ${getColorClass(colTotal)}`}>
                                 {moneyTotal(colTotal)}
                               </TableCell>
                             );
@@ -259,10 +226,11 @@ export default function ConsolidatedTrialBalanceMatrix() {
                     )}
                   </Table>
               </Card>
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+              </TabsContent>
+            );
+          })}
+        </Tabs>
+      )}
     </div>
   );
 }

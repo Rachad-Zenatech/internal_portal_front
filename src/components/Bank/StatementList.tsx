@@ -57,6 +57,24 @@ export default function StatementList({ onSelect }: Props) {
     }
   };
 
+  const filteredStatements = useMemo(() => {
+    return statements.filter((stmt) => selectedCompany === ALL || stmt.company_name === selectedCompany);
+  }, [statements, selectedCompany]);
+
+  const groupedStatements = useMemo(() => {
+    const groups: Record<string, typeof statements> = {};
+    for (const stmt of filteredStatements) {
+      const c = stmt.company_name || "Unknown Company";
+      if (!groups[c]) groups[c] = [];
+      groups[c].push(stmt);
+    }
+    // Sort keys alphabetically
+    return Object.keys(groups).sort().reduce((acc, key) => {
+      acc[key] = groups[key];
+      return acc;
+    }, {} as Record<string, typeof statements>);
+  }, [filteredStatements]);
+
   // Shared styling for active toggle items (Primary background color when active)
   const toggleItemStyles = 
     "px-3 transition-all data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90";
@@ -140,120 +158,119 @@ export default function StatementList({ onSelect }: Props) {
         <p className="text-sm text-muted-foreground">No statements found</p>
       )}
 
-      {/* Statement Cards Grid (3 Columns on Large Screens) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {statements
-          .filter((stmt) => selectedCompany === ALL || stmt.company_name === selectedCompany)
-          .map((stmt) => (
-            <Card
-              key={stmt.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onSelect(stmt.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onSelect(stmt.id);
-                }
-              }}
-              className="cursor-pointer flex flex-col justify-between transition-all hover:bg-muted/30 hover:shadow-md border-muted-foreground/15 shadow-sm"
-            >
-              <CardContent className="p-5 flex flex-col h-full justify-between gap-5">
-                {/* Header Container */}
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    {/* Bigger Company Name Font */}
-                    <h3 className="font-bold text-base text-foreground tracking-tight line-clamp-1">
-                      {stmt.company_name}
-                    </h3>
-                    
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary uppercase tracking-wide">
-                        Q{stmt.statement_quarter} {stmt.statement_year}
-                      </span>
+      {/* Statement Cards Grid Grouped by Company */}
+      {Object.entries(groupedStatements).map(([companyName, companyStmts]) => (
+        <div key={companyName} className="space-y-4 mb-8">
+          <h3 className="text-xl font-bold border-b pb-2 text-foreground/80">{companyName}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {companyStmts.map((stmt) => (
+              <Card
+                key={stmt.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelect(stmt.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect(stmt.id);
+                  }
+                }}
+                className="cursor-pointer flex flex-col justify-between transition-all hover:bg-muted/30 hover:shadow-md border-muted-foreground/15 shadow-sm"
+              >
+                <CardContent className="p-5 flex flex-col h-full justify-between gap-5">
+                  {/* Header Container */}
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-bold text-base text-foreground tracking-tight line-clamp-1">
+                        {stmt.company_name}
+                      </h3>
                       
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label="Delete statement"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete statement?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This will permanently delete this statement and all of
-                              its transactions. This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteStatement.mutate(stmt.id)}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="rounded bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary uppercase tracking-wide">
+                          Q{stmt.statement_quarter} {stmt.statement_year}
+                        </span>
+                        
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="Delete statement"
                             >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete statement?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete this statement and all of
+                                its transactions. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteStatement.mutate(stmt.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+
+                    {/* Enhanced & Emphasized Meta Fields */}
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-sm text-foreground/90">{stmt.bank_name}</span>
+                        <span className="text-xs bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                          {typeLabel(stmt.statement_type)}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded font-mono text-foreground font-semibold text-[13px]">
+                          <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                          ****{stmt.account_number}
+                        </span>
+                        
+                        <span className="flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 px-2 py-1 rounded font-medium text-[13px]">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {stmt.statement_date}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Enhanced & Emphasized Meta Fields */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-sm text-foreground/90">{stmt.bank_name}</span>
-                      {/* statement_type: High visibility background badge */}
-                      <span className="text-xs bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
-                        {typeLabel(stmt.statement_type)}
-                      </span>
+                  {/* Ledger Value Metrics Block */}
+                  <div className="pt-3 border-t border-dashed space-y-2 text-sm">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Beginning Balance</span>
+                      <span className="font-semibold text-foreground">${fmt(stmt.beginning_balance)}</span>
                     </div>
-
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      {/* account_number: Highlighted background wrapper with icon */}
-                      <span className="flex items-center gap-1 bg-muted px-2 py-1 rounded font-mono text-foreground font-semibold text-[13px]">
-                        <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                        ****{stmt.account_number}
-                      </span>
-                      
-                      {/* statement_date: Clear layout item with calendar icon */}
-                      <span className="flex items-center gap-1 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-400 px-2 py-1 rounded font-medium text-[13px]">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {stmt.statement_date}
-                      </span>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Additions</span>
+                      <span className="font-bold text-green-600">+${fmt(stmt.total_additions)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Subtractions</span>
+                      <span className="font-bold text-destructive">−${fmt(stmt.total_subtractions)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 font-bold border-t border-muted">
+                      <span className="text-foreground text-sm">Ending Balance</span>
+                      <span className="text-primary text-xl tracking-tight">${fmt(stmt.ending_balance)}</span>
                     </div>
                   </div>
-                </div>
-
-                {/* Ledger Value Metrics Block (Font Sizes Bumped) */}
-                <div className="pt-3 border-t border-dashed space-y-2 text-sm">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Beginning Balance</span>
-                    <span className="font-semibold text-foreground">${fmt(stmt.beginning_balance)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Additions</span>
-                    <span className="font-bold text-green-600">+${fmt(stmt.total_additions)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Subtractions</span>
-                    <span className="font-bold text-destructive">−${fmt(stmt.total_subtractions)}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 font-bold border-t border-muted">
-                    <span className="text-foreground text-sm">Ending Balance</span>
-                    <span className="text-primary text-xl tracking-tight">${fmt(stmt.ending_balance)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-      </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

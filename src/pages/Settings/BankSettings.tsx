@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { bankService } from "../../services/bankService";
-import type { Bank, BankCreate, BankUpdate } from "../../types/bank";
+import { useState } from "react";
+import type { Bank, BankCreate } from "../../types/bank";
+import { useBanks, useCreateBank, useUpdateBank, useDeleteBank } from "../../hooks/useBank";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 
 export default function BankSettings() {
-  const [banks, setBanks] = useState<Bank[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: banks = [], isLoading } = useBanks();
+  const createMutation = useCreateBank();
+  const updateMutation = useUpdateBank();
+  const deleteMutation = useDeleteBank();
+
   const [searchQuery, setSearchQuery] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -24,21 +27,6 @@ export default function BankSettings() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [bankToDelete, setBankToDelete] = useState<Bank | null>(null);
-
-  const loadBanks = async () => {
-    setIsLoading(true);
-    try {
-      const data = await bankService.getBanks();
-      setBanks(data);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load banks");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { loadBanks(); }, []);
 
   const handleOpenModal = (bank?: Bank) => {
     if (bank) {
@@ -57,11 +45,13 @@ export default function BankSettings() {
 
   const handleSaveClick = async () => {
     try {
-      if (editingId) await bankService.updateBank(editingId, formData);
-      else await bankService.createBank(formData);
+      if (editingId) {
+        await updateMutation.mutateAsync({ id: editingId, data: formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
       setIsDialogOpen(false);
       toast.success("Bank saved successfully", { position: "top-center" });
-      loadBanks();
     } catch (e: any) {
       toast.error("Error", { description: e.message });
     }
@@ -75,9 +65,8 @@ export default function BankSettings() {
   const confirmDelete = async () => {
     if (!bankToDelete) return;
     try {
-      await bankService.deleteBank(bankToDelete.id);
+      await deleteMutation.mutateAsync(bankToDelete.id);
       toast.success("Bank deleted", { position: "top-center" });
-      loadBanks();
     } catch (e: any) {
       toast.error("Error", { description: e.message });
     }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { bankService, bankAccountService, companyService } from "../../services/bankService";
-import type { BankAccountWithDetails, BankAccountCreate, BankAccountUpdate, Bank, Company } from "../../types/bank";
+import { useState } from "react";
+import type { BankAccount, BankAccountCreate, Bank, Company } from "../../types/bank";
+import { useBankAccounts, useCompanies, useBanks, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from "../../hooks/useBank";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 
 export default function BankAccountSettings() {
-  const [accounts, setAccounts] = useState<BankAccountWithDetails[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [banks, setBanks] = useState<Bank[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: accounts = [], isLoading: isLoadingAccounts } = useBankAccounts();
+  const { data: companies = [], isLoading: isLoadingCompanies } = useCompanies();
+  const { data: banks = [], isLoading: isLoadingBanks } = useBanks();
+  const createMutation = useCreateBankAccount();
+  const updateMutation = useUpdateBankAccount();
+  const deleteMutation = useDeleteBankAccount();
+
+  const isLoading = isLoadingAccounts || isLoadingCompanies || isLoadingBanks;
+
   const [searchQuery, setSearchQuery] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -25,30 +30,9 @@ export default function BankAccountSettings() {
   });
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [accountToDelete, setAccountToDelete] = useState<BankAccountWithDetails | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<BankAccount | null>(null);
 
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      const [accs, comps, bnks] = await Promise.all([
-        bankAccountService.getBankAccounts(),
-        companyService.getCompanies(),
-        bankService.getBanks()
-      ]);
-      setAccounts(accs);
-      setCompanies(comps);
-      setBanks(bnks);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { loadData(); }, []);
-
-  const handleOpenModal = (account?: BankAccountWithDetails) => {
+  const handleOpenModal = (account?: BankAccount) => {
     if (account) {
       setEditingId(account.id);
       setFormData({
@@ -65,17 +49,19 @@ export default function BankAccountSettings() {
 
   const handleSaveClick = async () => {
     try {
-      if (editingId) await bankAccountService.updateBankAccount(editingId, formData);
-      else await bankAccountService.createBankAccount(formData);
+      if (editingId) {
+        await updateMutation.mutateAsync({ id: editingId, data: formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
       setIsDialogOpen(false);
       toast.success("Account saved successfully", { position: "top-center" });
-      loadData();
     } catch (e: any) {
       toast.error("Error", { description: e.message });
     }
   };
 
-  const handleDeleteClick = (account: BankAccountWithDetails) => {
+  const handleDeleteClick = (account: BankAccount) => {
     setAccountToDelete(account);
     setIsDeleteDialogOpen(true);
   };
@@ -83,9 +69,8 @@ export default function BankAccountSettings() {
   const confirmDelete = async () => {
     if (!accountToDelete) return;
     try {
-      await bankAccountService.deleteBankAccount(accountToDelete.id);
+      await deleteMutation.mutateAsync(accountToDelete.id);
       toast.success("Account deleted", { position: "top-center" });
-      loadData();
     } catch (e: any) {
       toast.error("Error", { description: e.message });
     }

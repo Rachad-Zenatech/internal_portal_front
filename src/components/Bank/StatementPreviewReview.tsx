@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
 import type {
   StatementPreview,
@@ -312,6 +312,53 @@ const fromHTMLDate = (d: string) => {
 
 const inputCls = "w-full bg-transparent border border-transparent hover:border-border focus:border-ring rounded p-1 transition-colors text-sm";
 
+function AmountInput({ value, onChange, className }: { value: number | null, onChange: (val: number | null) => void, className?: string }) {
+  const [localValue, setLocalValue] = useState<string>(value === null ? "" : value.toFixed(2));
+
+  useEffect(() => {
+    if (value === null) {
+      if (localValue !== "" && localValue !== "-") {
+        setLocalValue("");
+      }
+    } else {
+      const parsedLocal = parseFloat(localValue);
+      if (isNaN(parsedLocal) || parsedLocal !== value) {
+        setLocalValue(value.toFixed(2));
+      }
+    }
+  }, [value]);
+
+  const handleBlur = () => {
+    if (localValue === "" || localValue === "-") {
+      setLocalValue("");
+      onChange(null);
+    } else {
+      const parsed = parseFloat(localValue);
+      setLocalValue(parsed.toFixed(2));
+      onChange(parsed);
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      step="0.01"
+      value={localValue}
+      onChange={(e) => {
+        setLocalValue(e.target.value);
+        if (e.target.value === "" || e.target.value === "-") {
+          onChange(null);
+        } else {
+          const parsed = parseFloat(e.target.value);
+          if (!isNaN(parsed)) onChange(parsed);
+        }
+      }}
+      onBlur={handleBlur}
+      className={className}
+    />
+  );
+}
+
 function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: string, field: keyof EditableCheck, val: any) => void }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
@@ -320,11 +367,19 @@ function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: 
     <Table containerClassName="max-h-[calc(100vh-400px)]">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
-          {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => (
-            <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
-              {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
-            </TableHead>
-          ))}
+          {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => {
+            let widthClass = "";
+            if (h === "Date") widthClass = "w-[160px] min-w-[160px]";
+            else if (h === "Check #") widthClass = "w-[160px] min-w-[160px]";
+            else if (h === "Type") widthClass = "w-[160px] min-w-[160px]";
+            else if (h === "Paid To" || h === "Reference") widthClass = "min-w-[250px] w-full";
+            else if (h === "Amount") widthClass = "w-[140px] min-w-[140px] text-right";
+            return (
+              <TableHead key={h} className={widthClass}>
+                {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
+              </TableHead>
+            );
+          })}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -346,7 +401,10 @@ function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: 
               <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
             </TableCell>
             <TableCell className={cn("text-right", (r.amount ?? 0) < 0 && "text-destructive")}>
-              <input type="number" step="0.01" value={r.amount === null ? "" : r.amount} onChange={e => onUpdate(r._id, "amount", e.target.value === "" ? null : parseFloat(e.target.value))} className={cn(inputCls, "text-right w-24")} />
+              <div className="flex items-center justify-end">
+                <span className="text-slate-500 mr-1">$</span>
+                <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
+              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -363,11 +421,18 @@ function DepositTable({ rows, onUpdate }: { rows: EditableDeposit[], onUpdate: (
     <Table containerClassName="max-h-[calc(100vh-400px)]">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
-          {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => (
-            <TableHead key={h} className={h === "Amount" ? "text-right" : ""}>
-              {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
-            </TableHead>
-          ))}
+          {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => {
+            let widthClass = "";
+            if (h === "Date") widthClass = "w-[160px] min-w-[160px]";
+            else if (h === "Deposit ID") widthClass = "w-[160px] min-w-[160px]";
+            else if (h === "Received From" || h === "Reference") widthClass = "min-w-[250px] w-full";
+            else if (h === "Amount") widthClass = "w-[140px] min-w-[140px] text-right";
+            return (
+              <TableHead key={h} className={widthClass}>
+                {h === "Date" ? <DateSortHead dir={sortDir} onToggle={toggle} /> : h}
+              </TableHead>
+            );
+          })}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -386,7 +451,10 @@ function DepositTable({ rows, onUpdate }: { rows: EditableDeposit[], onUpdate: (
               <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
             </TableCell>
             <TableCell className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}>
-              <input type="number" step="0.01" value={r.amount === null ? "" : r.amount} onChange={e => onUpdate(r._id, "amount", e.target.value === "" ? null : parseFloat(e.target.value))} className={cn(inputCls, "text-right w-24")} />
+              <div className="flex items-center justify-end">
+                <span className="text-slate-500 mr-1">$</span>
+                <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
+              </div>
             </TableCell>
           </TableRow>
         ))}

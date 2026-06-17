@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { companyService } from "../../services/bankService";
-import type { Company, CompanyCreate, CompanyUpdate } from "../../types/bank";
+import { useState } from "react";
+import type { Company, CompanyCreate } from "../../types/bank";
+import { useCompanies, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,8 +12,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 
 export default function CompanySettings() {
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { data: companies = [], isLoading } = useCompanies();
+  const createMutation = useCreateCompany();
+  const updateMutation = useUpdateCompany();
+  const deleteMutation = useDeleteCompany();
+
   const [searchQuery, setSearchQuery] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -24,21 +27,6 @@ export default function CompanySettings() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
-
-  const loadCompanies = async () => {
-    setIsLoading(true);
-    try {
-      const data = await companyService.getCompanies();
-      setCompanies(data);
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load companies");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => { loadCompanies(); }, []);
 
   const handleOpenModal = (company?: Company) => {
     if (company) {
@@ -60,11 +48,13 @@ export default function CompanySettings() {
 
   const handleSaveClick = async () => {
     try {
-      if (editingId) await companyService.updateCompany(editingId, formData);
-      else await companyService.createCompany(formData);
+      if (editingId) {
+        await updateMutation.mutateAsync({ id: editingId, data: formData });
+      } else {
+        await createMutation.mutateAsync(formData);
+      }
       setIsDialogOpen(false);
       toast.success("Company saved successfully", { position: "top-center" });
-      loadCompanies();
     } catch (e: any) {
       toast.error("Error", { description: e.message });
     }
@@ -78,9 +68,8 @@ export default function CompanySettings() {
   const confirmDelete = async () => {
     if (!companyToDelete) return;
     try {
-      await companyService.deleteCompany(companyToDelete.id);
+      await deleteMutation.mutateAsync(companyToDelete.id);
       toast.success("Company deleted", { position: "top-center" });
-      loadCompanies();
     } catch (e: any) {
       toast.error("Error", { description: e.message });
     }
@@ -131,15 +120,16 @@ export default function CompanySettings() {
                 <TableHead className="h-12 w-[100px]">Group</TableHead>
                 <TableHead className="h-12 w-[100px]">State</TableHead>
                 <TableHead className="h-12 w-[100px]">Country</TableHead>
+                <TableHead className="h-12 min-w-[200px]">Description</TableHead>
                 <TableHead className="text-right h-12">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={6} className="text-center py-8">Loading...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center py-8">Loading...</TableCell></TableRow>
               ) : filteredCompanies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground border-b-0">
+                  <TableCell colSpan={7} className="h-32 text-center text-muted-foreground border-b-0">
                     No companies found.
                   </TableCell>
                 </TableRow>
@@ -151,6 +141,7 @@ export default function CompanySettings() {
                     <TableCell>{c.group || "-"}</TableCell>
                     <TableCell>{c.state || "-"}</TableCell>
                     <TableCell>{c.country || "-"}</TableCell>
+                    <TableCell className="max-w-[250px] truncate" title={c.description || ""}>{c.description || "-"}</TableCell>
                     <TableCell className="text-right space-x-2">
                       <Button variant="outline" size="sm" onClick={() => handleOpenModal(c)}>
                         <Edit2 size={14} className="mr-1" /> Edit
