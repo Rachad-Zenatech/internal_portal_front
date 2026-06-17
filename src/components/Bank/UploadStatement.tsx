@@ -58,10 +58,11 @@ export default function UploadStatement({ onUploaded }: Props) {
   }
 
   // Step 2 — persist the reviewed preview.
-  async function handleConfirm() {
-    if (!preview) return;
+  async function handleConfirm(editedPreview?: StatementPreview) {
+    const finalPreview = editedPreview || preview;
+    if (!finalPreview) return;
     try {
-      const stmt = await commitMut.mutateAsync(preview);
+      const stmt = await commitMut.mutateAsync(finalPreview);
       toast.success("Statement added to the database", {
         description: `ID ${stmt.id} — ${stmt.statement_date}`,
       });

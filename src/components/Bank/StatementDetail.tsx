@@ -245,9 +245,8 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader className="bg-muted/40">
+    <Table containerClassName="max-h-[calc(100vh-450px)]">
+      <TableHeader className="bg-muted/40 sticky top-0 z-10 shadow-sm">
           <TableRow>
             {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map(
               (h) => (
@@ -264,16 +263,15 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
               <TableCell className="font-medium text-sm">{r.date}</TableCell>
               <TableCell className="font-mono font-semibold text-sm text-foreground/80">{r.check_number || "—"}</TableCell>
               <TableCell className="text-xs font-medium"><span className="bg-muted px-2 py-0.5 rounded">{r.type || "—"}</span></TableCell>
-              <TableCell className="text-sm font-medium max-w-xs truncate">{r.paid_to || "—"}</TableCell>
-              <TableCell className="text-xs text-muted-foreground max-w-sm truncate">{r.reference || "—"}</TableCell>
+              <TableCell className="text-sm font-medium min-w-[200px] whitespace-normal break-words">{r.paid_to || "—"}</TableCell>
+              <TableCell className="text-xs text-muted-foreground min-w-[200px] whitespace-normal break-words">{r.reference || "—"}</TableCell>
               <TableCell className={cn("text-right font-bold text-sm tracking-tight", (r.amount ?? 0) < 0 ? "text-destructive" : "text-foreground")}>
                 ${fmt(r.amount)}
               </TableCell>
             </TableRow>
           ))}
-        </TableBody>
-      </Table>
-    </div>
+      </TableBody>
+    </Table>
   );
 }
 
@@ -282,9 +280,8 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader className="bg-muted/40">
+    <Table containerClassName="max-h-[calc(100vh-450px)]">
+      <TableHeader className="bg-muted/40 sticky top-0 z-10 shadow-sm">
           <TableRow>
             {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map(
               (h) => (
@@ -300,15 +297,14 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
             <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
               <TableCell className="font-medium text-sm">{r.date}</TableCell>
               <TableCell className="font-mono font-semibold text-sm text-foreground/80">{r.deposit_id || "—"}</TableCell>
-              <TableCell className="text-sm font-medium max-w-xs truncate">{r.received_from || "—"}</TableCell>
-              <TableCell className="text-xs text-muted-foreground max-w-sm truncate">{r.reference || "—"}</TableCell>
+              <TableCell className="text-sm font-medium min-w-[200px] whitespace-normal break-words">{r.received_from || "—"}</TableCell>
+              <TableCell className="text-xs text-muted-foreground min-w-[200px] whitespace-normal break-words">{r.reference || "—"}</TableCell>
               <TableCell className={cn("text-right font-bold text-sm tracking-tight", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600 dark:text-green-400")}>
                 ${fmt(r.amount)}
               </TableCell>
             </TableRow>
           ))}
-        </TableBody>
-      </Table>
-    </div>
+      </TableBody>
+    </Table>
   );
 }

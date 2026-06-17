@@ -154,6 +154,22 @@ export type ConsolidatedReconciliation = {
   companies: ConsolidatedCompany[];
 };
 
+export type ConsolidatedMatrixAccount = {
+  account_number: string;
+  account_name: string;
+  balances: Record<string, number>;
+};
+
+export type ConsolidatedMatrixTab = {
+  name: string;
+  columns: string[];
+  accounts: ConsolidatedMatrixAccount[];
+};
+
+export type ConsolidatedMatrixResponse = {
+  tabs: ConsolidatedMatrixTab[];
+};
+
 async function handleError(response: Response, fallbackMessage: string): Promise<never> {
   const text = await response.text();
 
@@ -310,6 +326,16 @@ export const GLService = {
 
     if (!response.ok) {
       await handleError(response, "Failed to load consolidated reconciliation");
+    }
+
+    return response.json();
+  },
+
+  async getConsolidatedTrialBalanceMatrix(): Promise<ConsolidatedMatrixResponse> {
+    const response = await fetch(`${API_BASE_URL}/reports/consolidated-trial-balance-matrix`);
+
+    if (!response.ok) {
+      await handleError(response, "Failed to load consolidated trial balance matrix");
     }
 
     return response.json();

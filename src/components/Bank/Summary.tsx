@@ -228,9 +228,8 @@ export default function SummaryPage() {
       {/* Aggregate Balance Data Visualization Grid */}
       {rows.length > 0 && (
         <div className="border border-muted-foreground/15 rounded-xl bg-card shadow-sm overflow-hidden transition-all duration-300 animate-in fade-in-40 slide-in-from-bottom-3">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/50">
+          <Table containerClassName="max-h-[calc(100vh-300px)]">
+            <TableHeader className="bg-muted/50 sticky top-0 z-10 shadow-sm">
                 <TableRow>
                   {["Company", "Account", "Bank", "Type", activePeriod === "monthly" ? "Month" : activePeriod === "quarterly" ? "Quarter" : "Year"].map((h) => (
                     <TableHead key={h} className="font-bold text-foreground/80 h-11 text-xs uppercase tracking-wider">
@@ -284,8 +283,7 @@ export default function SummaryPage() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
-          </div>
+          </Table>
         </div>
       )}
     </div>
