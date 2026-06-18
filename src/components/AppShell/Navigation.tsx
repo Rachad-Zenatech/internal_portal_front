@@ -4,6 +4,7 @@ import {
   Scale,
   Layers,
   Download,
+  Upload,
   UserRoundCog,
   Sparkles,
 } from "lucide-react";
@@ -21,12 +22,12 @@ export const navigation = [
     icon: Sparkles,
     section: "GENERAL",
   },
-  // {
-  //   label: "Upload Files",
-  //   path: "/upload-files",
-  //   icon: Upload,
-  //   section: "GENERAL",
-  // },
+  {
+    label: "Upload Files",
+    path: "/upload-files",
+    icon: Upload,
+    section: "GENERAL",
+  },
   {
     label: "General Ledger",
     path: "/general-ledger",
