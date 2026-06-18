@@ -299,13 +299,13 @@ export default function ConsolidatedTrialBalance() {
       {/* Reconciling item detail */}
       <div className="grid gap-6 lg:grid-cols-2">
         <ReconcilingTable
-          title="In Bank, Not Yet in Books"
+          title="In Bank, Missing in Books"
           subtitle="Cleared the bank — not yet recorded in the GL."
           companies={selected}
           getItems={(c) => c.in_bank_not_in_books}
         />
         <ReconcilingTable
-          title="In Books, Not in Bank"
+          title="In Books, Missing in Bank"
           subtitle="Recorded in the GL — not yet cleared (outstanding)."
           companies={selected}
           getItems={(c) => c.in_books_not_in_bank}
@@ -359,7 +359,9 @@ function ReconcilingTable({
   return (
     <div className="overflow-hidden rounded-xl border bg-white">
       <div className="border-b bg-slate-50 p-4">
-        <h3 className="font-semibold">{title}</h3>
+        <h3 className="flex flex-wrap items-center gap-1.5 font-semibold">
+          <HighlightedMissingTitle title={title} />
+        </h3>
         <p className="text-xs text-slate-500">{subtitle}</p>
       </div>
       <table className="w-full text-sm">
@@ -460,5 +462,20 @@ function ReconcilingTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function HighlightedMissingTitle({ title }: { title: string }) {
+  const missingIndex = title.indexOf("Missing");
+
+  if (missingIndex === -1) return title;
+
+  return (
+    <>
+      <span>{title.slice(0, missingIndex)}</span>
+      <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200">
+        {title.slice(missingIndex)}
+      </span>
+    </>
   );
 }

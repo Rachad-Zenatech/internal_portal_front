@@ -375,15 +375,6 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-md border p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="font-semibold">{value}</p>
-    </div>
-  );
-}
-
 function Info({ label, value }: { label: string; value: string }) {
   return (
     <div>

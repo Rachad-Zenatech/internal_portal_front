@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { type ConsolidatedMatrixResponse } from "../services/glService";
 import { useConsolidatedMatrix } from "../hooks/useGL";
 import { Loader2, Network, Layers, Building2, Settings2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
