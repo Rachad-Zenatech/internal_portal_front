@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,7 +26,8 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function RevenueExpenseChart() {
-  const { data, isLoading, isError } = useRevenueExpenseChart();
+  const [period, setPeriod] = useState("monthly");
+  const { data, isLoading, isError } = useRevenueExpenseChart(period);
 
   const yAxisTickFormatter = (value: number) => {
     return `$${value.toLocaleString()}`;
@@ -52,14 +54,14 @@ export default function RevenueExpenseChart() {
     <Card className="w-full">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>General Ledger Activity: Revenue vs Expenses</CardTitle>
-        <Select defaultValue="quarter">
+        <Select value={period} onValueChange={setPeriod}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Select period" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="quarter">This Fiscal Quarter</SelectItem>
-            <SelectItem value="year">This Fiscal Year</SelectItem>
-            <SelectItem value="ytd">Year to Date</SelectItem>
+            <SelectItem value="monthly">Monthly</SelectItem>
+            <SelectItem value="quarterly">Quarterly</SelectItem>
+            <SelectItem value="yearly">Yearly</SelectItem>
           </SelectContent>
         </Select>
       </CardHeader>
