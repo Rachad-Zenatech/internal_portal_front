@@ -69,7 +69,7 @@ export default function AccountTypeDonut() {
                 dataKey="value"
                 stroke="none"
               >
-                {data.map((entry, index) => (
+                {data.map((_entry: unknown, index: number) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>

@@ -29,7 +29,7 @@ export default function Sidebar({
   return (
     <aside
       className={`
-        flex flex-col border-r bg-white transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap
+        flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap
         ${isOpen ? "w-72" : "w-20"}
       `}
     >
@@ -44,7 +44,7 @@ export default function Sidebar({
 
         <button
           onClick={onToggle}
-          className="rounded-lg p-2 hover:bg-slate-100 flex-shrink-0"
+          className="rounded-lg p-2 hover:bg-sidebar-accent flex-shrink-0"
         >
           <PanelRight size={20} />
         </button>
@@ -54,7 +54,7 @@ export default function Sidebar({
         {Object.entries(groupedNavigation).map(([section, items]) => (
           <div key={section} className="space-y-1">
             {isOpen ? (
-              <div className="px-3 mb-2 text-[10px] font-bold tracking-widest text-slate-400 uppercase">
+              <div className="px-3 mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                 {section}
               </div>
             ) : (
@@ -75,7 +75,7 @@ export default function Sidebar({
                   }}
                   title={!isOpen ? item.label : undefined}
                   className={`
-                    flex items-center justify-between h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out hover:bg-slate-100 text-slate-700
+                    flex items-center justify-between h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out hover:bg-sidebar-accent text-sidebar-foreground
                     ${isOpen ? "px-3" : "px-0 justify-center"}
                   `}
                 >
@@ -104,7 +104,7 @@ export default function Sidebar({
                       to={sub.path}
                       className={({ isActive }) => `
                         flex items-center h-10 px-3 rounded-lg text-sm transition-all duration-300
-                        ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-slate-600 hover:bg-slate-50"}
+                        ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
                       `}
                     >
                       {sub.label}
@@ -127,7 +127,7 @@ export default function Sidebar({
                   ${
                     isActive
                       ? "bg-blue-50 text-blue-600 font-semibold"
-                      : "hover:bg-slate-50 text-slate-700 font-medium"
+                      : "hover:bg-sidebar-accent text-sidebar-foreground font-medium"
                   }
                 `
               }

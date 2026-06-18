@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from "@/components/ui/sonner"
+import { ThemeProvider } from "next-themes"
 
 // Create a client
 const queryClient = new QueryClient({
@@ -17,9 +18,11 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-      <Toaster />
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+      <QueryClientProvider client={queryClient}>
+        <App />
+        <Toaster />
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 )

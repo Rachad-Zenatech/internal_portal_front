@@ -130,6 +130,41 @@
 }
 
 @layer utilities {
+  .dark .bg-white,
+  .dark .bg-slate-50,
+  .dark .bg-slate-100,
+  .dark .bg-zinc-50 {
+    background-color: var(--card) !important;
+  }
+
+  .dark .bg-slate-200,
+  .dark .bg-zinc-100,
+  .dark .hover\:bg-slate-100:hover,
+  .dark .hover\:bg-slate-50:hover {
+    background-color: var(--muted) !important;
+  }
+
+  .dark .border-slate-50,
+  .dark .border-slate-100,
+  .dark .border-slate-200,
+  .dark .border-zinc-200 {
+    border-color: var(--border) !important;
+  }
+
+  .dark .text-slate-900,
+  .dark .text-slate-800,
+  .dark .text-slate-700,
+  .dark .text-zinc-900 {
+    color: var(--foreground) !important;
+  }
+
+  .dark .text-slate-600,
+  .dark .text-slate-500,
+  .dark .text-slate-400,
+  .dark .text-zinc-500 {
+    color: var(--muted-foreground) !important;
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
