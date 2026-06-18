@@ -239,12 +239,12 @@ function CompanyGLCardView({
         )}
       </div>
 
-      <div className="mb-4 rounded-md bg-gray-50 p-3">
+      <div className="mb-4 rounded-md bg-gray-50 p-3 dark:bg-muted">
         <p className="text-sm font-medium">{card.period_label}</p>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-foreground">
           Last Import: {card.last_import_filename || "None"}
         </p>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-foreground">
           Imported At:{" "}
           {card.last_imported_at
             ? new Date(card.last_imported_at).toLocaleString()

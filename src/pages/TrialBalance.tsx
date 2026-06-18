@@ -81,8 +81,8 @@ export default function TrialBalance() {
           onClick={() => setActiveTab('trial')}
           className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none
             ${activeTab === 'trial'
-              ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-blue-600'
-              : 'text-gray-500 hover:text-gray-800'
+              ? 'text-blue-600 dark:text-foreground after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-blue-600'
+              : 'text-gray-500 hover:text-gray-800 dark:text-foreground dark:hover:text-foreground'
             }`}
         >
           Trial Balance
@@ -91,8 +91,8 @@ export default function TrialBalance() {
           onClick={() => setActiveTab('consolidated')}
           className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none
             ${activeTab === 'consolidated'
-              ? 'text-blue-600 after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-blue-600'
-              : 'text-gray-500 hover:text-gray-800'
+              ? 'text-blue-600 dark:text-foreground after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-blue-600'
+              : 'text-gray-500 hover:text-gray-800 dark:text-foreground dark:hover:text-foreground'
             }`}
         >
           Consolidated

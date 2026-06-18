@@ -1,10 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, ThumbsDown, Wallet, Clock, TrendingUp } from "lucide-react";
+import { BarChart3, ThumbsDown, Wallet, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { useDashboardSummary } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function SummaryCards() {
-  const { data, isLoading, isError } = useDashboardSummary();
+type SummaryCardsProps = {
+  companyId?: number | null;
+};
+
+export default function SummaryCards({ companyId }: SummaryCardsProps) {
+  const { data, isLoading, isError } = useDashboardSummary(companyId);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val || 0);
@@ -31,6 +35,10 @@ export default function SummaryCards() {
   if (isError || !data) {
     return <div className="text-red-500">Failed to load summary metrics.</div>;
   }
+
+  const liabilitiesChange = data.liabilitiesChange || 0;
+  const liabilitiesIncreased = liabilitiesChange > 0;
+  const LiabilityTrendIcon = liabilitiesIncreased ? TrendingUp : TrendingDown;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -60,10 +68,19 @@ export default function SummaryCards() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(data.liabilities)}</div>
-          <p className="flex items-center text-xs text-green-500 mt-1">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            +{data.liabilitiesChange}% from last month
+          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+            {formatCurrency(data.liabilities)}
+          </div>
+          <p
+            className={`flex items-center text-xs mt-1 ${
+              liabilitiesIncreased
+                ? "text-red-500 dark:text-red-400"
+                : "text-green-500 dark:text-green-400"
+            }`}
+          >
+            <LiabilityTrendIcon className="w-3 h-3 mr-1" />
+            {liabilitiesChange > 0 ? "+" : ""}
+            {liabilitiesChange}% from last month
           </p>
         </CardContent>
       </Card>
