@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { BankAccount, BankAccountCreate, Bank, Company } from "../../types/bank";
+import type { BankAccount, BankAccountCreate } from "../../types/bank";
 import { useBankAccounts, useCompanies, useBanks, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from "../../hooks/useBank";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";

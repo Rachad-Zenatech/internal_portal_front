@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
-import { type ConsolidatedMatrixResponse } from "../services/glService";
 import { useConsolidatedMatrix } from "../hooks/useGL";
-import { Loader2, Network, Layers, Building2 } from "lucide-react";
+import { Network, Layers, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

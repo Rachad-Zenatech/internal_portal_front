@@ -4,7 +4,6 @@ import AiAssistant from "./pages/AIAssistant";
 import BankStatements from "./pages/BankStatements";
 import GeneralLedger from "./pages/GeneralLedger";
 import Reports from "./pages/Reports";
-import Settings from "./pages/Settings"; 
 import TrialBalance from "./pages/TrialBalance";
 import UploadFile from "./pages/UploadFiles" 
 import ConsolidatedTrailBalance from "./pages/ConsolidatedTrailBalance";

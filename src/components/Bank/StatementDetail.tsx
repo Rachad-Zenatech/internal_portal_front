@@ -55,7 +55,6 @@ const TABS = [
   "cleared_deposits",
   "outstanding_deposits",
 ] as const;
-type Tab = (typeof TABS)[number];
 
 interface Props {
   statementId: number;
