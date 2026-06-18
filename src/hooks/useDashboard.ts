@@ -17,10 +17,10 @@ export function useDashboardSummary() {
   });
 }
 
-export function useRevenueExpenseChart() {
+export function useRevenueExpenseChart(period: string = "monthly") {
   return useQuery({
-    queryKey: ["dashboard", "revenue-expense"],
-    queryFn: () => fetcher("/revenue-expense"),
+    queryKey: ["dashboard", "revenue-expense", period],
+    queryFn: () => fetcher(`/revenue-expense?period=${period}`),
   });
 }
 
