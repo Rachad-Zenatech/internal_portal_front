@@ -3,7 +3,6 @@ import { X, Calendar, ChevronRight, Layers, Settings2, Building2 } from "lucide-
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -17,8 +16,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-
-const ALL = "all";
 
 const fmt = (n: number): string =>
   Number(n).toLocaleString("en-US", { minimumFractionDigits: 2 });
@@ -87,9 +84,6 @@ export default function StatementList({ onSelect }: Props) {
       return acc;
     }, {} as Record<string, typeof statements>);
   }, [filteredStatements]);
-
-  const toggleItemStyles = 
-    "px-3 transition-all data-[state=on]:bg-blue-50 data-[state=on]:text-blue-600 font-medium";
 
   return (
     <div className="space-y-6">

@@ -11,7 +11,7 @@ export default function AppShell({ children }: Props) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50/50">
+    <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -19,7 +19,7 @@ export default function AppShell({ children }: Props) {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopBar />
-        <main className="flex-1 overflow-auto p-8">
+        <main className="flex-1 overflow-auto p-8 bg-background">
           {children}
         </main>
       </div>

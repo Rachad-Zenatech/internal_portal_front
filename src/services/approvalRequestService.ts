@@ -1,7 +1,6 @@
 // src/services/approvalRequestService.ts
 
 import type {
-  ApprovalRequest,
   ApprovalRequests,
 } from "../types/approval";
 
