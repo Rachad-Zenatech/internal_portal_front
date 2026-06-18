@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { type ConsolidatedMatrixResponse } from "../services/glService";
 import { useConsolidatedMatrix } from "../hooks/useGL";
-import { Loader2, Network, Layers, Building2 } from "lucide-react";
+import { Loader2, Network, Layers, Building2, Settings2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 function money(value: number) {
   if (!value || Math.abs(value) < 0.005) return "-";
@@ -60,79 +62,50 @@ export default function ConsolidatedTrialBalanceMatrix() {
           <h1 className="text-3xl font-bold tracking-tight">Consolidated Trial Balance</h1>
           <p className="text-slate-500 mt-1">Chart of Accounts matrix by company group.</p>
         </div>
-
-        <div className="flex gap-4">
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-[180px] bg-white">
-              <SelectValue placeholder="Select Period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Yearly</SelectLabel>
-                <SelectItem value="annual">Annual</SelectItem>
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>Quarterly</SelectLabel>
-                <SelectItem value="q1">Q1</SelectItem>
-                <SelectItem value="q2">Q2</SelectItem>
-                <SelectItem value="q3">Q3</SelectItem>
-                <SelectItem value="q4">Q4</SelectItem>
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>Monthly</SelectLabel>
-                {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
-                  <SelectItem key={m} value={m.toLowerCase()}>{m}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-          
-          <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
-            <SelectTrigger className="w-[120px] bg-white">
-              <SelectValue placeholder="Select Year" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2024">2024</SelectItem>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-              <SelectItem value="2027">2027</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
       </div>
 
-      {loading ? (
-        <div className="space-y-6">
-          <Skeleton className="h-10 w-64 rounded-md" />
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-6 w-24" />
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-6 w-full">
+          <div className="w-full">
+            {(!loading && !error && data && data.tabs.length > 0) ? (
+              <TabsList variant="line" className="h-10 p-0 bg-transparent border-none">
+                {data.tabs.map((tab) => (
+                  <TabsTrigger key={tab.name} value={tab.name} className="flex items-center">
+                    {getTabIcon(tab.name)}
+                    {tab.name}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            ) : (
+              <div className="h-10" />
+            )}
           </div>
-          <Card className="overflow-hidden p-4 border-slate-200 shadow-sm space-y-4">
-            <Skeleton className="h-10 w-full" />
-            {Array.from({ length: 10 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </Card>
         </div>
-      ) : error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error.message || "Failed to load matrix"}
-        </div>
-      ) : !data || data.tabs.length === 0 ? (
-        <div className="text-slate-500">No data available.</div>
-      ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList variant="line">
-          {data.tabs.map((tab) => (
-            <TabsTrigger key={tab.name} value={tab.name} className="flex items-center">
-              {getTabIcon(tab.name)}
-              {tab.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+
+        {loading ? (
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-64 rounded-md" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-6 w-24" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+            <Card className="overflow-hidden p-4 border-slate-200 shadow-sm space-y-4">
+              <Skeleton className="h-10 w-full" />
+              {Array.from({ length: 10 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </Card>
+          </div>
+        ) : error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            {error.message || "Failed to load matrix"}
+          </div>
+        ) : !data || data.tabs.length === 0 ? (
+          <div className="text-slate-500">No data available.</div>
+        ) : (
+          <>
 
         {data.tabs.map((tab) => {
           const activeTabData = tab;
@@ -142,30 +115,88 @@ export default function ConsolidatedTrialBalanceMatrix() {
             <TabsContent key={tab.name} value={tab.name} className="space-y-4 mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2">
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-slate-500 mr-2">Filter Columns:</span>
-                  {activeTabData.columns.map((col) => {
-                    const isHidden = hiddenCompanies.has(col);
-                    return (
-                      <button
-                        key={col}
-                        onClick={() => {
-                          setHiddenCompanies((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(col)) next.delete(col);
-                            else next.add(col);
-                            return next;
-                          });
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-8 border-slate-200">
+                        <Settings2 className="mr-2 h-4 w-4" />
+                        Columns
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-[200px]">
+                      <DropdownMenuCheckboxItem
+                        checked={hiddenCompanies.size === 0}
+                        onSelect={(e) => e.preventDefault()}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setHiddenCompanies(new Set());
+                          } else {
+                            setHiddenCompanies(new Set(activeTabData.columns));
+                          }
                         }}
-                        className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                          isHidden
-                            ? "bg-slate-200 border-slate-300 text-slate-900 hover:bg-slate-300"
-                            : "bg-black border-black text-white hover:bg-slate-800"
-                        }`}
                       >
-                        {col}
-                      </button>
-                    );
-                  })}
+                        Select All
+                      </DropdownMenuCheckboxItem>
+                      <DropdownMenuSeparator />
+                      {activeTabData.columns.map((col) => {
+                        const isHidden = hiddenCompanies.has(col);
+                        return (
+                          <DropdownMenuCheckboxItem
+                            key={col}
+                            checked={!isHidden}
+                            onSelect={(e) => e.preventDefault()}
+                            onCheckedChange={(checked) => {
+                              setHiddenCompanies((prev) => {
+                                const next = new Set(prev);
+                                if (!checked) next.add(col);
+                                else next.delete(col);
+                                return next;
+                              });
+                            }}
+                          >
+                            {col}
+                          </DropdownMenuCheckboxItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Select value={period} onValueChange={setPeriod}>
+                    <SelectTrigger className="w-[180px] bg-white border-slate-200">
+                      <SelectValue placeholder="Select Period" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Yearly</SelectLabel>
+                        <SelectItem value="annual">Annual</SelectItem>
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>Quarterly</SelectLabel>
+                        <SelectItem value="q1">Q1</SelectItem>
+                        <SelectItem value="q2">Q2</SelectItem>
+                        <SelectItem value="q3">Q3</SelectItem>
+                        <SelectItem value="q4">Q4</SelectItem>
+                      </SelectGroup>
+                      <SelectGroup>
+                        <SelectLabel>Monthly</SelectLabel>
+                        {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map(m => (
+                          <SelectItem key={m} value={m.toLowerCase()}>{m}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select value={year.toString()} onValueChange={(v) => setYear(parseInt(v))}>
+                    <SelectTrigger className="w-[120px] bg-white border-slate-200">
+                      <SelectValue placeholder="Select Year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2024">2024</SelectItem>
+                      <SelectItem value="2025">2025</SelectItem>
+                      <SelectItem value="2026">2026</SelectItem>
+                      <SelectItem value="2027">2027</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -173,18 +204,18 @@ export default function ConsolidatedTrialBalanceMatrix() {
                 <Table className="m-0 relative border-collapse table-fixed" containerClassName="max-h-[calc(100vh-20rem)] w-full relative">
                     <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
                       <TableRow className="bg-slate-50 hover:bg-slate-50 border-b-slate-200">
-                        <TableHead className="sticky left-0 z-30 w-[120px] min-w-[120px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
+                        <TableHead className="sticky left-0 z-30 w-[120px] min-w-[120px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0] text-left border-r border-slate-200">
                           Account
                         </TableHead>
-                        <TableHead className="sticky left-[120px] z-30 w-[250px] min-w-[250px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0]">
+                        <TableHead className="sticky left-[120px] z-30 w-[250px] min-w-[250px] bg-slate-50 font-semibold text-slate-700 shadow-[1px_0_0_0_#e2e8f0] text-left border-r border-slate-200">
                           Name
                         </TableHead>
                         {visibleColumns.map((col) => (
-                          <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words font-semibold text-slate-700 leading-tight py-2">
+                          <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words font-semibold text-slate-700 leading-tight py-2 text-left border-r border-slate-200">
                             {col}
                           </TableHead>
                         ))}
-                        <TableHead className="sticky right-0 z-30 w-[150px] min-w-[150px] bg-slate-50 text-right font-bold text-slate-900 shadow-[-1px_0_0_0_#e2e8f0]">
+                        <TableHead className="sticky right-0 z-30 w-[150px] min-w-[150px] bg-slate-50 text-left font-bold text-slate-900 shadow-[-1px_0_0_0_#e2e8f0] border-l border-slate-200">
                           Total
                         </TableHead>
                       </TableRow>
@@ -271,8 +302,9 @@ export default function ConsolidatedTrialBalanceMatrix() {
               </TabsContent>
             );
           })}
-        </Tabs>
-      )}
+          </>
+        )}
+      </Tabs>
     </div>
   );
 }

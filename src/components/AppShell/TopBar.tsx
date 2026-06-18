@@ -26,9 +26,6 @@ export default function TopBar() {
           <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full h-10 w-10">
             <Bell className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full h-10 w-10">
-            <Settings className="h-5 w-5" />
-          </Button>
         </div>
         
         <div className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-2 pr-3 rounded-xl transition-colors border border-transparent hover:border-slate-100">

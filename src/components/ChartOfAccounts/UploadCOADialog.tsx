@@ -1,14 +1,15 @@
 import { useRef, useState } from "react";
 import { useReplaceChartOfAccount } from "@/hooks/useChartOfAccount";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Loader2, AlertTriangle, UploadCloud, FileSpreadsheet, X } from "lucide-react";
+import { Loader2, AlertTriangle, UploadCloud, FileSpreadsheet, X, Replace } from "lucide-react";
 import { toast } from "sonner";
 
-export default function UploadCOACard() {
+export default function UploadCOADialog() {
   const { mutate: replaceCOA, isPending } = useReplaceChartOfAccount();
+  const [isOpen, setIsOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +38,7 @@ export default function UploadCOACard() {
         toast.success("Sync Complete", { description: data.message });
         setSelectedFile(null);
         setIsConfirmOpen(false);
+        setIsOpen(false);
         if (fileInputRef.current) fileInputRef.current.value = "";
       },
       onError: (error: Error) => {
@@ -50,41 +52,49 @@ export default function UploadCOACard() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Replace Chart of Accounts</CardTitle>
-          <CardDescription>
-            Upload a full Excel file (.xlsx) to replace existing database records.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} disabled={isPending} className="hidden" id="excel-upload" ref={fileInputRef} />
-          {!selectedFile ? (
-            <label htmlFor="excel-upload" className="flex flex-col items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-slate-300 border-dashed rounded-md cursor-pointer hover:border-slate-400 hover:bg-slate-50 focus:outline-none">
-              <span className="flex items-center space-x-2 text-slate-600">
-                <UploadCloud className="w-6 h-6" />
-                <span className="font-medium">Click to browse files</span>
-              </span>
-              <span className="mt-1 text-xs text-slate-500">CSV, XLSX or XLS files only</span>
-            </label>
-          ) : (
-            <div className="flex items-center justify-between p-4 border border-blue-200 bg-blue-50 rounded-md h-32">
-              <div className="flex items-center space-x-3 overflow-hidden">
-                <FileSpreadsheet className="w-6 h-6 text-blue-600 shrink-0" />
-                <div className="truncate text-sm font-medium text-blue-900">{selectedFile.name}</div>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <Button variant="outline" className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+            <Replace className="h-4 w-4" />
+            Replace
+          </Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace Chart of Accounts</DialogTitle>
+            <DialogDescription>
+              Upload a full Excel file (.xlsx) to replace existing database records.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <Input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileChange} disabled={isPending} className="hidden" id="excel-upload-dialog" ref={fileInputRef} />
+            {!selectedFile ? (
+              <label htmlFor="excel-upload-dialog" className="flex flex-col items-center justify-center w-full h-32 px-4 transition bg-white border-2 border-slate-300 border-dashed rounded-md cursor-pointer hover:border-slate-400 hover:bg-slate-50 focus:outline-none">
+                <span className="flex items-center space-x-2 text-slate-600">
+                  <UploadCloud className="w-6 h-6" />
+                  <span className="font-medium">Click to browse files</span>
+                </span>
+                <span className="mt-1 text-xs text-slate-500">CSV, XLSX or XLS files only</span>
+              </label>
+            ) : (
+              <div className="flex items-center justify-between p-4 border border-blue-200 bg-blue-50 rounded-md h-32">
+                <div className="flex items-center space-x-3 overflow-hidden">
+                  <FileSpreadsheet className="w-6 h-6 text-blue-600 shrink-0" />
+                  <div className="truncate text-sm font-medium text-blue-900">{selectedFile.name}</div>
+                </div>
+                <button onClick={handleClearFile} disabled={isPending} className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="Remove file">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button onClick={handleClearFile} disabled={isPending} className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="Remove file">
-                <X className="w-4 h-4" />
-              </button>
+            )}
+            <div className="flex justify-end pt-2">
+              <Button onClick={confirmationBeforeReplace} disabled={!selectedFile || isPending} className="w-full sm:w-auto" variant="destructive">
+                {isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Syncing...</> : "Replace Database"}
+              </Button>
             </div>
-          )}
-          <div className="flex justify-end pt-2">
-            <Button onClick={confirmationBeforeReplace} disabled={!selectedFile || isPending} className="w-full sm:w-auto">
-              {isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Syncing...</> : "Replace Database"}
-            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <AlertDialogContent>

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus } from "lucide-react";
 import type {
   StatementPreview,
   PreviewCheckTransaction,
@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import {
   Table,
   TableBody,
@@ -91,9 +92,23 @@ export default function StatementPreviewReview({
   onCancel,
   isCommitting,
   error,
-}: Props) {
+  children,
+}: {
+  preview: StatementPreview;
+  onConfirm: (payload: StatementPreview) => void;
+  onCancel: () => void;
+  isCommitting?: boolean;
+  error?: string | null;
+  children?: React.ReactNode;
+}) {
   const accountMismatch = !preview.account_matches;
   const [dialogOpen, setDialogOpen] = useState(accountMismatch);
+  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set(["Reference"]));
+
+  const activeColumns = activeTab.includes("deposit")
+    ? ["Date", "Deposit ID", "Received From", "Reference", "Amount"]
+    : ["Date", "Check #", "Type", "Paid To", "Reference", "Amount"];
 
   // Initialize editable local state with UUIDs to avoid input focus loss on sort
   const [localPreview, setLocalPreview] = useState<EditablePreview>(() => ({
@@ -126,6 +141,43 @@ export default function StatementPreviewReview({
       ...prev,
       deposits: prev.deposits.map(d => d._id === id ? { ...d, [field]: value } : d)
     }));
+  };
+
+  const handleAddRow = () => {
+    if (activeTab.includes("deposit")) {
+      setLocalPreview((prev) => ({
+        ...prev,
+        deposits: [
+          ...prev.deposits,
+          {
+            _id: crypto.randomUUID(),
+            section: activeTab,
+            date: "",
+            deposit_id: "",
+            received_from: "",
+            reference: "",
+            amount: 0,
+          },
+        ],
+      }));
+    } else {
+      setLocalPreview((prev) => ({
+        ...prev,
+        checks: [
+          ...prev.checks,
+          {
+            _id: crypto.randomUUID(),
+            section: activeTab,
+            date: "",
+            check_number: "",
+            type: "Check",
+            paid_to: "",
+            reference: "",
+            amount: 0,
+          },
+        ],
+      }));
+    }
   };
 
   const handleConfirm = () => {
@@ -194,58 +246,119 @@ export default function StatementPreviewReview({
         </CardContent>
       </Card>
 
-      <Tabs defaultValue={TABS[0]} className="flex-1 flex flex-col min-h-0 mb-1">
-        <TabsList variant="line" className="flex-wrap shrink-0">
-          {TABS.map((t) => {
-            const count = t.includes("deposit")
-              ? localPreview.deposits.filter((d) => d.section === t).length
-              : localPreview.checks.filter((c) => c.section === t).length;
-            return (
-              <TabsTrigger key={t} value={t} className="capitalize gap-1.5">
-                {t.replace(/_/g, " ")}
-                <Badge variant="secondary" className="text-xs">{count}</Badge>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
+      <div className="grid lg:grid-cols-10 gap-8 flex-1 min-h-0">
+        <div className="lg:col-span-6 flex flex-col min-h-0 overflow-hidden pr-2">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 mb-1">
+            <div className="flex items-center justify-between shrink-0 border-b border-slate-100 pb-1 mb-1">
+              <TabsList variant="line" className="flex-wrap shrink-0">
+                {TABS.map((t) => {
+                  const count = t.includes("deposit")
+                    ? localPreview.deposits.filter((d) => d.section === t).length
+                    : localPreview.checks.filter((c) => c.section === t).length;
+                  return (
+                    <TabsTrigger key={t} value={t} className="capitalize gap-1.5">
+                      {t.replace(/_/g, " ")}
+                      <Badge variant="secondary" className="text-xs">{count}</Badge>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleAddRow} className="h-8 border-slate-200">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Row
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 border-slate-200">
+                      <Settings2 className="mr-2 h-4 w-4" />
+                      Columns
+                    </Button>
+                  </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-[200px]">
+                  <DropdownMenuCheckboxItem
+                    checked={activeColumns.every(col => !hiddenColumns.has(col))}
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={(checked) => {
+                      setHiddenColumns(prev => {
+                        const next = new Set(prev);
+                        if (checked) {
+                          activeColumns.forEach(c => next.delete(c));
+                        } else {
+                          activeColumns.forEach(c => next.add(c));
+                        }
+                        return next;
+                      });
+                    }}
+                  >
+                    Select All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {activeColumns.map(col => (
+                    <DropdownMenuCheckboxItem
+                      key={col}
+                      checked={!hiddenColumns.has(col)}
+                      onSelect={(e) => e.preventDefault()}
+                      onCheckedChange={(checked) => {
+                        setHiddenColumns(prev => {
+                          const next = new Set(prev);
+                          if (!checked) next.add(col);
+                          else next.delete(col);
+                          return next;
+                        });
+                      }}
+                    >
+                      {col}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
 
-        {TABS.map((t) => {
-          const isDeposit = t.includes("deposit");
-          const depositRows = localPreview.deposits.filter((d) => d.section === t);
-          const checkRows = localPreview.checks.filter((c) => c.section === t);
-          const empty = isDeposit ? depositRows.length === 0 : checkRows.length === 0;
+            {TABS.map((t) => {
+              const isDeposit = t.includes("deposit");
+              const depositRows = localPreview.deposits.filter((d) => d.section === t);
+              const checkRows = localPreview.checks.filter((c) => c.section === t);
+              const empty = isDeposit ? depositRows.length === 0 : checkRows.length === 0;
 
-          return (
-            <TabsContent key={t} value={t} className="mt-2 flex-1 min-h-0 flex flex-col overflow-hidden">
-              {empty ? (
-                <p className="py-4 text-sm text-muted-foreground">No transactions</p>
-              ) : isDeposit ? (
-                <DepositTable rows={depositRows} onUpdate={updateDeposit} />
-              ) : (
-                <CheckTable rows={checkRows} onUpdate={updateCheck} />
-              )}
-            </TabsContent>
-          );
-        })}
-      </Tabs>
+              return (
+                <TabsContent key={t} value={t} className="mt-2 flex-1 min-h-0 flex flex-col overflow-hidden">
+                  {empty ? (
+                    <p className="py-4 text-sm text-muted-foreground">No transactions</p>
+                  ) : isDeposit ? (
+                    <DepositTable rows={depositRows} onUpdate={updateDeposit} hiddenColumns={hiddenColumns} />
+                  ) : (
+                    <CheckTable rows={checkRows} onUpdate={updateCheck} hiddenColumns={hiddenColumns} />
+                  )}
+                </TabsContent>
+              );
+            })}
+          </Tabs>
 
-      {error && (
-        <Alert variant="destructive" className="mt-4 shrink-0">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+          {error && (
+            <Alert variant="destructive" className="mt-4 shrink-0">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </div>
 
-      <div className="mt-4 flex items-center gap-3 shrink-0 pb-2">
-        {!accountMismatch && (
-          <Button onClick={handleConfirm} disabled={isCommitting} className="gap-2">
-            <CheckCircle2 className="h-4 w-4" />
-            {isCommitting ? "Saving…" : `Confirm & save (${txCount} transactions)`}
-          </Button>
-        )}
-        <Button variant="outline" onClick={onCancel} disabled={isCommitting}>
+        <div className="lg:col-span-4 flex flex-col min-h-0">
+          {children}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
+        <Button variant="outline" onClick={onCancel} disabled={isCommitting} className="h-10 px-6 font-semibold">
           Cancel
         </Button>
+        {!accountMismatch && (
+          <Button onClick={handleConfirm} disabled={isCommitting} className="gap-2 h-10 px-8 font-bold">
+            <CheckCircle2 className="h-4 w-4" />
+            {isCommitting ? "Saving…" : `Save (${txCount})`}
+          </Button>
+        )}
       </div>
 
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -361,15 +474,16 @@ function AmountInput({ value, onChange, className }: { value: number | null, onC
   );
 }
 
-function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: string, field: keyof EditableCheck, val: any) => void }) {
+function CheckTable({ rows, onUpdate, hiddenColumns }: { rows: EditableCheck[], onUpdate: (id: string, field: keyof EditableCheck, val: any) => void, hiddenColumns: Set<string> }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  const cols = ["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].filter(c => !hiddenColumns.has(c));
   return (
     <Table containerClassName="flex-1 overflow-auto custom-scrollbar border rounded-md">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
-          {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map((h) => {
+          {cols.map((h) => {
             let widthClass = "";
             if (h === "Date") widthClass = "w-[160px] min-w-[160px]";
             else if (h === "Check #") widthClass = "w-[160px] min-w-[160px]";
@@ -387,27 +501,39 @@ function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: 
       <TableBody>
         {sorted.map((r) => (
           <TableRow key={r._id}>
-            <TableCell>
-              <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
-            </TableCell>
-            <TableCell>
-              <input type="text" value={r.check_number ?? ""} onChange={e => onUpdate(r._id, "check_number", e.target.value)} className={inputCls} />
-            </TableCell>
-            <TableCell>
-              <input type="text" value={r.type ?? ""} onChange={e => onUpdate(r._id, "type", e.target.value)} className={inputCls} />
-            </TableCell>
-            <TableCell className="min-w-[200px] whitespace-normal break-words">
-              <textarea rows={3} value={r.paid_to ?? ""} onChange={e => onUpdate(r._id, "paid_to", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
-            </TableCell>
-            <TableCell className="min-w-[200px] whitespace-normal break-words">
-              <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
-            </TableCell>
-            <TableCell className={cn("text-right", (r.amount ?? 0) < 0 && "text-destructive")}>
-              <div className="flex items-center justify-end">
-                <span className="text-slate-500 mr-1">$</span>
-                <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
-              </div>
-            </TableCell>
+            {cols.includes("Date") && (
+              <TableCell>
+                <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Check #") && (
+              <TableCell>
+                <input type="text" value={r.check_number ?? ""} onChange={e => onUpdate(r._id, "check_number", e.target.value)} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Type") && (
+              <TableCell>
+                <input type="text" value={r.type ?? ""} onChange={e => onUpdate(r._id, "type", e.target.value)} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Paid To") && (
+              <TableCell className="min-w-[200px] whitespace-normal break-words">
+                <textarea rows={3} value={r.paid_to ?? ""} onChange={e => onUpdate(r._id, "paid_to", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+              </TableCell>
+            )}
+            {cols.includes("Reference") && (
+              <TableCell className="min-w-[200px] whitespace-normal break-words">
+                <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Amount") && (
+              <TableCell className={cn("text-right", (r.amount ?? 0) < 0 && "text-destructive")}>
+                <div className="flex items-center justify-end">
+                  <span className="text-slate-500 mr-1">$</span>
+                  <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
+                </div>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>
@@ -415,15 +541,16 @@ function CheckTable({ rows, onUpdate }: { rows: EditableCheck[], onUpdate: (id: 
   );
 }
 
-function DepositTable({ rows, onUpdate }: { rows: EditableDeposit[], onUpdate: (id: string, field: keyof EditableDeposit, val: any) => void }) {
+function DepositTable({ rows, onUpdate, hiddenColumns }: { rows: EditableDeposit[], onUpdate: (id: string, field: keyof EditableDeposit, val: any) => void, hiddenColumns: Set<string> }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  const cols = ["Date", "Deposit ID", "Received From", "Reference", "Amount"].filter(c => !hiddenColumns.has(c));
   return (
     <Table containerClassName="flex-1 overflow-auto custom-scrollbar border rounded-md">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
-          {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map((h) => {
+          {cols.map((h) => {
             let widthClass = "";
             if (h === "Date") widthClass = "w-[160px] min-w-[160px]";
             else if (h === "Deposit ID") widthClass = "w-[160px] min-w-[160px]";
@@ -440,24 +567,34 @@ function DepositTable({ rows, onUpdate }: { rows: EditableDeposit[], onUpdate: (
       <TableBody>
         {sorted.map((r) => (
           <TableRow key={r._id}>
-            <TableCell>
-              <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
-            </TableCell>
-            <TableCell>
-              <input type="text" value={r.deposit_id ?? ""} onChange={e => onUpdate(r._id, "deposit_id", e.target.value)} className={inputCls} />
-            </TableCell>
-            <TableCell className="min-w-[200px] whitespace-normal break-words">
-              <textarea rows={3} value={r.received_from ?? ""} onChange={e => onUpdate(r._id, "received_from", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
-            </TableCell>
-            <TableCell className="min-w-[200px] whitespace-normal break-words">
-              <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
-            </TableCell>
-            <TableCell className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}>
-              <div className="flex items-center justify-end">
-                <span className="text-slate-500 mr-1">$</span>
-                <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
-              </div>
-            </TableCell>
+            {cols.includes("Date") && (
+              <TableCell>
+                <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Deposit ID") && (
+              <TableCell>
+                <input type="text" value={r.deposit_id ?? ""} onChange={e => onUpdate(r._id, "deposit_id", e.target.value)} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Received From") && (
+              <TableCell className="min-w-[200px] whitespace-normal break-words">
+                <textarea rows={3} value={r.received_from ?? ""} onChange={e => onUpdate(r._id, "received_from", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+              </TableCell>
+            )}
+            {cols.includes("Reference") && (
+              <TableCell className="min-w-[200px] whitespace-normal break-words">
+                <input type="text" value={r.reference ?? ""} onChange={e => onUpdate(r._id, "reference", e.target.value)} className={inputCls} />
+              </TableCell>
+            )}
+            {cols.includes("Amount") && (
+              <TableCell className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}>
+                <div className="flex items-center justify-end">
+                  <span className="text-slate-500 mr-1">$</span>
+                  <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
+                </div>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>

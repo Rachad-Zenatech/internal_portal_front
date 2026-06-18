@@ -1,11 +1,10 @@
 import {
   LayoutDashboard,
-  Upload,
   FileSpreadsheet,
   Scale,
   Layers,
   Download,
-  Settings,
+  UserRoundCog,
   Sparkles,
 } from "lucide-react";
 
@@ -22,12 +21,12 @@ export const navigation = [
     icon: Sparkles,
     section: "GENERAL",
   },
-  {
-    label: "Upload Files",
-    path: "/upload-files",
-    icon: Upload,
-    section: "GENERAL",
-  },
+  // {
+  //   label: "Upload Files",
+  //   path: "/upload-files",
+  //   icon: Upload,
+  //   section: "GENERAL",
+  // },
   {
     label: "General Ledger",
     path: "/general-ledger",
@@ -52,12 +51,7 @@ export const navigation = [
     icon: Layers,
     section: "FINANCE",
   },
-  {
-    label: "Chart of Accounts",
-    path: "/chart-of-accounts",
-    icon: FileSpreadsheet,
-    section: "FINANCE",
-  },
+
   {
     label: "Reports",
     path: "/reports",
@@ -65,13 +59,14 @@ export const navigation = [
     section: "FINANCE",
   },
   {
-    label: "Settings",
-    icon: Settings,
-    section: "SETTINGS",
+    label: "Configurations",
+    icon: UserRoundCog,
+    section: "Manage",
     subItems: [
       { label: "Company", path: "/settings/company" },
       { label: "Bank", path: "/settings/bank" },
       { label: "Bank Account", path: "/settings/bank-account" },
+      { label: "Chart of Accounts", path: "/chart-of-accounts" },
     ]
   },
 ];
