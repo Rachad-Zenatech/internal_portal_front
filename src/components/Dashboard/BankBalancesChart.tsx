@@ -22,8 +22,12 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-export default function BankBalancesChart() {
-  const { data, isLoading, isError } = useBankBalancesChart();
+type BankBalancesChartProps = {
+  companyId?: number | null;
+};
+
+export default function BankBalancesChart({ companyId }: BankBalancesChartProps) {
+  const { data, isLoading, isError } = useBankBalancesChart(companyId);
 
   const yAxisTickFormatter = (value: number) => {
     return `$${(value / 1000000).toFixed(1)}M`;

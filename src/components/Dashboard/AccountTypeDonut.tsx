@@ -27,8 +27,12 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export default function AccountTypeDonut() {
-  const { data, isLoading, isError } = useAccountDistribution();
+type AccountTypeDonutProps = {
+  companyId?: number | null;
+};
+
+export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
+  const { data, isLoading, isError } = useAccountDistribution(companyId);
 
   if (isLoading) {
     return (

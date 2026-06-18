@@ -5,8 +5,14 @@ import { cn } from "@/lib/utils";
 import { useRecentTransactions } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export default function RecentTransactionsTable() {
-  const { data, isLoading, isError } = useRecentTransactions();
+type RecentTransactionsTableProps = {
+  companyId?: number | null;
+};
+
+export default function RecentTransactionsTable({
+  companyId,
+}: RecentTransactionsTableProps) {
+  const { data, isLoading, isError } = useRecentTransactions(companyId);
 
   if (isLoading) {
     return (

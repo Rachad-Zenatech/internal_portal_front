@@ -2,45 +2,54 @@ import { useQuery } from "@tanstack/react-query";
 
 const BASE_URL = "http://localhost:8000/dashboard";
 
-async function fetcher(endpoint: string) {
-  const response = await fetch(`${BASE_URL}${endpoint}`);
+function withCompany(endpoint: string, companyId?: number | null) {
+  if (!companyId) return endpoint;
+  const separator = endpoint.includes("?") ? "&" : "?";
+  return `${endpoint}${separator}company_id=${companyId}`;
+}
+
+async function fetcher(endpoint: string, companyId?: number | null) {
+  const response = await fetch(`${BASE_URL}${withCompany(endpoint, companyId)}`);
   if (!response.ok) {
     throw new Error(`Failed to fetch ${endpoint}`);
   }
   return response.json();
 }
 
-export function useDashboardSummary() {
+export function useDashboardSummary(companyId?: number | null) {
   return useQuery({
-    queryKey: ["dashboard", "summary"],
-    queryFn: () => fetcher("/summary"),
+    queryKey: ["dashboard", "summary", companyId ?? "all"],
+    queryFn: () => fetcher("/summary", companyId),
   });
 }
 
-export function useRevenueExpenseChart(period: string = "monthly") {
+export function useRevenueExpenseChart(
+  period: string = "monthly",
+  companyId?: number | null
+) {
   return useQuery({
-    queryKey: ["dashboard", "revenue-expense", period],
-    queryFn: () => fetcher(`/revenue-expense?period=${period}`),
+    queryKey: ["dashboard", "revenue-expense", period, companyId ?? "all"],
+    queryFn: () => fetcher(`/revenue-expense?period=${period}`, companyId),
   });
 }
 
-export function useBankBalancesChart() {
+export function useBankBalancesChart(companyId?: number | null) {
   return useQuery({
-    queryKey: ["dashboard", "bank-balances"],
-    queryFn: () => fetcher("/bank-balances"),
+    queryKey: ["dashboard", "bank-balances", companyId ?? "all"],
+    queryFn: () => fetcher("/bank-balances", companyId),
   });
 }
 
-export function useAccountDistribution() {
+export function useAccountDistribution(companyId?: number | null) {
   return useQuery({
-    queryKey: ["dashboard", "account-distribution"],
-    queryFn: () => fetcher("/account-distribution"),
+    queryKey: ["dashboard", "account-distribution", companyId ?? "all"],
+    queryFn: () => fetcher("/account-distribution", companyId),
   });
 }
 
-export function useRecentTransactions() {
+export function useRecentTransactions(companyId?: number | null) {
   return useQuery({
-    queryKey: ["dashboard", "recent-transactions"],
-    queryFn: () => fetcher("/recent-transactions"),
+    queryKey: ["dashboard", "recent-transactions", companyId ?? "all"],
+    queryFn: () => fetcher("/recent-transactions", companyId),
   });
 }

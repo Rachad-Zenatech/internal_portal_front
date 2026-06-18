@@ -25,9 +25,18 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export default function RevenueExpenseChart() {
+type RevenueExpenseChartProps = {
+  companyId?: number | null;
+};
+
+export default function RevenueExpenseChart({
+  companyId,
+}: RevenueExpenseChartProps) {
   const [period, setPeriod] = useState("monthly");
-  const { data, isLoading, isError } = useRevenueExpenseChart(period);
+  const { data, isLoading, isError } = useRevenueExpenseChart(
+    period,
+    companyId
+  );
 
   const yAxisTickFormatter = (value: number) => {
     return `$${value.toLocaleString()}`;
