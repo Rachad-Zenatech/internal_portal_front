@@ -67,6 +67,7 @@ const TABS = [
   "cleared_deposits",
   "outstanding_deposits",
 ] as const;
+type Tab = (typeof TABS)[number];
 
 type EditableCheck = PreviewCheckTransaction & { _id: string };
 type EditableDeposit = PreviewDepositTransaction & { _id: string };
@@ -93,17 +94,10 @@ export default function StatementPreviewReview({
   isCommitting,
   error,
   children,
-}: {
-  preview: StatementPreview;
-  onConfirm: (payload: StatementPreview) => void;
-  onCancel: () => void;
-  isCommitting?: boolean;
-  error?: string | null;
-  children?: React.ReactNode;
-}) {
+}: Props & { children?: React.ReactNode }) {
   const accountMismatch = !preview.account_matches;
   const [dialogOpen, setDialogOpen] = useState(accountMismatch);
-  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const [activeTab, setActiveTab] = useState<Tab>(TABS[0]);
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set(["Reference"]));
 
   const activeColumns = activeTab.includes("deposit")
@@ -248,7 +242,11 @@ export default function StatementPreviewReview({
 
       <div className="grid lg:grid-cols-10 gap-8 flex-1 min-h-0">
         <div className="lg:col-span-6 flex flex-col min-h-0 overflow-hidden pr-2">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 mb-1">
+          <Tabs
+            value={activeTab}
+            onValueChange={(value) => setActiveTab(value as Tab)}
+            className="flex-1 flex flex-col min-h-0 mb-1"
+          >
             <div className="flex items-center justify-between shrink-0 border-b border-slate-100 pb-1 mb-1">
               <TabsList variant="line" className="flex-wrap shrink-0">
                 {TABS.map((t) => {
