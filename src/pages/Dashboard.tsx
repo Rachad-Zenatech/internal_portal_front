@@ -69,26 +69,22 @@ export default function Dashboard() {
       {/* Top Row: Summary Cards */}
       <SummaryCards companyId={selectedCompanyId} />
 
-      {/* Middle Row: Full Width Line Chart */}
-      <div className="w-full">
-        <RevenueExpenseChart companyId={selectedCompanyId} />
-      </div>
-
-      {/* Bottom Row: Grid Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 flex-1 min-h-0">
-        {/* Left Col: Bank Balances Bar Chart */}
-        <div className="xl:col-span-2 flex flex-col h-full min-h-[400px]">
-          <BankBalancesChart companyId={selectedCompanyId} />
+      {/* Main Grid Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Row 1: Revenue vs Expense & Account Donut */}
+        <div className="xl:col-span-2 flex flex-col min-h-[400px]">
+          <RevenueExpenseChart companyId={selectedCompanyId} />
+        </div>
+        <div className="flex flex-col">
+          <AccountTypeDonut companyId={selectedCompanyId} />
         </div>
 
-        {/* Right Col: Pie Chart & Table Stacked */}
-        <div className="flex flex-col gap-6 h-full">
-          <div className="flex-none">
-            <AccountTypeDonut companyId={selectedCompanyId} />
-          </div>
-          <div className="flex-1 min-h-[250px]">
-            <RecentTransactionsTable companyId={selectedCompanyId} />
-          </div>
+        {/* Row 2: Bank Balances & Recent Transactions */}
+        <div className="xl:col-span-2 flex flex-col min-h-[400px]">
+          <BankBalancesChart companyId={selectedCompanyId} />
+        </div>
+        <div className="flex flex-col min-h-[400px]">
+          <RecentTransactionsTable companyId={selectedCompanyId} />
         </div>
       </div>
     </div>

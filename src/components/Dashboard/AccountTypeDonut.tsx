@@ -10,16 +10,16 @@ const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
     const dataPoint = payload[0].payload;
     return (
-      <div className="bg-white border shadow-md p-3 rounded-lg flex flex-col gap-1 text-sm">
+      <div className="bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 shadow-lg p-3 rounded-lg flex flex-col gap-1 text-sm z-[100]">
         <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full" style={{ backgroundColor: payload[0].color }} />
-          <span className="font-semibold">{dataPoint.name}</span>
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: payload[0].color }} />
+          <span className="font-semibold text-zinc-900 dark:text-zinc-100">{dataPoint.name}</span>
         </div>
-        <div className="pl-5 text-slate-600">
-          Value: <span className="font-medium">${dataPoint.value.toLocaleString()}</span>
+        <div className="pl-5 text-zinc-600 dark:text-zinc-400">
+          Value: <span className="font-medium text-zinc-900 dark:text-zinc-100">${dataPoint.value.toLocaleString()}</span>
         </div>
-        <div className="pl-5 text-slate-600">
-          Share: <span className="font-medium">{dataPoint.percentage}</span>
+        <div className="pl-5 text-zinc-600 dark:text-zinc-400">
+          Share: <span className="font-medium text-zinc-900 dark:text-zinc-100">{dataPoint.percentage}</span>
         </div>
       </div>
     );
@@ -77,7 +77,11 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip 
+                content={<CustomTooltip />} 
+                allowEscapeViewBox={{ x: true, y: true }}
+                wrapperStyle={{ zIndex: 100 }}
+              />
               <Legend 
                 layout="vertical" 
                 verticalAlign="middle" 
