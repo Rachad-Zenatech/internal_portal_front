@@ -1,7 +1,8 @@
-import { Menu, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, PanelRight } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { navigation } from "./Navigation";
 import { useState } from "react";
+import zenatechLogo from "@/assets/zenatech_logo.png";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -33,19 +34,19 @@ export default function Sidebar({
       `}
     >
       <div className={`flex items-center h-16 px-4 transition-all duration-300 ease-in-out ${isOpen ? "justify-between" : "justify-center"}`}>
-        <h1
-          className={`font-bold text-xl transition-all duration-300 ease-in-out ${
-            isOpen ? "opacity-100 translate-x-0 w-auto" : "opacity-0 -translate-x-4 w-0 overflow-hidden"
+        <img
+          src={zenatechLogo}
+          alt="Zenatech Logo"
+          className={`transition-all duration-300 ease-in-out object-contain ${
+            isOpen ? "opacity-100 -translate-x-4 h-20 w-auto" : "opacity-0 -translate-x-4 w-0 h-0 overflow-hidden"
           }`}
-        >
-          Zenatech
-        </h1>
+        />
 
         <button
           onClick={onToggle}
           className="rounded-lg p-2 hover:bg-slate-100 flex-shrink-0"
         >
-          <Menu size={20} />
+          <PanelRight size={20} />
         </button>
       </div>
 

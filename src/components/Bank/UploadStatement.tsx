@@ -99,36 +99,32 @@ export default function UploadStatement({ onUploaded }: Props) {
   // ── Preview / confirm screen ─────────────────────────────────────────────
   if (preview) {
     return (
-      <div className="grid lg:grid-cols-2 gap-8 items-start animate-in fade-in zoom-in-95 duration-300">
-        {/* Left Pane: Extracted Data */}
-        <div className="flex flex-col h-[calc(100vh-120px)] overflow-hidden">
-          <StatementPreviewReview
-            preview={preview}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-            isCommitting={commitMut.isPending}
-            error={commitMut.isError ? (commitMut.error as Error).message : null}
-          />
-        </div>
-
-        {/* Right Pane: PDF Preview */}
-        <div className="sticky top-6 h-[calc(100vh-120px)] bg-muted/20 rounded-xl overflow-hidden border shadow-sm flex flex-col">
-          <div className="bg-muted px-4 py-3 border-b text-sm font-semibold flex items-center gap-2">
-            <FileUp className="h-4 w-4 text-muted-foreground" />
-            Original Document Preview
-          </div>
-          {fileUrl ? (
-            <iframe 
-              src={`${fileUrl}#toolbar=0`}
-              title="Statement PDF Preview"
-              className="w-full flex-1 border-0"
-            />
-          ) : (
-            <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
-              No PDF preview available
+      <div className="animate-in fade-in zoom-in-95 duration-300 h-[calc(100vh-64px)] flex flex-col">
+        <StatementPreviewReview
+          preview={preview}
+          onConfirm={handleConfirm}
+          onCancel={handleCancel}
+          isCommitting={commitMut.isPending}
+          error={commitMut.isError ? (commitMut.error as Error).message : null}
+        >
+          <div className="h-full bg-muted/20 rounded-xl overflow-hidden border shadow-sm flex flex-col">
+            <div className="bg-muted px-4 py-3 border-b text-sm font-semibold flex items-center gap-2">
+              <FileUp className="h-4 w-4 text-muted-foreground" />
+              Original Document Preview
             </div>
-          )}
-        </div>
+            {fileUrl ? (
+              <iframe 
+                src={`${fileUrl}#toolbar=0`}
+                title="Statement PDF Preview"
+                className="w-full flex-1 border-0"
+              />
+            ) : (
+              <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
+                No PDF preview available
+              </div>
+            )}
+          </div>
+        </StatementPreviewReview>
       </div>
     );
   }

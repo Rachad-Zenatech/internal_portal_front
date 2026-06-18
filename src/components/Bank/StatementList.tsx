@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from "react";
-import { X, Calendar, ChevronRight, Layers } from "lucide-react";
+import { X, Calendar, ChevronRight, Layers, Settings2, Building2 } from "lucide-react";
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 
 const ALL = "all";
 
@@ -30,9 +31,20 @@ interface Props {
 }
 
 export default function StatementList({ onSelect }: Props) {
-  const [selectedCompany, setSelectedCompany] = useState<string>(ALL);
-  const [accountId, setAccountId] = useState<number | null>(null);
   const [expandedCompanies, setExpandedCompanies] = useState<Record<string, boolean>>({});
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set());
+  const [hiddenCompanies, setHiddenCompanies] = useState<Set<string>>(new Set());
+
+  const allColumns = [
+    "Company",
+    "Bank & Account",
+    "Statement Date",
+    "Type",
+    "Beg Bal",
+    "Additions",
+    "Deductions",
+    "End Bal",
+  ];
 
   const toggleCompany = (companyName: string) => {
     setExpandedCompanies((prev) => ({
@@ -42,7 +54,7 @@ export default function StatementList({ onSelect }: Props) {
   };
 
   const { data: accounts = [] } = useBankAccounts();
-  const { data: statements = [], isLoading, error } = useStatements(accountId);
+  const { data: statements = [], isLoading, error } = useStatements(null);
   const deleteStatement = useDeleteStatement();
 
   const companies = useMemo(() => {
@@ -50,21 +62,9 @@ export default function StatementList({ onSelect }: Props) {
     return Array.from(new Set(names));
   }, [accounts]);
 
-  const filteredAccounts = useMemo(() => {
-    if (selectedCompany === ALL) return [];
-    return accounts.filter((a) => a.company_name === selectedCompany);
-  }, [accounts, selectedCompany]);
-
-  const handleCompanyChange = (company: string) => {
-    if (company) {
-      setSelectedCompany(company);
-      setAccountId(null);
-    }
-  };
-
   const filteredStatements = useMemo(() => {
-    return statements.filter((stmt) => selectedCompany === ALL || stmt.company_name === selectedCompany);
-  }, [statements, selectedCompany]);
+    return statements.filter((stmt) => !hiddenCompanies.has(stmt.company_name || "Unknown Company"));
+  }, [statements, hiddenCompanies]);
 
   const groupedStatements = useMemo(() => {
     const groups: Record<string, typeof statements> = {};
@@ -95,55 +95,99 @@ export default function StatementList({ onSelect }: Props) {
     <div className="space-y-6">
       <div className="flex flex-col gap-4">
         {/* Filters and Actions Row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              size="sm"
-              className="justify-start gap-2 flex-wrap bg-transparent border-0"
-              value={selectedCompany}
-              onValueChange={handleCompanyChange}
-            >
-              <ToggleGroupItem value={ALL} className={toggleItemStyles}>
-                All Companies
-              </ToggleGroupItem>
+        <div className="flex items-center justify-end gap-3">
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 border-slate-200">
+                <Building2 className="mr-2 h-4 w-4" />
+                Company
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              <DropdownMenuCheckboxItem
+                checked={companies.every((c) => !hiddenCompanies.has(c))}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={(checked) => {
+                  setHiddenCompanies((prev) => {
+                    const next = new Set(prev);
+                    if (checked) {
+                      companies.forEach((c) => next.delete(c));
+                    } else {
+                      companies.forEach((c) => next.add(c));
+                    }
+                    return next;
+                  });
+                }}
+              >
+                Select All
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
               {companies.map((company) => (
-                <ToggleGroupItem key={company} value={company} className={toggleItemStyles}>
-                  {company}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-            
-            {selectedCompany !== ALL && filteredAccounts.length > 0 && (
-              <>
-                <div className="w-px h-6 bg-slate-200 mx-2" />
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
-                  className="justify-start gap-2 flex-wrap"
-                  value={accountId ? String(accountId) : ALL}
-                  onValueChange={(val) => {
-                    if (val) setAccountId(val === ALL ? null : Number(val));
+                <DropdownMenuCheckboxItem
+                  key={company}
+                  checked={!hiddenCompanies.has(company)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(checked) => {
+                    setHiddenCompanies((prev) => {
+                      const next = new Set(prev);
+                      if (!checked) next.add(company);
+                      else next.delete(company);
+                      return next;
+                    });
                   }}
                 >
-                  <ToggleGroupItem value={ALL} className={toggleItemStyles}>
-                    All Accounts
-                  </ToggleGroupItem>
-                  {filteredAccounts.map((a) => (
-                    <ToggleGroupItem key={a.id} value={String(a.id)} className={toggleItemStyles}>
-                      <span className="capitalize">{a.bank_name}</span> (****{a.account_number})
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </>
-            )}
-          </div>
+                  {company}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           
-          <div className="flex items-center gap-4 text-sm font-medium text-slate-500 bg-white px-3 py-1.5 border rounded-md">
-            <span>{filteredStatements.length} Statements</span>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-8 border-slate-200">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Columns
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              <DropdownMenuCheckboxItem
+                checked={allColumns.every((col) => !hiddenColumns.has(col))}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={(checked) => {
+                  setHiddenColumns((prev) => {
+                    const next = new Set(prev);
+                    if (checked) {
+                      allColumns.forEach((c) => next.delete(c));
+                    } else {
+                      allColumns.forEach((c) => next.add(c));
+                    }
+                    return next;
+                  });
+                }}
+              >
+                Select All
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              {allColumns.map((col) => (
+                <DropdownMenuCheckboxItem
+                  key={col}
+                  checked={!hiddenColumns.has(col)}
+                  onSelect={(e) => e.preventDefault()}
+                  onCheckedChange={(checked) => {
+                    setHiddenColumns((prev) => {
+                      const next = new Set(prev);
+                      if (!checked) next.add(col);
+                      else next.delete(col);
+                      return next;
+                    });
+                  }}
+                >
+                  {col}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -172,14 +216,14 @@ export default function StatementList({ onSelect }: Props) {
           <Table>
             <TableHeader>
               <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pl-4">Company</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Bank & Account</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Statement Date</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Type</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Beg Bal</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Additions</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Deductions</TableHead>
-                <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">End Bal</TableHead>
+                {!hiddenColumns.has("Company") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pl-4">Company</TableHead>}
+                {!hiddenColumns.has("Bank & Account") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Bank & Account</TableHead>}
+                {!hiddenColumns.has("Statement Date") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Statement Date</TableHead>}
+                {!hiddenColumns.has("Type") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Type</TableHead>}
+                {!hiddenColumns.has("Beg Bal") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Beg Bal</TableHead>}
+                {!hiddenColumns.has("Additions") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Additions</TableHead>}
+                {!hiddenColumns.has("Deductions") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Deductions</TableHead>}
+                {!hiddenColumns.has("End Bal") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">End Bal</TableHead>}
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -193,7 +237,7 @@ export default function StatementList({ onSelect }: Props) {
                       className="cursor-pointer hover:bg-slate-50/50 border-b border-slate-50 transition-colors"
                       onClick={() => toggleCompany(companyName)}
                     >
-                      <TableCell colSpan={9} className="py-3 pl-4">
+                      <TableCell colSpan={allColumns.length + 1 - hiddenColumns.size} className="py-3 pl-4">
                         <div className="flex items-center gap-4">
                           <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full hover:bg-slate-200 text-slate-500" tabIndex={-1}>
                             <ChevronRight className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
@@ -216,47 +260,66 @@ export default function StatementList({ onSelect }: Props) {
                         className="cursor-pointer group hover:bg-slate-50 transition-colors border-b border-slate-50"
                         onClick={() => onSelect(stmt.id)}
                       >
-                        <TableCell className="pl-16 py-3">
-                          {/* Empty cell under company avatar */}
-                        </TableCell>
+                        {!hiddenColumns.has("Company") && (
+                          <TableCell className="pl-16 py-3">
+                            {/* Empty cell under company avatar */}
+                          </TableCell>
+                        )}
                         
-                        <TableCell className="py-3">
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-700 capitalize">{stmt.bank_name}</span>
-                            <span className="text-[11px] text-blue-600 font-medium">****{stmt.account_number}</span>
-                          </div>
-                        </TableCell>
+                        {!hiddenColumns.has("Bank & Account") && (
+                          <TableCell className="py-3">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-slate-700 capitalize">{stmt.bank_name}</span>
+                              <span className="text-[11px] text-blue-600 font-medium">****{stmt.account_number}</span>
+                            </div>
+                          </TableCell>
+                        )}
                         
-                        <TableCell className="text-slate-500 text-sm py-3">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5 text-slate-300" />
-                            {stmt.statement_date}
-                          </div>
-                        </TableCell>
+                        {!hiddenColumns.has("Statement Date") && (
+                          <TableCell className="text-slate-500 text-sm py-3">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3.5 w-3.5 text-slate-300" />
+                              {stmt.statement_date}
+                            </div>
+                          </TableCell>
+                        )}
                         
-                        <TableCell className="py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
-                              {typeLabel(stmt.statement_type)}
-                            </span>
-                            <span className="text-xs font-medium text-slate-400">
-                              Q{stmt.statement_quarter} {stmt.statement_year}
-                            </span>
-                          </div>
-                        </TableCell>
+                        {!hiddenColumns.has("Type") && (
+                          <TableCell className="py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
+                                {typeLabel(stmt.statement_type)}
+                              </span>
+                              <span className="text-xs font-medium text-slate-400">
+                                Q{stmt.statement_quarter} {stmt.statement_year}
+                              </span>
+                            </div>
+                          </TableCell>
+                        )}
                         
-                        <TableCell className="text-right py-3">
-                          <span className="font-medium text-slate-600 text-[13px]">${fmt(stmt.beginning_balance)}</span>
-                        </TableCell>
-                        <TableCell className="text-right py-3">
-                          <span className="font-medium text-green-600 text-[13px]">+${fmt(stmt.total_additions)}</span>
-                        </TableCell>
-                        <TableCell className="text-right py-3">
-                          <span className="font-medium text-red-600 text-[13px]">-${fmt(stmt.total_subtractions)}</span>
-                        </TableCell>
-                        <TableCell className="text-right py-3">
-                          <span className="font-bold text-slate-700 text-[15px]">${fmt(stmt.ending_balance)}</span>
-                        </TableCell>
+                        {!hiddenColumns.has("Beg Bal") && (
+                          <TableCell className="text-right py-3">
+                            <span className="font-medium text-slate-600 text-[13px]">${fmt(stmt.beginning_balance)}</span>
+                          </TableCell>
+                        )}
+                        
+                        {!hiddenColumns.has("Additions") && (
+                          <TableCell className="text-right py-3">
+                            <span className="font-medium text-green-600 text-[13px]">+${fmt(stmt.total_additions)}</span>
+                          </TableCell>
+                        )}
+                        
+                        {!hiddenColumns.has("Deductions") && (
+                          <TableCell className="text-right py-3">
+                            <span className="font-medium text-red-600 text-[13px]">-${fmt(stmt.total_subtractions)}</span>
+                          </TableCell>
+                        )}
+                        
+                        {!hiddenColumns.has("End Bal") && (
+                          <TableCell className="text-right py-3">
+                            <span className="font-bold text-slate-700 text-[15px]">${fmt(stmt.ending_balance)}</span>
+                          </TableCell>
+                        )}
                         
                         <TableCell className="py-3 pr-4">
                           <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">

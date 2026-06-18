@@ -1,6 +1,6 @@
 import { useChartOfAccounts } from "@/hooks/useChartOfAccount";
-import UploadCOACard from "@/components/ChartOfAccounts/UploadCOACard";
-import AddAccountCard from "@/components/ChartOfAccounts/AddAccountCard";
+import UploadCOADialog from "@/components/ChartOfAccounts/UploadCOADialog";
+import AddAccountDialog from "@/components/ChartOfAccounts/AddAccountDialog";
 import COATable from "@/components/ChartOfAccounts/COATable";
 
 export default function ChartOfAccounts() {
@@ -17,12 +17,10 @@ export default function ChartOfAccounts() {
             Manage the permanent account list used by the accounting system.
           </p>
         </div>
-      </div>
-
-      {/* 2. ACTION ROW */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <UploadCOACard />
-        <AddAccountCard />
+        <div className="flex items-center gap-3">
+          <UploadCOADialog />
+          <AddAccountDialog />
+        </div>
       </div>
 
       {/* 3. DATA TABLE */}
