@@ -86,7 +86,6 @@ export default function RevenueExpenseChart() {
                 tickMargin={10} 
                 tickFormatter={yAxisTickFormatter}
                 tick={{ fill: "#64748b", fontSize: 12 }}
-                domain={[0, 12000]}
               />
               <Tooltip content={<CustomTooltip />} />
               <Legend verticalAlign="top" height={36} iconType="rect" wrapperStyle={{ paddingBottom: '20px' }} />
