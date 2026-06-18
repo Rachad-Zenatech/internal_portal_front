@@ -127,6 +127,18 @@
   html {
     @apply font-sans;
     }
+  .dark {
+    color-scheme: dark;
+    }
+  .dark select,
+  .dark option,
+  .dark optgroup {
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+    }
+  .dark select {
+    border-color: var(--border);
+    }
 }
 
 @layer utilities {
@@ -163,6 +175,13 @@
   .dark .text-slate-400,
   .dark .text-zinc-500 {
     color: var(--muted-foreground) !important;
+  }
+
+  .dark .bg-white select,
+  .dark select.bg-white,
+  .dark select.bg-background {
+    background-color: var(--popover) !important;
+    color: var(--popover-foreground) !important;
   }
 
   .scrollbar-hide {
