@@ -30,9 +30,9 @@ const CustomTooltip = ({ active, payload }: any) => {
 const CenterLabel = ({ cx, cy, index, total }: any) => {
   if (index !== 0) return null;
   return (
-    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="pointer-events-none">
-      <tspan x={cx} dy="-0.2em" className="text-2xl font-bold" fill="hsl(var(--foreground))">100%</tspan>
-      <tspan x={cx} dy="1.5em" className="text-xs font-medium" fill="hsl(var(--muted-foreground))">${total.toLocaleString()}</tspan>
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="pointer-events-none fill-foreground">
+      <tspan x={cx} dy="-0.2em" className="text-2xl font-bold">100%</tspan>
+      <tspan x={cx} dy="1.5em" className="text-xs font-medium fill-muted-foreground">${total.toLocaleString()}</tspan>
     </text>
   );
 };
