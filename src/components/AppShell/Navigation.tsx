@@ -5,8 +5,7 @@ import {
   Layers,
   Download,
   Upload,
-  UserRoundCog,
-  Sparkles,
+  UserRoundCog
 } from "lucide-react";
 
 export const navigation = [
@@ -14,12 +13,6 @@ export const navigation = [
     label: "Dashboard",
     path: "/",
     icon: LayoutDashboard,
-    section: "GENERAL",
-  },
-  {
-    label: "AI Assistant",
-    path: "/ai-assistant",
-    icon: Sparkles,
     section: "GENERAL",
   },
   {

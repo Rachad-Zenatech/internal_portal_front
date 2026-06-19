@@ -1,6 +1,5 @@
 import AppShell from "./components/AppShell/AppShell";
 import Dashboard from "./pages/Dashboard";
-import AiAssistant from "./pages/AIAssistant";
 import BankStatements from "./pages/BankStatements";
 import GeneralLedger from "./pages/GeneralLedger";
 import Reports from "./pages/Reports";
@@ -21,7 +20,6 @@ function App() {
       <AppShell>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/ai-assistant" element={<AiAssistant />} />
           <Route path="/upload-files" element={<UploadFile/>} />
           <Route path="/general-ledger" element={<GeneralLedger />} />
            <Route path="/general-ledger/company/:companyId" element={<CompanyGeneralLedger />} />

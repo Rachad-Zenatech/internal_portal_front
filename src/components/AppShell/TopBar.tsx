@@ -18,9 +18,6 @@ export default function TopBar() {
       
       <div className="flex items-center gap-5">
         <ThemeSwitch />
-        <Button variant="default" className="rounded-full h-10 w-10 p-0 bg-blue-600 hover:bg-blue-700 shadow-sm transition-all hover:scale-105 active:scale-95">
-          <Plus className="h-5 w-5 text-white" />
-        </Button>
         <div className="flex items-center gap-1.5 border-r pr-5 mr-1">
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">
             <CircleHelp className="h-5 w-5" />
