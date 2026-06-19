@@ -106,7 +106,7 @@ export default function SummaryPage() {
               type="single"
               variant="outline"
               size="sm"
-              className="h-10 w-max items-center justify-start gap-1 rounded-xl bg-muted p-1 border shadow-inner"
+              className="h-10 w-max items-center justify-start gap-1 rounded-xl p-1"
               value={period}
               onValueChange={(v) => { if (v) setPeriod(v as SummaryPeriod); }}
             >
@@ -179,7 +179,7 @@ export default function SummaryPage() {
                 type="single"
                 variant="outline"
                 size="sm"
-                className="w-max max-w-full justify-start gap-1 rounded-xl bg-muted p-1 border shadow-inner flex-wrap h-auto min-h-10"
+                className="w-max max-w-full justify-start gap-1 rounded-xl p-1 flex-wrap h-auto min-h-10"
                 value={accountId ? String(accountId) : ALL}
                 onValueChange={(v) => { if (v) setAccountId(v === ALL ? null : Number(v)); }}
               >
