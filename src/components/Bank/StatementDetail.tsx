@@ -174,12 +174,12 @@ export default function StatementDetail({ statementId, onBack }: Props) {
 
       {/* Transaction Records Navigation & Content */}
       <Tabs defaultValue={TABS[0]} className="w-full">
-        <TabsList className="h-12 w-max items-center justify-start gap-1 rounded-xl bg-muted p-1 border shadow-inner mb-4">
+        <TabsList variant="line" className="h-12 w-max items-center justify-start gap-1 rounded-xl p-1 mb-4">
           {TABS.map((t) => (
             <TabsTrigger 
               key={t} 
               value={t} 
-              className="h-full px-4 text-xs font-bold tracking-wide capitalize transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm border border-transparent data-[state=active]:border-muted-foreground/10"
+              className="h-full px-4 text-xs font-bold tracking-wide capitalize transition-all duration-200 active:scale-[0.97] data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
             >
               {t.replace(/_/g, " ")}
             </TabsTrigger>

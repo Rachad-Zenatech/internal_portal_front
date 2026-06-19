@@ -1,8 +1,9 @@
 import { ChevronDown, ChevronRight, PanelRight } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { navigation } from "./Navigation";
 import { useState } from "react";
 import zenatechLogo from "@/assets/zenatech_logo.png";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export default function Sidebar({
   onToggle,
 }: SidebarProps) {
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const location = useLocation();
 
   const toggleExpand = (label: string) => {
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
@@ -34,13 +36,15 @@ export default function Sidebar({
       `}
     >
       <div className={`flex items-center h-16 px-4 transition-all duration-300 ease-in-out ${isOpen ? "justify-between" : "justify-center"}`}>
-        <img
-          src={zenatechLogo}
-          alt="Zenatech Logo"
-          className={`transition-all duration-300 ease-in-out object-contain ${
-            isOpen ? "opacity-100 -translate-x-4 h-20 w-auto" : "opacity-0 -translate-x-4 w-0 h-0 overflow-hidden"
-          }`}
-        />
+        <Link to="/" className={`transition-all duration-300 ease-in-out ${isOpen ? "opacity-100" : "opacity-0 w-0 h-0 overflow-hidden"}`}>
+          <img
+            src={zenatechLogo}
+            alt="Zenatech Logo"
+            className={`transition-all duration-300 ease-in-out object-contain cursor-pointer ${
+              isOpen ? "h-20 w-auto -translate-x-4" : "w-0 h-0"
+            }`}
+          />
+        </Link>
 
         <button
           onClick={onToggle}
@@ -50,8 +54,9 @@ export default function Sidebar({
         </button>
       </div>
 
-      <nav className="space-y-6 px-3 mt-6 pb-6 overflow-y-auto scrollbar-hide flex-1">
-        {Object.entries(groupedNavigation).map(([section, items]) => (
+      <TooltipProvider delayDuration={0}>
+        <nav className="space-y-6 px-3 mt-6 pb-6 overflow-y-auto scrollbar-hide flex-1">
+          {Object.entries(groupedNavigation).map(([section, items]) => (
           <div key={section} className="space-y-1">
             {isOpen ? (
               <div className="px-3 mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
@@ -68,86 +73,102 @@ export default function Sidebar({
             const isExpanded = expandedItems[item.label];
             return (
               <div key={item.label} className="flex flex-col">
-                <button
-                  onClick={() => {
-                    if (!isOpen) onToggle();
-                    toggleExpand(item.label);
-                  }}
-                  title={!isOpen ? item.label : undefined}
-                  className={`
-                    flex items-center justify-between h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out hover:bg-sidebar-accent text-sidebar-foreground
-                    ${isOpen ? "px-3" : "px-0 justify-center"}
-                  `}
-                >
-                  <div className={`flex items-center ${isOpen ? "justify-start" : "justify-center"}`}>
-                    <div className="flex items-center justify-center flex-shrink-0">
-                      <Icon size={20} />
-                    </div>
-                    <span className={`text-sm font-medium transition-all duration-300 ease-in-out ${isOpen ? "opacity-100 ml-3 translate-x-0" : "opacity-0 ml-0 -translate-x-4 hidden"}`}>
-                      {item.label}
-                    </span>
-                  </div>
-                  {isOpen && (
-                    <div className="flex-shrink-0">
-                      {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    </div>
-                  )}
-                </button>
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => {
+                        if (!isOpen) onToggle();
+                        toggleExpand(item.label);
+                      }}
+                      className={`
+                        flex items-center justify-between h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out hover:bg-sidebar-accent text-sidebar-foreground
+                        ${isOpen ? "px-3" : "px-0 justify-center"}
+                      `}
+                    >
+                      <div className={`flex items-center ${isOpen ? "justify-start" : "justify-center"}`}>
+                        <div className="flex items-center justify-center flex-shrink-0">
+                          <Icon size={20} />
+                        </div>
+                        <span className={`text-sm font-medium transition-all duration-300 ease-in-out ${isOpen ? "opacity-100 ml-3 translate-x-0 w-auto" : "opacity-0 ml-0 -translate-x-4 w-0 overflow-hidden"}`}>
+                          {item.label}
+                        </span>
+                      </div>
+                      {isOpen && (
+                        <div className="flex-shrink-0">
+                          {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </div>
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" sideOffset={10} className={`font-semibold z-50 ${isOpen ? "hidden" : ""}`}>
+                    {item.label}
+                  </TooltipContent>
+                </Tooltip>
                 <div 
                   className={`ml-9 space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${
                     isOpen && isExpanded ? "max-h-48 mt-1 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
-                  {item.subItems.map((sub) => (
-                    <NavLink
-                      key={sub.path}
-                      to={sub.path}
-                      className={({ isActive }) => `
-                        flex items-center h-10 px-3 rounded-lg text-sm transition-all duration-300
-                        ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
-                      `}
-                    >
-                      {sub.label}
-                    </NavLink>
-                  ))}
+                  {item.subItems.map((sub) => {
+                    const isSubActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + "/");
+                    return (
+                      <Link
+                        key={sub.path}
+                        to={sub.path}
+                        className={`
+                          flex items-center h-10 px-3 rounded-lg text-sm transition-all duration-300
+                          ${isSubActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
+                        `}
+                      >
+                        {sub.label}
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             );
           }
 
+          const isMainActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path + "/"));
           return (
-            <NavLink
-              key={item.path}
-              to={item.path!}
-              title={!isOpen ? item.label : undefined}
-              className={({ isActive }) =>
-                `
-                  flex items-center h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out
-                  ${isOpen ? "px-3 justify-start" : "px-0 justify-center"}
-                  ${
-                    isActive
-                      ? "bg-blue-50 text-blue-600 font-semibold"
-                      : "hover:bg-sidebar-accent text-sidebar-foreground font-medium"
+            <Tooltip key={item.path} delayDuration={0}>
+              <TooltipTrigger asChild>
+                <Link
+                  to={item.path!}
+                  className={
+                    `
+                      flex items-center h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out
+                      ${isOpen ? "px-3 justify-start" : "px-0 justify-center"}
+                      ${
+                        isMainActive
+                          ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold"
+                          : "hover:bg-sidebar-accent text-sidebar-foreground font-medium"
+                      }
+                    `
                   }
-                `
-              }
-            >
-              <div className="flex items-center justify-center flex-shrink-0">
-                <Icon size={20} />
-              </div>
-              <span
-                className={`text-sm font-medium transition-all duration-300 ease-in-out ${
-                  isOpen ? "opacity-100 ml-3 translate-x-0" : "opacity-0 ml-0 -translate-x-4 hidden"
-                }`}
-              >
+                >
+                  <div className="flex items-center justify-center flex-shrink-0">
+                    <Icon size={20} />
+                  </div>
+                  <span
+                    className={`text-sm font-medium transition-all duration-300 ease-in-out ${
+                      isOpen ? "opacity-100 ml-3 translate-x-0 w-auto" : "opacity-0 ml-0 -translate-x-4 w-0 overflow-hidden"
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={10} className={`font-semibold z-50 ${isOpen ? "hidden" : ""}`}>
                 {item.label}
-              </span>
-            </NavLink>
+              </TooltipContent>
+            </Tooltip>
           );
         })}
         </div>
         ))}
-      </nav>
+        </nav>
+      </TooltipProvider>
     </aside>
   );
 }

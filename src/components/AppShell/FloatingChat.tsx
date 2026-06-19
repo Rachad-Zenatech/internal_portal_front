@@ -200,7 +200,7 @@ export default function FloatingChat() {
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
       {isOpen && (
         <div 
-          className="bg-card text-card-foreground border border-border shadow-xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-shadow relative"
+          className="bg-card text-card-foreground border border-border shadow-xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-shadow relative animate-pop-in origin-bottom-right"
           style={{ width: size.width, height: size.height }}
         >
           {/* Resize Handle Top-Left */}

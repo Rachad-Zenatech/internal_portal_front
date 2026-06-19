@@ -40,6 +40,16 @@ const CustomTooltip = ({ active, payload }: AccountTooltipProps) => {
   return null;
 };
 
+const CenterLabel = ({ cx, cy, index, total }: any) => {
+  if (index !== 0) return null;
+  return (
+    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="central" className="pointer-events-none fill-foreground">
+      <tspan x={cx} dy="-0.2em" className="text-2xl font-bold">100%</tspan>
+      <tspan x={cx} dy="1.5em" className="text-xs font-medium fill-muted-foreground">${total.toLocaleString()}</tspan>
+    </text>
+  );
+};
+
 type AccountTypeDonutProps = {
   companyId?: number | null;
 };
@@ -49,12 +59,12 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
 
   if (isLoading) {
     return (
-      <Card className="w-full h-full">
+      <Card className="w-full h-full flex flex-col">
         <CardHeader>
           <Skeleton className="h-6 w-[200px]" />
         </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[250px] w-full rounded-full" />
+        <CardContent className="flex-1 min-h-0">
+          <Skeleton className="h-full w-full rounded-full" />
         </CardContent>
       </Card>
     );
@@ -68,23 +78,25 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
   const total = data.reduce((acc, item) => acc + item.value, 0);
 
   return (
-    <Card className="w-full h-full">
+    <Card className="w-full h-full flex flex-col">
       <CardHeader>
         <CardTitle>Account Type Distribution: Trial Balance Snapshot</CardTitle>
       </CardHeader>
-      <CardContent className="pb-0">
-        <div className="h-[250px] w-full relative">
+      <CardContent className="flex-1 pb-6 flex flex-col min-h-0">
+        <div className="flex-1 w-full relative min-h-[250px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={data}
-                cx="50%"
+                cx="45%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={90}
+                innerRadius="65%"
+                outerRadius="85%"
                 paddingAngle={2}
                 dataKey="value"
                 stroke="none"
+                labelLine={false}
+                label={(props) => <CenterLabel {...props} total={total} />}
               >
                 {data.map((_entry: AccountDistributionPoint, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -104,13 +116,6 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
               />
             </PieChart>
           </ResponsiveContainer>
-          {/* Centered Total Label */}
-          <div className="absolute top-1/2 left-[40%] transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-xl font-bold">100%</span>
-            <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
-              ${total.toLocaleString()}
-            </span>
-          </div>
         </div>
       </CardContent>
     </Card>

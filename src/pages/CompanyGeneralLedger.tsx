@@ -1,6 +1,7 @@
 // src/pages/CompanyGeneralLedger.tsx
 
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import {
   GLService,
   type CompanyLedger,
@@ -9,7 +10,8 @@ import {
 } from "../services/glService";
 
 export default function CompanyGeneralLedger() {
-  const companyId = Number(window.location.pathname.split("/").pop());
+  const { companyId: idParam } = useParams<{ companyId: string }>();
+  const companyId = Number(idParam);
 
   const initialParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const initialPeriod = initialParams.get("period") || "q1";

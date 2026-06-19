@@ -105,6 +105,7 @@ export default function RevenueExpenseChart({
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis dataKey="month" axisLine={false} tickLine={false} tickMargin={10} tick={{ fill: "#64748b", fontSize: 12 }} />
               <YAxis 
+                width={85}
                 axisLine={false} 
                 tickLine={false} 
                 tickMargin={10} 

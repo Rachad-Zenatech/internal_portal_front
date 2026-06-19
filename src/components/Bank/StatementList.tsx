@@ -93,7 +93,7 @@ export default function StatementList({ onSelect }: Props) {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 border-slate-200">
+              <Button variant="outline" size="sm" className="h-8 border-border">
                 <Building2 className="mr-2 h-4 w-4" />
                 Company
               </Button>
@@ -139,7 +139,7 @@ export default function StatementList({ onSelect }: Props) {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 border-slate-200">
+              <Button variant="outline" size="sm" className="h-8 border-border">
                 <Settings2 className="mr-2 h-4 w-4" />
                 Columns
               </Button>
@@ -198,26 +198,26 @@ export default function StatementList({ onSelect }: Props) {
       )}
       
       {!isLoading && statements.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-slate-400 bg-white border rounded-xl border-dashed">
-          <Layers className="h-12 w-12 mb-4 text-slate-200" />
+        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground bg-card border rounded-xl border-dashed">
+          <Layers className="h-12 w-12 mb-4 text-muted-foreground/30" />
           <p>No bank statements found.</p>
         </div>
       )}
 
       {/* Main Data Table */}
       {!isLoading && statements.length > 0 && (
-        <div className="bg-white rounded-xl pb-4">
+        <div className="bg-card rounded-xl pb-4">
           <Table>
             <TableHeader>
-              <TableRow className="border-b border-slate-100 hover:bg-transparent">
-                {!hiddenColumns.has("Company") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest pl-4">Company</TableHead>}
-                {!hiddenColumns.has("Bank & Account") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Bank & Account</TableHead>}
-                {!hiddenColumns.has("Statement Date") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Statement Date</TableHead>}
-                {!hiddenColumns.has("Type") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest">Type</TableHead>}
-                {!hiddenColumns.has("Beg Bal") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Beg Bal</TableHead>}
-                {!hiddenColumns.has("Additions") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Additions</TableHead>}
-                {!hiddenColumns.has("Deductions") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">Deductions</TableHead>}
-                {!hiddenColumns.has("End Bal") && <TableHead className="font-bold text-[10px] text-slate-400 uppercase tracking-widest text-right">End Bal</TableHead>}
+              <TableRow className="border-b border-border hover:bg-transparent">
+                {!hiddenColumns.has("Company") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest pl-4">Company</TableHead>}
+                {!hiddenColumns.has("Bank & Account") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest">Bank & Account</TableHead>}
+                {!hiddenColumns.has("Statement Date") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest">Statement Date</TableHead>}
+                {!hiddenColumns.has("Type") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest">Type</TableHead>}
+                {!hiddenColumns.has("Beg Bal") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest text-right">Beg Bal</TableHead>}
+                {!hiddenColumns.has("Additions") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest text-right">Additions</TableHead>}
+                {!hiddenColumns.has("Deductions") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest text-right">Deductions</TableHead>}
+                {!hiddenColumns.has("End Bal") && <TableHead className="font-bold text-[10px] text-muted-foreground uppercase tracking-widest text-right">End Bal</TableHead>}
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -228,19 +228,19 @@ export default function StatementList({ onSelect }: Props) {
                   <Fragment key={companyName}>
                     {/* Group Header Row */}
                     <TableRow 
-                      className="cursor-pointer hover:bg-slate-50/50 border-b border-slate-50 transition-colors"
+                      className="cursor-pointer hover:bg-muted/50 border-b border-border transition-colors"
                       onClick={() => toggleCompany(companyName)}
                     >
                       <TableCell colSpan={allColumns.length + 1 - hiddenColumns.size} className="py-3 pl-4">
                         <div className="flex items-center gap-4">
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full hover:bg-slate-200 text-slate-500" tabIndex={-1}>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full hover:bg-muted text-muted-foreground" tabIndex={-1}>
                             <ChevronRight className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} />
                           </Button>
-                          <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 font-bold text-xs shrink-0">
+                          <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
                             {companyName.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-bold text-slate-700">{companyName}</span>
-                          <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                          <span className="font-bold text-foreground">{companyName}</span>
+                          <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
                             {companyStmts.length} statements
                           </span>
                         </div>
@@ -251,7 +251,7 @@ export default function StatementList({ onSelect }: Props) {
                     {isExpanded && companyStmts.map((stmt) => (
                       <TableRow 
                         key={stmt.id}
-                        className="cursor-pointer group hover:bg-slate-50 transition-colors border-b border-slate-50"
+                        className="cursor-pointer group hover:bg-muted/30 transition-colors border-b border-border"
                         onClick={() => onSelect(stmt.id)}
                       >
                         {!hiddenColumns.has("Company") && (
@@ -263,16 +263,16 @@ export default function StatementList({ onSelect }: Props) {
                         {!hiddenColumns.has("Bank & Account") && (
                           <TableCell className="py-3">
                             <div className="flex flex-col">
-                              <span className="text-sm font-medium text-slate-700 capitalize">{stmt.bank_name}</span>
-                              <span className="text-[11px] text-blue-600 font-medium">****{stmt.account_number}</span>
+                              <span className="text-sm font-medium text-foreground capitalize">{stmt.bank_name}</span>
+                              <span className="text-[11px] text-primary font-medium">****{stmt.account_number}</span>
                             </div>
                           </TableCell>
                         )}
                         
                         {!hiddenColumns.has("Statement Date") && (
-                          <TableCell className="text-slate-500 text-sm py-3">
+                          <TableCell className="text-muted-foreground text-sm py-3">
                             <div className="flex items-center gap-2">
-                              <Calendar className="h-3.5 w-3.5 text-slate-300" />
+                              <Calendar className="h-3.5 w-3.5 text-muted-foreground/50" />
                               {stmt.statement_date}
                             </div>
                           </TableCell>
@@ -281,10 +281,10 @@ export default function StatementList({ onSelect }: Props) {
                         {!hiddenColumns.has("Type") && (
                           <TableCell className="py-3">
                             <div className="flex items-center gap-2">
-                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
                                 {typeLabel(stmt.statement_type)}
                               </span>
-                              <span className="text-xs font-medium text-slate-400">
+                              <span className="text-xs font-medium text-muted-foreground">
                                 Q{stmt.statement_quarter} {stmt.statement_year}
                               </span>
                             </div>
@@ -293,25 +293,25 @@ export default function StatementList({ onSelect }: Props) {
                         
                         {!hiddenColumns.has("Beg Bal") && (
                           <TableCell className="text-right py-3">
-                            <span className="font-medium text-slate-600 text-[13px]">${fmt(stmt.beginning_balance)}</span>
+                            <span className="font-medium text-foreground/80 text-[13px]">${fmt(stmt.beginning_balance)}</span>
                           </TableCell>
                         )}
                         
                         {!hiddenColumns.has("Additions") && (
                           <TableCell className="text-right py-3">
-                            <span className="font-medium text-green-600 text-[13px]">+${fmt(stmt.total_additions)}</span>
+                            <span className="font-medium text-green-600 dark:text-green-500 text-[13px]">+${fmt(stmt.total_additions)}</span>
                           </TableCell>
                         )}
                         
                         {!hiddenColumns.has("Deductions") && (
                           <TableCell className="text-right py-3">
-                            <span className="font-medium text-red-600 text-[13px]">-${fmt(stmt.total_subtractions)}</span>
+                            <span className="font-medium text-red-600 dark:text-red-500 text-[13px]">-${fmt(stmt.total_subtractions)}</span>
                           </TableCell>
                         )}
                         
                         {!hiddenColumns.has("End Bal") && (
                           <TableCell className="text-right py-3">
-                            <span className="font-bold text-slate-700 text-[15px]">${fmt(stmt.ending_balance)}</span>
+                            <span className="font-bold text-foreground text-[15px]">${fmt(stmt.ending_balance)}</span>
                           </TableCell>
                         )}
                         
@@ -322,7 +322,7 @@ export default function StatementList({ onSelect }: Props) {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-slate-400 hover:text-destructive hover:bg-destructive/10 rounded-full"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <X className="h-4 w-4" />

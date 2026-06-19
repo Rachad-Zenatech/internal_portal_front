@@ -75,12 +75,12 @@ export default function BankBalancesChart({ companyId }: BankBalancesChartProps)
   }
 
   return (
-    <Card className="w-full h-full">
+    <Card className="w-full h-full flex flex-col">
       <CardHeader>
         <CardTitle>Bank Account Balances</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-[350px] w-full mt-4">
+      <CardContent className="flex-1 flex flex-col min-h-0 pb-6">
+        <div className="flex-1 w-full mt-4 min-h-0">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}

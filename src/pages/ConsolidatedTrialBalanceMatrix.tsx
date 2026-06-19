@@ -64,7 +64,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-6 w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full">
           <div className="w-full">
             {(!loading && !error && data && data.tabs.length > 0) ? (
               <TabsList variant="line" className="h-10 p-0 bg-transparent border-none">
@@ -83,7 +83,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
 
         {loading ? (
           <div className="space-y-6">
-            <Skeleton className="h-10 w-64 rounded-md" />
+            <Skeleton className="w-64 rounded-md" />
             <div className="flex items-center gap-2">
               <Skeleton className="h-6 w-24" />
               <Skeleton className="h-6 w-20 rounded-full" />

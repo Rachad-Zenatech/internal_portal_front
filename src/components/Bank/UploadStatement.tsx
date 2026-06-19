@@ -270,6 +270,33 @@ export default function UploadStatement({ onUploaded }: Props) {
               {previewMut.isPending ? "Parsing Ledger Pipeline..." : "Execute Upload & Preview"}
             </Button>
 
+            {previewMut.isPending && (
+              <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1">
+                <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <span>Extracting Document</span>
+                  <span className="animate-pulse">Parsing Data...</span>
+                </div>
+                <div className="w-full bg-muted/50 rounded-full h-2 overflow-hidden relative shadow-inner">
+                  <div 
+                    className="bg-primary h-full absolute left-0 top-0 w-1/3 animate-[progress_1s_ease-in-out_infinite]"
+                    style={{
+                      animationName: "indeterminate",
+                      animationDuration: "1.5s",
+                      animationIterationCount: "infinite",
+                      animationTimingFunction: "ease-in-out",
+                    }}
+                  />
+                  <style>{`
+                    @keyframes indeterminate {
+                      0% { left: -33%; width: 33%; }
+                      50% { width: 50%; }
+                      100% { left: 100%; width: 33%; }
+                    }
+                  `}</style>
+                </div>
+              </div>
+            )}
+
             {previewMut.isError && (
               <Alert variant="destructive" className="rounded-xl border-destructive/20 bg-destructive/5 text-destructive">
                 <AlertCircle className="h-4 w-4" />
