@@ -7,5 +7,5 @@ export const getPendingApprovals = async () => {
 };
 
 export const approveRequest = async (id: string) => {
-  return apiClient.post<any>(`/approval/${id}/approve`);
+  return apiClient.post<Record<string, unknown>>(`/approval/${id}/approve`);
 };

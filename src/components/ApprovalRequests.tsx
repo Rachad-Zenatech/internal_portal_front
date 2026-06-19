@@ -16,23 +16,33 @@ export default function ApprovalRequests() {
     useState(true);
 
   useEffect(() => {
-    loadApprovals();
-  }, []);
+    let isActive = true;
 
-  async function loadApprovals() {
-    try {
-      const response =
-        await getPendingApprovals();
+    async function loadApprovals() {
+      try {
+        const response =
+          await getPendingApprovals();
 
-      setApprovals(
-        response.approvals
-      );
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
+        if (isActive) {
+          setApprovals(
+            response.approvals
+          );
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
     }
-  }
+
+    void loadApprovals();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   return (
     <div className="p-8">

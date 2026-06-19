@@ -30,7 +30,9 @@ export type ParseImportResponse = {
 };
 
 export type ImportPreviewRow = {
+  gl_id: number;
   date: string | null;
+  transaction_number: string | null;
   account_number: string | null;
   account_name: string | null;
   type: string | null;
@@ -40,14 +42,104 @@ export type ImportPreviewRow = {
   credit: number;
 };
 
+export type ImportReconciliationCheck = {
+  check: string;
+  source: number;
+  export: number;
+  difference: number;
+  status: "match" | "mismatch" | "unavailable";
+};
+
+export type ImportReviewReconciliation = {
+  source_label: string;
+  export_label: string;
+  is_balanced: boolean;
+  checks: ImportReconciliationCheck[];
+  summary: {
+    record_count: number;
+    total_debit: number;
+    total_credit: number;
+    unique_gl_ids: number;
+    debit_credit_difference: number;
+  };
+  explanation: string;
+};
+
+export type ImportPreviewAccountTransaction = {
+  entry_id: number;
+  entry_date: string | null;
+  transaction_type: string | null;
+  transaction_number: string | null;
+  name: string | null;
+  memo: string | null;
+  split_account_number: string | null;
+  split_account_name: string | null;
+  amount: number;
+  debit: number;
+  credit: number;
+  balance_after: number | null;
+  is_bank_line: boolean;
+};
+
+export type ImportPreviewAccount = {
+  account_key: string;
+  account_number: string | null;
+  account_name: string;
+  account_type: string | null;
+  line_count: number;
+  unique_gl_ids: number;
+  bank_lines: number;
+  first_date: string | null;
+  last_date: string | null;
+  debits: number;
+  credits: number;
+  net_amount: number;
+  transactions: ImportPreviewAccountTransaction[];
+};
+
 export type ImportPreview = {
   source_file_id: number;
   totals: {
     debits: number;
     credits: number;
     line_count: number;
+    unique_gl_ids: number;
   };
+  reconciliation?: ImportReviewReconciliation;
+  accounts: ImportPreviewAccount[];
   rows: ImportPreviewRow[];
+};
+
+export type ManualGlEntryRequest = {
+  company_id: number;
+  ledger_account_code: string;
+  ledger_account_name?: string | null;
+  ledger_account_type?: string | null;
+  split_account_code?: string | null;
+  split_account_name?: string | null;
+  split_account_type?: string | null;
+  transaction_date?: string | null;
+  transaction_type?: string | null;
+  transaction_number?: string | null;
+  name?: string | null;
+  memo?: string | null;
+  amount?: number | null;
+  debit?: number | null;
+  credit?: number | null;
+  balance?: number | null;
+};
+
+export type ManualGlEntryResponse = {
+  status: "added";
+  manual_entry: {
+    source_file_id: number;
+    company_id: number;
+    entry_id: number;
+    line_id: number;
+    amount: number;
+    is_bank_line: boolean;
+  };
+  preview: ImportPreview;
 };
 
 export type CompanyGLCard = {
@@ -214,6 +306,18 @@ export const GLService = {
     const limit = params.limit ?? 100;
     return apiClient.get<ImportPreview>(
       `/accounting/gl/imports/${params.sourceFileId}/preview?company_id=${params.companyId}&limit=${limit}`
+    );
+  },
+
+  async addManualEntry(params: {
+    sourceFileId: number;
+    entry: ManualGlEntryRequest;
+    previewLimit?: number;
+  }): Promise<ManualGlEntryResponse> {
+    const previewLimit = params.previewLimit ?? 100;
+    return apiClient.post<ManualGlEntryResponse>(
+      `/accounting/gl/imports/${params.sourceFileId}/manual-entry?preview_limit=${previewLimit}`,
+      params.entry
     );
   },
 

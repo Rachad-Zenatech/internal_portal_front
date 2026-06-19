@@ -3,16 +3,31 @@ import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, X
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { useRevenueExpenseChart } from "@/hooks/useDashboard";
+import {
+  useRevenueExpenseChart,
+  type RevenueExpensePoint,
+} from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const CustomTooltip = ({ active, payload }: any) => {
+type RevenueTooltipSeries = {
+  color?: string;
+  name: string;
+  value: number;
+  payload: RevenueExpensePoint;
+};
+
+type RevenueTooltipProps = {
+  active?: boolean;
+  payload?: RevenueTooltipSeries[];
+};
+
+const CustomTooltip = ({ active, payload }: RevenueTooltipProps) => {
   if (active && payload && payload.length) {
     const dataPoint = payload[0].payload;
     return (
       <div className="bg-white border shadow-md p-3 rounded-lg flex flex-col gap-1 text-sm">
-        <p className="font-semibold">{dataPoint.date}</p>
-        {payload.map((entry: any) => (
+        <p className="font-semibold">{dataPoint.date ?? dataPoint.month}</p>
+        {payload.map((entry) => (
           <div key={entry.name} className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-slate-600">{entry.name}:</span>

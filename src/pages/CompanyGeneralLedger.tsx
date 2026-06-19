@@ -24,32 +24,41 @@ export default function CompanyGeneralLedger() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
+    let isActive = true;
     const newParams = new URLSearchParams(window.location.search);
     newParams.set("period", period);
     newParams.set("year", String(year));
     const newSearch = newParams.toString();
     window.history.replaceState(null, "", `${window.location.pathname}?${newSearch}`);
 
-    loadCompanyLedger();
+    async function loadCompanyLedger() {
+      setError(null);
+      try {
+        const ledger = await GLService.getCompanyLedger({
+          companyId,
+          period,
+          year,
+        });
+        if (isActive) {
+          setData(ledger);
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(
+            err instanceof Error ? err.message : "Failed to load company ledger"
+          );
+        }
+      }
+    }
+
+    void loadCompanyLedger();
+
+    return () => {
+      isActive = false;
+    };
   }, [companyId, period, year]);
 
-  async function loadCompanyLedger() {
-    setError(null);
-    try {
-      const ledger = await GLService.getCompanyLedger({
-        companyId,
-        period,
-        year,
-      });
-      setData(ledger);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load company ledger"
-      );
-    }
-  }
-
-  const imports = data?.imports ?? [];
+  const imports = useMemo(() => data?.imports ?? [], [data?.imports]);
 
   const filteredImports = useMemo(() => {
     if (!search.trim()) return imports;

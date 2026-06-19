@@ -1,15 +1,31 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { useBankBalancesChart } from "@/hooks/useDashboard";
+import {
+  useBankBalancesChart,
+  type BankBalancePoint,
+} from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+type BankTooltipSeries = {
+  color?: string;
+  name: string;
+  value: number;
+  payload: BankBalancePoint;
+};
+
+type BankTooltipProps = {
+  active?: boolean;
+  payload?: BankTooltipSeries[];
+  label?: string;
+};
+
+const CustomTooltip = ({ active, payload, label }: BankTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-white border shadow-md p-3 rounded-lg flex flex-col gap-1 text-sm">
         <p className="font-semibold">{label}</p>
-        {payload.map((entry: any) => (
+        {payload.map((entry) => (
           <div key={entry.name} className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-slate-600">{entry.name}:</span>

@@ -1,4 +1,4 @@
-import { Search, Bell, CircleHelp, Plus } from "lucide-react";
+import { Search, Bell, CircleHelp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import ThemeSwitch from "./ThemeSwitch";

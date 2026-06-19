@@ -2,7 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import { useRecentTransactions } from "@/hooks/useDashboard";
+import {
+  useRecentTransactions,
+  type RecentTransaction,
+} from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type RecentTransactionsTableProps = {
@@ -52,7 +55,7 @@ export default function RecentTransactionsTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((tx: any) => (
+            {data.map((tx: RecentTransaction) => (
               <TableRow key={tx.id}>
                 <TableCell className="pl-6 font-medium text-slate-500 whitespace-nowrap">{tx.date}</TableCell>
                 <TableCell className="max-w-[150px] sm:max-w-[200px] whitespace-normal break-words">

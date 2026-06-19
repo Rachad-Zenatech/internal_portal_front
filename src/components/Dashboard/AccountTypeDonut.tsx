@@ -1,12 +1,25 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { useAccountDistribution } from "@/hooks/useDashboard";
+import {
+  useAccountDistribution,
+  type AccountDistributionPoint,
+} from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const COLORS = ["#22c55e", "#a855f7", "#eab308", "#3b82f6", "#f97316"];
 
-const CustomTooltip = ({ active, payload }: any) => {
+type AccountTooltipPayload = {
+  color?: string;
+  payload: AccountDistributionPoint;
+};
+
+type AccountTooltipProps = {
+  active?: boolean;
+  payload?: AccountTooltipPayload[];
+};
+
+const CustomTooltip = ({ active, payload }: AccountTooltipProps) => {
   if (active && payload && payload.length) {
     const dataPoint = payload[0].payload;
     return (
@@ -52,7 +65,7 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
   }
 
   // Calculate total for center label
-  const total = data.reduce((acc: number, item: any) => acc + item.value, 0);
+  const total = data.reduce((acc, item) => acc + item.value, 0);
 
   return (
     <Card className="w-full h-full">
@@ -73,7 +86,7 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
                 dataKey="value"
                 stroke="none"
               >
-                {data.map((_entry: unknown, index: number) => (
+                {data.map((_entry: AccountDistributionPoint, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>

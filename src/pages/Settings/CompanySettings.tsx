@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed";
+}
+
 export default function CompanySettings() {
   const { data: companies = [], isLoading } = useCompanies();
   const createMutation = useCreateCompany();
@@ -55,8 +59,8 @@ export default function CompanySettings() {
       }
       setIsDialogOpen(false);
       toast.success("Company saved successfully", { position: "top-center" });
-    } catch (e: any) {
-      toast.error("Error", { description: e.message });
+    } catch (error) {
+      toast.error("Error", { description: errorMessage(error) });
     }
   };
 
@@ -70,8 +74,8 @@ export default function CompanySettings() {
     try {
       await deleteMutation.mutateAsync(companyToDelete.id);
       toast.success("Company deleted", { position: "top-center" });
-    } catch (e: any) {
-      toast.error("Error", { description: e.message });
+    } catch (error) {
+      toast.error("Error", { description: errorMessage(error) });
     }
     setIsDeleteDialogOpen(false);
     setCompanyToDelete(null);

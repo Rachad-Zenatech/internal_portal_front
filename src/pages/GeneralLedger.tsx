@@ -16,23 +16,35 @@ export default function GeneralLedger() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadCompanyCards();
-  }, [period, year]);
+    let isActive = true;
 
-  async function loadCompanyCards() {
-    setLoading(true);
-    setError(null);
+    async function loadCompanyCards() {
+      setLoading(true);
+      setError(null);
 
-    try {
-      const data = await GLService.getCompanyCards({ period, year });
-      setCards(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load GL cards");
-      setCards([]);
-    } finally {
-      setLoading(false);
+      try {
+        const data = await GLService.getCompanyCards({ period, year });
+        if (isActive) {
+          setCards(data);
+        }
+      } catch (err) {
+        if (isActive) {
+          setError(err instanceof Error ? err.message : "Failed to load GL cards");
+          setCards([]);
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
     }
-  }
+
+    void loadCompanyCards();
+
+    return () => {
+      isActive = false;
+    };
+  }, [period, year]);
 
   // The company + book/entity filters are derived from the cards themselves, so
   // the dropdowns always match the GL-enabled companies the backend returns.
