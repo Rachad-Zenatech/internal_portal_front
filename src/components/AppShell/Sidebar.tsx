@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronRight, PanelRight } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 import { navigation } from "./Navigation";
 import { useState } from "react";
 import zenatechLogo from "@/assets/zenatech_logo.png";
@@ -34,13 +34,15 @@ export default function Sidebar({
       `}
     >
       <div className={`flex items-center h-16 px-4 transition-all duration-300 ease-in-out ${isOpen ? "justify-between" : "justify-center"}`}>
-        <img
-          src={zenatechLogo}
-          alt="Zenatech Logo"
-          className={`transition-all duration-300 ease-in-out object-contain ${
-            isOpen ? "opacity-100 -translate-x-4 h-20 w-auto" : "opacity-0 -translate-x-4 w-0 h-0 overflow-hidden"
-          }`}
-        />
+        <Link to="/" className={`transition-all duration-300 ease-in-out ${isOpen ? "opacity-100" : "opacity-0 w-0 h-0 overflow-hidden"}`}>
+          <img
+            src={zenatechLogo}
+            alt="Zenatech Logo"
+            className={`transition-all duration-300 ease-in-out object-contain cursor-pointer ${
+              isOpen ? "h-20 w-auto -translate-x-4" : "w-0 h-0"
+            }`}
+          />
+        </Link>
 
         <button
           onClick={onToggle}
@@ -83,7 +85,7 @@ export default function Sidebar({
                     <div className="flex items-center justify-center flex-shrink-0">
                       <Icon size={20} />
                     </div>
-                    <span className={`text-sm font-medium transition-all duration-300 ease-in-out ${isOpen ? "opacity-100 ml-3 translate-x-0" : "opacity-0 ml-0 -translate-x-4 hidden"}`}>
+                    <span className={`text-sm font-medium transition-all duration-300 ease-in-out ${isOpen ? "opacity-100 ml-3 translate-x-0 w-auto" : "opacity-0 ml-0 -translate-x-4 w-0 overflow-hidden"}`}>
                       {item.label}
                     </span>
                   </div>
@@ -104,7 +106,7 @@ export default function Sidebar({
                       to={sub.path}
                       className={({ isActive }) => `
                         flex items-center h-10 px-3 rounded-lg text-sm transition-all duration-300
-                        ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
+                        ${isActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
                       `}
                     >
                       {sub.label}
@@ -126,7 +128,7 @@ export default function Sidebar({
                   ${isOpen ? "px-3 justify-start" : "px-0 justify-center"}
                   ${
                     isActive
-                      ? "bg-blue-50 text-blue-600 font-semibold"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold"
                       : "hover:bg-sidebar-accent text-sidebar-foreground font-medium"
                   }
                 `
@@ -137,7 +139,7 @@ export default function Sidebar({
               </div>
               <span
                 className={`text-sm font-medium transition-all duration-300 ease-in-out ${
-                  isOpen ? "opacity-100 ml-3 translate-x-0" : "opacity-0 ml-0 -translate-x-4 hidden"
+                  isOpen ? "opacity-100 ml-3 translate-x-0 w-auto" : "opacity-0 ml-0 -translate-x-4 w-0 overflow-hidden"
                 }`}
               >
                 {item.label}

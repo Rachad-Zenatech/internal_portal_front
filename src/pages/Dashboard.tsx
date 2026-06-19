@@ -33,7 +33,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto space-y-6 flex flex-col h-full overflow-y-auto">
-      <header className="flex flex-col gap-4 rounded-lg border bg-card p-4 shadow-sm sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-4 rounded-lg  p-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">{selectedCompanyName}</p>

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus, Trash2 } from "lucide-react";
 import type {
   StatementPreview,
   PreviewCheckTransaction,
@@ -137,6 +137,20 @@ export default function StatementPreviewReview({
     }));
   };
 
+  const handleRemoveCheck = (id: string) => {
+    setLocalPreview(prev => ({
+      ...prev,
+      checks: prev.checks.filter(c => c._id !== id)
+    }));
+  };
+
+  const handleRemoveDeposit = (id: string) => {
+    setLocalPreview(prev => ({
+      ...prev,
+      deposits: prev.deposits.filter(d => d._id !== id)
+    }));
+  };
+
   const handleAddRow = () => {
     if (activeTab.includes("deposit")) {
       setLocalPreview((prev) => ({
@@ -262,15 +276,13 @@ export default function StatementPreviewReview({
                 })}
               </TabsList>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={handleAddRow} className="h-8 border-slate-200">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add Row
+                <Button variant="outline" size="sm" onClick={handleAddRow} className="h-8 border-border">
+                  <Plus className="h-4 w-4" />
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 border-slate-200">
-                      <Settings2 className="mr-2 h-4 w-4" />
-                      Columns
+                    <Button variant="outline" size="sm" className="h-8 border-border">
+                      <Settings2 className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[200px]">
@@ -325,9 +337,9 @@ export default function StatementPreviewReview({
                   {empty ? (
                     <p className="py-4 text-sm text-muted-foreground">No transactions</p>
                   ) : isDeposit ? (
-                    <DepositTable rows={depositRows} onUpdate={updateDeposit} hiddenColumns={hiddenColumns} />
+                    <DepositTable rows={depositRows} onUpdate={updateDeposit} onRemove={handleRemoveDeposit} hiddenColumns={hiddenColumns} />
                   ) : (
-                    <CheckTable rows={checkRows} onUpdate={updateCheck} hiddenColumns={hiddenColumns} />
+                    <CheckTable rows={checkRows} onUpdate={updateCheck} onRemove={handleRemoveCheck} hiddenColumns={hiddenColumns} />
                   )}
                 </TabsContent>
               );
@@ -472,7 +484,7 @@ function AmountInput({ value, onChange, className }: { value: number | null, onC
   );
 }
 
-function CheckTable({ rows, onUpdate, hiddenColumns }: { rows: EditableCheck[], onUpdate: (id: string, field: keyof EditableCheck, val: any) => void, hiddenColumns: Set<string> }) {
+function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: EditableCheck[], onUpdate: (id: string, field: keyof EditableCheck, val: any) => void, onRemove: (id: string) => void, hiddenColumns: Set<string> }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -494,6 +506,7 @@ function CheckTable({ rows, onUpdate, hiddenColumns }: { rows: EditableCheck[], 
               </TableHead>
             );
           })}
+          <TableHead className="w-[50px]"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -527,11 +540,16 @@ function CheckTable({ rows, onUpdate, hiddenColumns }: { rows: EditableCheck[], 
             {cols.includes("Amount") && (
               <TableCell className={cn("text-right", (r.amount ?? 0) < 0 && "text-destructive")}>
                 <div className="flex items-center justify-end">
-                  <span className="text-slate-500 mr-1">$</span>
+                  <span className="text-muted-foreground mr-1">$</span>
                   <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
                 </div>
               </TableCell>
             )}
+            <TableCell className="text-right pr-4">
+              <Button variant="ghost" size="icon" onClick={() => onRemove(r._id)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -539,7 +557,7 @@ function CheckTable({ rows, onUpdate, hiddenColumns }: { rows: EditableCheck[], 
   );
 }
 
-function DepositTable({ rows, onUpdate, hiddenColumns }: { rows: EditableDeposit[], onUpdate: (id: string, field: keyof EditableDeposit, val: any) => void, hiddenColumns: Set<string> }) {
+function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: EditableDeposit[], onUpdate: (id: string, field: keyof EditableDeposit, val: any) => void, onRemove: (id: string) => void, hiddenColumns: Set<string> }) {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -560,6 +578,7 @@ function DepositTable({ rows, onUpdate, hiddenColumns }: { rows: EditableDeposit
               </TableHead>
             );
           })}
+          <TableHead className="w-[50px]"></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -588,11 +607,16 @@ function DepositTable({ rows, onUpdate, hiddenColumns }: { rows: EditableDeposit
             {cols.includes("Amount") && (
               <TableCell className={cn("text-right", (r.amount ?? 0) < 0 ? "text-destructive" : "text-green-600")}>
                 <div className="flex items-center justify-end">
-                  <span className="text-slate-500 mr-1">$</span>
+                  <span className="text-muted-foreground mr-1">$</span>
                   <AmountInput value={r.amount} onChange={val => onUpdate(r._id, "amount", val)} className={cn(inputCls, "text-right w-24")} />
                 </div>
               </TableCell>
             )}
+            <TableCell className="text-right pr-4">
+              <Button variant="ghost" size="icon" onClick={() => onRemove(r._id)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </TableCell>
           </TableRow>
         ))}
       </TableBody>

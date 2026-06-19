@@ -1,18 +1,111 @@
-import { Search, Bell, CircleHelp, Plus } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
+import { useGlobalSearch } from "@/hooks/useSearch";
+import { cn } from "@/lib/utils";
 
 export default function TopBar() {
+  const [inputValue, setInputValue] = useState("");
+  const [debouncedValue, setDebouncedValue] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  // Debounce input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(inputValue);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [inputValue]);
+
+  const { data: results = [], isLoading, isFetching } = useGlobalSearch(debouncedValue);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case "company": return <Building2 className="h-4 w-4 text-blue-500" />;
+      case "gl_account": return <BookText className="h-4 w-4 text-emerald-500" />;
+      case "gl_entry": return <FileText className="h-4 w-4 text-amber-500" />;
+      case "bank_transaction": return <Banknote className="h-4 w-4 text-purple-500" />;
+      default: return <Search className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const handleResultClick = (url: string) => {
+    setIsOpen(false);
+    setInputValue("");
+    setDebouncedValue("");
+    if (url) {
+      navigate(url);
+    }
+  };
+
   return (
     <header className="h-20 border-b border-border bg-card text-card-foreground flex items-center justify-between px-8 shrink-0 transition-all duration-300">
       <div className="flex-1 flex items-center">
-        <div className="relative w-full max-w-md">
+        <div ref={containerRef} className="relative w-full max-w-md z-50">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search for anything here..." 
             className="w-full pl-11 bg-muted border-none rounded-full h-11 text-sm shadow-inner focus-visible:ring-1 focus-visible:ring-ring"
+            value={inputValue}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => {
+              if (inputValue.trim().length > 0) setIsOpen(true);
+            }}
           />
+          
+          {isOpen && debouncedValue.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border shadow-lg rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              {isLoading || isFetching ? (
+                <div className="p-6 flex items-center justify-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <span className="text-sm">Searching...</span>
+                </div>
+              ) : results.length > 0 ? (
+                <div className="max-h-[400px] overflow-y-auto py-2">
+                  {results.map((result, idx) => (
+                    <div 
+                      key={`${result.type}-${result.id}-${idx}`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => handleResultClick(result.url || "/dashboard")}
+                    >
+                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0 border border-border/50 shadow-sm">
+                        {getIcon(result.type)}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-sm font-semibold text-foreground truncate">{result.title}</span>
+                        {result.subtitle && (
+                          <span className="text-xs text-muted-foreground truncate">{result.subtitle}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  No results found for "{debouncedValue}"
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
       
