@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { apiClient, BASE_URL } from "./apiClient";
 
 export type UploadType = "general-ledger" | "bank-statement";
 
@@ -26,44 +26,21 @@ export type UploadFilesResponse = {
   files: ArchivedUpload[];
 };
 
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    const text = await response.text();
-    let message = `Error ${response.status}`;
-    try {
-      const errorData = JSON.parse(text);
-      message = errorData.detail || message;
-    } catch {
-      // Keep the status fallback when the server did not return JSON.
-    }
-    throw new Error(message);
-  }
-
-  return response.json();
-}
-
 export const uploadArchiveService = {
   async list(uploadType?: UploadType): Promise<UploadFilesResponse> {
     const params = uploadType ? `?upload_type=${encodeURIComponent(uploadType)}` : "";
-    const response = await fetch(`${API_BASE_URL}/upload-files${params}`);
-    return handleResponse<UploadFilesResponse>(response);
+    return apiClient.get<UploadFilesResponse>(`/upload-files${params}`);
   },
 
   async remove(fileId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/upload-files/${fileId}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      await handleResponse(response);
-    }
+    await apiClient.delete<void>(`/upload-files/${fileId}`);
   },
 
   viewUrl(fileId: string): string {
-    return `${API_BASE_URL}/upload-files/${fileId}/view`;
+    return `${BASE_URL}/upload-files/${fileId}/view`;
   },
 
   downloadUrl(fileId: string): string {
-    return `${API_BASE_URL}/upload-files/${fileId}/download`;
+    return `${BASE_URL}/upload-files/${fileId}/download`;
   },
 };

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { BASE_URL } from "@/services/apiClient";
 
 export default function Reports() {
   const currentYear = new Date().getFullYear();
@@ -15,7 +15,7 @@ export default function Reports() {
       const params = new URLSearchParams({
         year: String(year),
       });
-      const url = `${API_BASE_URL}/reports/reconciliation-excel?${params}`;
+      const url = `${BASE_URL}/reports/reconciliation-excel?${params}`;
       
       window.open(url, '_blank');
     } catch (error) {

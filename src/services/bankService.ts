@@ -1,5 +1,3 @@
-// src/services/bankService.ts
-
 import type { 
     Company, CompanyCreate, CompanyUpdate, 
     Bank, BankCreate, BankUpdate, BankAccount, 
@@ -10,316 +8,118 @@ import type {
     QuarterlySummary, StatementCreate, StatementPreview,
     Summary, SummaryPeriod
 } from "@/types/bank";
-import { handleResponse } from "./helper";
-import.meta.env.VITE_API_BASE_URL;
+import { apiClient } from "./apiClient";
 
 // ─── Company service ──────────────────────────────────────────────────────────
- 
+
 export const companyService = {
-  async getCompanies(): Promise<Company[]> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/company/companies`);
-    return handleResponse(response);
-  },
- 
-  async getCompany(id: number): Promise<Company> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/company/companies/${id}`);
-    return handleResponse(response);
-  },
- 
-  async createCompany(data: CompanyCreate): Promise<Company> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/company/companies`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async updateCompany(id: number, data: CompanyUpdate): Promise<Company> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/company/companies/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async deleteCompany(id: number): Promise<null> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/company/companies/${id}`, {
-      method: "DELETE",
-    });
-    return handleResponse(response);
-  },
+  getCompanies: () => apiClient.get<Company[]>("/company/companies"),
+  getCompany: (id: number) => apiClient.get<Company>(`/company/companies/${id}`),
+  createCompany: (data: CompanyCreate) => apiClient.post<Company>("/company/companies", data),
+  updateCompany: (id: number, data: CompanyUpdate) => apiClient.patch<Company>(`/company/companies/${id}`, data),
+  deleteCompany: (id: number) => apiClient.delete<null>(`/company/companies/${id}`),
 };
- 
+
 // ─── Bank service ─────────────────────────────────────────────────────────────
- 
+
 export const bankService = {
-  async getBanks(): Promise<Bank[]> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/banks`);
-    return handleResponse(response);
-  },
- 
-  async getBank(id: number): Promise<Bank> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/banks/${id}`);
-    return handleResponse(response);
-  },
- 
-  async createBank(data: BankCreate): Promise<Bank> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/banks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async updateBank(id: number, data: BankUpdate): Promise<Bank> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/banks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async deleteBank(id: number): Promise<null> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/banks/${id}`, { method: "DELETE" });
-    return handleResponse(response);
-  },
+  getBanks: () => apiClient.get<Bank[]>("/bank_statement/banks"),
+  getBank: (id: number) => apiClient.get<Bank>(`/bank_statement/banks/${id}`),
+  createBank: (data: BankCreate) => apiClient.post<Bank>("/bank_statement/banks", data),
+  updateBank: (id: number, data: BankUpdate) => apiClient.patch<Bank>(`/bank_statement/banks/${id}`, data),
+  deleteBank: (id: number) => apiClient.delete<null>(`/bank_statement/banks/${id}`),
 };
- 
+
 // ─── Bank account service ─────────────────────────────────────────────────────
- 
+
 export const bankAccountService = {
-  async getBankAccounts(companyId?: number | null): Promise<BankAccount[]> {
-    const url = companyId
-      ? `${import.meta.env.VITE_API_BASE_URL}/bank_statement/bank-accounts?company_id=${companyId}`
-      : `${import.meta.env.VITE_API_BASE_URL}/bank_statement/bank-accounts`;
-    const response = await fetch(url);
-    return handleResponse(response);
+  getBankAccounts: (companyId?: number | null) => {
+    const url = companyId ? `/bank_statement/bank-accounts?company_id=${companyId}` : "/bank_statement/bank-accounts";
+    return apiClient.get<BankAccount[]>(url);
   },
- 
-  async getBankAccount(id: number): Promise<BankAccount> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/bank-accounts/${id}`);
-    return handleResponse(response);
-  },
- 
-  async createBankAccount(data: BankAccountCreate): Promise<BankAccount> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/bank-accounts`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async updateBankAccount(id: number, data: BankAccountUpdate): Promise<BankAccount> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/bank-accounts/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async deleteBankAccount(id: number): Promise<null> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/bank-accounts/${id}`, { method: "DELETE" });
-    return handleResponse(response);
-  },
+  getBankAccount: (id: number) => apiClient.get<BankAccount>(`/bank_statement/bank-accounts/${id}`),
+  createBankAccount: (data: BankAccountCreate) => apiClient.post<BankAccount>("/bank_statement/bank-accounts", data),
+  updateBankAccount: (id: number, data: BankAccountUpdate) => apiClient.patch<BankAccount>(`/bank_statement/bank-accounts/${id}`, data),
+  deleteBankAccount: (id: number) => apiClient.delete<null>(`/bank_statement/bank-accounts/${id}`),
 };
- 
+
 // ─── Statement service ────────────────────────────────────────────────────────
- 
+
 export const statementService = {
-  async getStatements(accountId?: number | null): Promise<BankStatement[]> {
-    const url = accountId
-      ? `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements?account_id=${accountId}`
-      : `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements`;
-    const response = await fetch(url);
-    return handleResponse(response);
+  getStatements: (accountId?: number | null) => {
+    const url = accountId ? `/bank_statement/statements?account_id=${accountId}` : "/bank_statement/statements";
+    return apiClient.get<BankStatement[]>(url);
   },
- 
-  async getStatement(id: number): Promise<BankStatement> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${id}`);
-    return handleResponse(response);
-  },
- 
-  async createStatement(data: StatementCreate): Promise<BankStatement> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async updateStatement(id: number, data: StatementUpdate): Promise<BankStatement> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async deleteStatement(id: number): Promise<null> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${id}`, { method: "DELETE" });
-    return handleResponse(response);
-  },
- 
-  async getStatementsByQuarter(
-    year: number,
-    quarter: number,
-    accountId?: number | null,
-  ): Promise<BankStatement[]> {
-    let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/by-quarter?year=${year}&quarter=${quarter}`;
+  getStatement: (id: number) => apiClient.get<BankStatement>(`/bank_statement/statements/${id}`),
+  createStatement: (data: StatementCreate) => apiClient.post<BankStatement>("/bank_statement/statements", data),
+  updateStatement: (id: number, data: StatementUpdate) => apiClient.patch<BankStatement>(`/bank_statement/statements/${id}`, data),
+  deleteStatement: (id: number) => apiClient.delete<null>(`/bank_statement/statements/${id}`),
+  
+  getStatementsByQuarter: (year: number, quarter: number, accountId?: number | null) => {
+    let url = `/bank_statement/statements/by-quarter?year=${year}&quarter=${quarter}`;
     if (accountId) url += `&account_id=${accountId}`;
-    const response = await fetch(url);
-    return handleResponse(response);
+    return apiClient.get<BankStatement[]>(url);
   },
- 
-  async getQuarterlySummary(
-    year: number,
-    companyId?: number | null,
-    accountId?: number | null,
-  ): Promise<QuarterlySummary[]> {
-    let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/quarterly?year=${year}`;
+  
+  getQuarterlySummary: (year: number, companyId?: number | null, accountId?: number | null) => {
+    let url = `/bank_statement/statements/quarterly?year=${year}`;
     if (companyId) url += `&company_id=${companyId}`;
     if (accountId) url += `&account_id=${accountId}`;
-    const response = await fetch(url);
-    return handleResponse(response);
+    return apiClient.get<QuarterlySummary[]>(url);
   },
 
-  async getSummary(
-    period: SummaryPeriod,
-    year: number,
-    companyId?: number | null,
-    accountId?: number | null,
-  ): Promise<Summary[]> {
-    let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/summary?year=${year}&period=${period}`;
+  getSummary: (period: SummaryPeriod, year: number, companyId?: number | null, accountId?: number | null) => {
+    let url = `/bank_statement/statements/summary?year=${year}&period=${period}`;
     if (companyId) url += `&company_id=${companyId}`;
     if (accountId) url += `&account_id=${accountId}`;
-    const response = await fetch(url);
-    return handleResponse(response);
-  },
- 
-  async uploadStatement(
-    accountId: number,
-    bankType: string,
-    file: File,
-    tesseractCmd?: string | null,
-  ): Promise<BankStatement> {
-    const form = new FormData();
-    form.append("file", file);
-    let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/upload?account_id=${accountId}&bank_type=${bankType}`;
-    if (tesseractCmd) url += `&tesseract_cmd=${encodeURIComponent(tesseractCmd)}`;
-    const response = await fetch(url, { method: "POST", body: form });
-    return handleResponse(response);
+    return apiClient.get<Summary[]>(url);
   },
 
-  // Parse a PDF and return the extracted data for review — does NOT persist.
-  async previewStatement(
-    accountId: number,
-    bankType: string,
-    file: File,
-    tesseractCmd?: string | null,
-  ): Promise<StatementPreview> {
+  uploadStatement: (accountId: number, bankType: string, file: File, tesseractCmd?: string | null) => {
     const form = new FormData();
     form.append("file", file);
-    let url = `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/preview?account_id=${accountId}&bank_type=${bankType}`;
+    let url = `/bank_statement/statements/upload?account_id=${accountId}&bank_type=${bankType}`;
     if (tesseractCmd) url += `&tesseract_cmd=${encodeURIComponent(tesseractCmd)}`;
-    const response = await fetch(url, { method: "POST", body: form });
-    return handleResponse(response);
+    return apiClient.post<BankStatement>(url, form);
   },
 
-  // Persist a previously previewed (and reviewed) statement.
-  async commitStatement(preview: StatementPreview): Promise<BankStatement> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/commit`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(preview),
-    });
-    return handleResponse(response);
+  previewStatement: (accountId: number, bankType: string, file: File, tesseractCmd?: string | null) => {
+    const form = new FormData();
+    form.append("file", file);
+    let url = `/bank_statement/statements/preview?account_id=${accountId}&bank_type=${bankType}`;
+    if (tesseractCmd) url += `&tesseract_cmd=${encodeURIComponent(tesseractCmd)}`;
+    return apiClient.post<StatementPreview>(url, form);
   },
+
+  commitStatement: (preview: StatementPreview) => apiClient.post<BankStatement>("/bank_statement/statements/commit", preview),
 };
- 
+
 // ─── Check transaction service ────────────────────────────────────────────────
- 
+
 export const checkService = {
-  async getChecks(statementId: number, section?: string | null): Promise<CheckTransaction[]> {
-    const url = section
-      ? `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${statementId}/checks?section=${section}`
-      : `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${statementId}/checks`;
-    const response = await fetch(url);
-    return handleResponse(response);
+  getChecks: (statementId: number, section?: string | null) => {
+    const url = section 
+      ? `/bank_statement/statements/${statementId}/checks?section=${section}` 
+      : `/bank_statement/statements/${statementId}/checks`;
+    return apiClient.get<CheckTransaction[]>(url);
   },
- 
-  async getCheck(id: number): Promise<CheckTransaction> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/checks/${id}`);
-    return handleResponse(response);
-  },
- 
-  async createCheck(data: CheckCreate): Promise<CheckTransaction> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/checks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async updateCheck(id: number, data: CheckUpdate): Promise<CheckTransaction> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/checks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async deleteCheck(id: number): Promise<null> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/checks/${id}`, { method: "DELETE" });
-    return handleResponse(response);
-  },
+  getCheck: (id: number) => apiClient.get<CheckTransaction>(`/bank_statement/checks/${id}`),
+  createCheck: (data: CheckCreate) => apiClient.post<CheckTransaction>("/bank_statement/checks", data),
+  updateCheck: (id: number, data: CheckUpdate) => apiClient.patch<CheckTransaction>(`/bank_statement/checks/${id}`, data),
+  deleteCheck: (id: number) => apiClient.delete<null>(`/bank_statement/checks/${id}`),
 };
- 
+
 // ─── Deposit transaction service ──────────────────────────────────────────────
- 
+
 export const depositService = {
-  async getDeposits(statementId: number, section?: string | null): Promise<DepositTransaction[]> {
-    const url = section
-      ? `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${statementId}/deposits?section=${section}`
-      : `${import.meta.env.VITE_API_BASE_URL}/bank_statement/statements/${statementId}/deposits`;
-    const response = await fetch(url);
-    return handleResponse(response);
+  getDeposits: (statementId: number, section?: string | null) => {
+    const url = section 
+      ? `/bank_statement/statements/${statementId}/deposits?section=${section}` 
+      : `/bank_statement/statements/${statementId}/deposits`;
+    return apiClient.get<DepositTransaction[]>(url);
   },
- 
-  async getDeposit(id: number): Promise<DepositTransaction> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/deposits/${id}`);
-    return handleResponse(response);
-  },
- 
-  async createDeposit(data: DepositCreate): Promise<DepositTransaction> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/deposits`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async updateDeposit(id: number, data: DepositUpdate): Promise<DepositTransaction> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/deposits/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    });
-    return handleResponse(response);
-  },
- 
-  async deleteDeposit(id: number): Promise<null> {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/bank_statement/deposits/${id}`, { method: "DELETE" });
-    return handleResponse(response);
-  },
+  getDeposit: (id: number) => apiClient.get<DepositTransaction>(`/bank_statement/deposits/${id}`),
+  createDeposit: (data: DepositCreate) => apiClient.post<DepositTransaction>("/bank_statement/deposits", data),
+  updateDeposit: (id: number, data: DepositUpdate) => apiClient.patch<DepositTransaction>(`/bank_statement/deposits/${id}`, data),
+  deleteDeposit: (id: number) => apiClient.delete<null>(`/bank_statement/deposits/${id}`),
 };

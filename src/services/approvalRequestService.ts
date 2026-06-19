@@ -1,25 +1,11 @@
 // src/services/approvalRequestService.ts
+import type { ApprovalRequests } from "../types/approval";
+import { apiClient } from "./apiClient";
 
-import type {
-  ApprovalRequests,
-} from "../types/approval";
+export const getPendingApprovals = async () => {
+  return apiClient.get<ApprovalRequests>(`/approval/pending`);
+};
 
-export const getPendingApprovals =
-  async () => {
-    return fetch(
-      `${import.meta.env.VITE_API_BASE_URL}/approval/pending`
-    ).then(
-      (res) =>
-        res.json() as Promise<ApprovalRequests>
-    );
-  };
-
-export const approveRequest =
-  async (id: string) => {
-    return fetch(
-      `${import.meta.env.VITE_API_BASE_URL}/approval/${id}/approve`,
-      {
-        method: "POST",
-      }
-    ).then((res) => res.json());
-  };
+export const approveRequest = async (id: string) => {
+  return apiClient.post<any>(`/approval/${id}/approve`);
+};

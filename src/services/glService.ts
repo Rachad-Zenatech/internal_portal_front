@@ -1,7 +1,5 @@
 // src/services/glService.ts
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-
 export type CompanyBook = {
   book_id: number;
   company_id: number;
@@ -170,29 +168,11 @@ export type ConsolidatedMatrixResponse = {
   tabs: ConsolidatedMatrixTab[];
 };
 
-async function handleError(response: Response, fallbackMessage: string): Promise<never> {
-  const text = await response.text();
-
-  try {
-    const errorData = JSON.parse(text);
-    throw new Error(
-      errorData.detail || `Error ${response.status}: ${fallbackMessage}`
-    );
-  } catch {
-    throw new Error(`Error ${response.status}: ${fallbackMessage}`);
-  }
-}
+import { apiClient } from "./apiClient";
 
 export const GLService = {
   async getBooks(): Promise<CompanyBook[]> {
-    const response = await fetch(`${API_BASE_URL}/accounting/gl/books`);
-
-    if (!response.ok) {
-      await handleError(response, "Failed to fetch company books");
-    }
-
-    const data: CompanyBooksResponse | CompanyBook[] = await response.json();
-
+    const data = await apiClient.get<CompanyBooksResponse | CompanyBook[]>("/accounting/gl/books");
     return Array.isArray(data) ? data : data.books;
   },
 
@@ -204,52 +184,26 @@ export const GLService = {
     formData.append("company_book_id", String(params.companyBookId));
     formData.append("file", params.file);
 
-    const response = await fetch(`${API_BASE_URL}/accounting/gl/imports/parse`, {
-      method: "POST",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      await handleError(response, "Failed to parse GL file");
-    }
-
-    return response.json();
+    return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
   },
 
   async saveImport(params: {
     companyId: number;
     sourceFileId: number;
   }): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/accounting/gl/imports/save`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        company_id: params.companyId,
-        source_file_id: params.sourceFileId,
-      }),
+    await apiClient.post<void>("/accounting/gl/imports/save", {
+      company_id: params.companyId,
+      source_file_id: params.sourceFileId,
     });
-
-    if (!response.ok) {
-      await handleError(response, "Failed to save import");
-    }
   },
 
   async deleteImport(params: {
     companyId: number;
     sourceFileId: number;
   }): Promise<void> {
-    const response = await fetch(
-      `${API_BASE_URL}/accounting/gl/imports/${params.sourceFileId}?company_id=${params.companyId}`,
-      {
-        method: "DELETE",
-      }
+    await apiClient.delete<void>(
+      `/accounting/gl/imports/${params.sourceFileId}?company_id=${params.companyId}`
     );
-
-    if (!response.ok) {
-      await handleError(response, "Failed to discard import");
-    }
   },
 
   async getImportPreview(params: {
@@ -258,30 +212,18 @@ export const GLService = {
     limit?: number;
   }): Promise<ImportPreview> {
     const limit = params.limit ?? 100;
-    const response = await fetch(
-      `${API_BASE_URL}/accounting/gl/imports/${params.sourceFileId}/preview?company_id=${params.companyId}&limit=${limit}`
+    return apiClient.get<ImportPreview>(
+      `/accounting/gl/imports/${params.sourceFileId}/preview?company_id=${params.companyId}&limit=${limit}`
     );
-
-    if (!response.ok) {
-      await handleError(response, "Failed to load import preview");
-    }
-
-    return response.json();
   },
 
   async getCompanyCards(params: {
     period: string;
     year: number;
   }): Promise<CompanyGLCard[]> {
-    const response = await fetch(
-      `${API_BASE_URL}/accounting/gl/company-cards?period=${params.period}&year=${params.year}`
+    return apiClient.get<CompanyGLCard[]>(
+      `/accounting/gl/company-cards?period=${params.period}&year=${params.year}`
     );
-
-    if (!response.ok) {
-      await handleError(response, "Failed to load company cards");
-    }
-
-    return response.json();
   },
 
   async getCompanyLedger(params: {
@@ -289,15 +231,9 @@ export const GLService = {
     period: string;
     year: number;
   }): Promise<CompanyLedger> {
-    const response = await fetch(
-      `${API_BASE_URL}/accounting/gl/company/${params.companyId}?period=${params.period}&year=${params.year}`
+    return apiClient.get<CompanyLedger>(
+      `/accounting/gl/company/${params.companyId}?period=${params.period}&year=${params.year}`
     );
-
-    if (!response.ok) {
-      await handleError(response, "Failed to load company ledger");
-    }
-
-    return response.json();
   },
 
   async getTrialBalance(params: {
@@ -305,39 +241,23 @@ export const GLService = {
     period: string;
     year: number;
   }): Promise<TrialBalance> {
-    const response = await fetch(
-      `${API_BASE_URL}/accounting/gl/company/${params.companyId}/trial-balance?period=${params.period}&year=${params.year}`
+    return apiClient.get<TrialBalance>(
+      `/accounting/gl/company/${params.companyId}/trial-balance?period=${params.period}&year=${params.year}`
     );
-
-    if (!response.ok) {
-      await handleError(response, "Failed to load trial balance");
-    }
-
-    return response.json();
   },
 
   async getConsolidated(params: {
     year: number;
     quarter: number;
   }): Promise<ConsolidatedReconciliation> {
-    const response = await fetch(
-      `${API_BASE_URL}/accounting/gl/consolidated?year=${params.year}&quarter=${params.quarter}`
+    return apiClient.get<ConsolidatedReconciliation>(
+      `/accounting/gl/consolidated?year=${params.year}&quarter=${params.quarter}`
     );
-
-    if (!response.ok) {
-      await handleError(response, "Failed to load consolidated reconciliation");
-    }
-
-    return response.json();
   },
 
   async getConsolidatedTrialBalanceMatrix(period: string = "annual", year: number = 2026): Promise<ConsolidatedMatrixResponse> {
-    const response = await fetch(`${API_BASE_URL}/reports/consolidated-trial-balance-matrix?period=${period}&year=${year}`);
-
-    if (!response.ok) {
-      await handleError(response, "Failed to load consolidated trial balance matrix");
-    }
-
-    return response.json();
+    return apiClient.get<ConsolidatedMatrixResponse>(
+      `/reports/consolidated-trial-balance-matrix?period=${period}&year=${year}`
+    );
   },
 };

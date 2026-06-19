@@ -1,9 +1,5 @@
-const API_URL = "http://localhost:8000";
+import { apiClient } from "./apiClient";
 
 export async function getAnnualReport() {
-  const response = await fetch(
-    `${API_URL}/reports/annual`
-  );
-
-  return response.json();
+  return apiClient.get<any>(`/reports/annual`);
 }

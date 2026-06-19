@@ -1,11 +1,11 @@
 // src/services/bankAccountService.ts
 import type { BankAccount, BankAccounts } from '../types/bankAccount';
-import.meta.env.VITE_API_BASE_URL;
+import { apiClient } from './apiClient';
 
 export const getBankAccount = async (id: number) => {
-    return fetch(`${import.meta.env.VITE_API_BASE_URL}/accounting/bank-accounts/${id}`).then((res) => res.json() as Promise<BankAccount>);
+  return apiClient.get<BankAccount>(`/accounting/bank-accounts/${id}`);
 }
 
 export const getBankAccounts = async () => {
-    return fetch(`${import.meta.env.VITE_API_BASE_URL}/accounting/bank-accounts`).then((res) => res.json() as Promise<BankAccounts>);
+  return apiClient.get<BankAccounts>(`/accounting/bank-accounts`);
 }

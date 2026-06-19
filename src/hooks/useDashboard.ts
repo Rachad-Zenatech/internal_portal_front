@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-
-const BASE_URL = "http://localhost:8000/dashboard";
+import { apiClient } from "@/services/apiClient";
 
 function withCompany(endpoint: string, companyId?: number | null) {
   if (!companyId) return endpoint;
@@ -9,11 +8,7 @@ function withCompany(endpoint: string, companyId?: number | null) {
 }
 
 async function fetcher(endpoint: string, companyId?: number | null) {
-  const response = await fetch(`${BASE_URL}${withCompany(endpoint, companyId)}`);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${endpoint}`);
-  }
-  return response.json();
+  return apiClient.get(`/dashboard${withCompany(endpoint, companyId)}`);
 }
 
 export function useDashboardSummary(companyId?: number | null) {
