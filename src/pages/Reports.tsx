@@ -1,6 +1,13 @@
 // src/pages/Reports.tsx
 import { useState } from "react";
 import { Download } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { BASE_URL } from "@/services/apiClient";
 
@@ -8,6 +15,8 @@ export default function Reports() {
   const currentYear = new Date().getFullYear();
   const [isGenerating, setIsGenerating] = useState(false);
   const [year, setYear] = useState(currentYear);
+  
+  const years = Array.from({ length: 11 }, (_, i) => currentYear - i);
 
   const handleGenerateRecon = async () => {
     setIsGenerating(true);
@@ -38,18 +47,25 @@ export default function Reports() {
         </p>
 
         <div className="mb-6">
-          <label className="space-y-2">
+          <label className="space-y-2 flex flex-col">
             <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
               Year
             </span>
-            <input
-              type="number"
-              min={2000}
-              max={currentYear}
-              value={year}
-              onChange={(event) => setYear(Number(event.target.value))}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-            />
+            <Select
+              value={year.toString()}
+              onValueChange={(val) => setYear(Number(val))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select year" />
+              </SelectTrigger>
+              <SelectContent>
+                {years.map((y) => (
+                  <SelectItem key={y} value={y.toString()}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </label>
         </div>
 

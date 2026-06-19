@@ -1,6 +1,6 @@
-// src/pages/AiAssistant.tsx
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Send, Sparkles } from "lucide-react";
+import { apiClient } from "@/services/apiClient";
 
 type Message = {
   role: "user" | "assistant";
@@ -51,7 +51,7 @@ export default function AiAssistant() {
     setLoading(true);
 
     try {
-      const response = await askAi(question);
+      const response = await askAi(question, messages);
 
       setMessages([
         ...nextMessages,
@@ -74,22 +74,11 @@ export default function AiAssistant() {
   }
 
   
-async function askAi(message: string): Promise<string> {
-  const response = await fetch("http://localhost:8000/ai/chat", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      message,
-    }),
+async function askAi(message: string, history: Message[]): Promise<string> {
+  const data = await apiClient.post<{reply: string}>("/ai/chat", {
+    message,
+    history,
   });
-
-  if (!response.ok) {
-    throw new Error("AI request failed");
-  }
-
-  const data = await response.json();
 
   return data.reply;
 }
