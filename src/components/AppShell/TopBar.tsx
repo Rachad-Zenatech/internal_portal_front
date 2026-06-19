@@ -85,7 +85,7 @@ export default function TopBar() {
                     <div 
                       key={`${result.type}-${result.id}-${idx}`}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => handleResultClick(result.url || "/dashboard")}
+                      onClick={() => handleResultClick(result.url || "/")}
                     >
                       <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center shrink-0 border border-border/50 shadow-sm">
                         {getIcon(result.type)}
