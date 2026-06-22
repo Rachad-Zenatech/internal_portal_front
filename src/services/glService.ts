@@ -10,8 +10,18 @@ export type CompanyBook = {
   format_name: string;
 };
 
+export type GLExtractionFormat = {
+  id: number;
+  code: string;
+  name: string;
+};
+
 export type CompanyBooksResponse = {
   books: CompanyBook[];
+};
+
+export type GLFormatsResponse = {
+  formats: GLExtractionFormat[];
 };
 
 export type ParseSummary = {
@@ -265,9 +275,24 @@ export type ConsolidatedMatrixResponse = {
 import { apiClient } from "./apiClient";
 
 export const GLService = {
+  async getFormats(): Promise<GLExtractionFormat[]> {
+    const data = await apiClient.get<GLFormatsResponse | GLExtractionFormat[]>("/accounting/gl/formats");
+    return Array.isArray(data) ? data : data.formats;
+  },
+
   async getBooks(): Promise<CompanyBook[]> {
     const data = await apiClient.get<CompanyBooksResponse | CompanyBook[]>("/accounting/gl/books");
     return Array.isArray(data) ? data : data.books;
+  },
+
+  async assignCompanyBook(params: {
+    companyId: number;
+    formatId: number;
+  }): Promise<CompanyBook> {
+    return apiClient.post<CompanyBook>(
+      `/accounting/gl/company/${params.companyId}/book`,
+      { format_id: params.formatId }
+    );
   },
 
   async parseImport(params: {

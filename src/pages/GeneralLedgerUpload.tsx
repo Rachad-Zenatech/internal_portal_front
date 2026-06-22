@@ -135,6 +135,18 @@ export default function GeneralLedgerUpload() {
     try {
       const booksData = await GLService.getBooks();
       setBooks(booksData);
+
+      const companyParam = new URLSearchParams(window.location.search).get(
+        "company_id"
+      );
+      const requestedCompanyId = companyParam ? Number(companyParam) : null;
+      const requestedBook = requestedCompanyId
+        ? booksData.find((book) => book.company_id === requestedCompanyId)
+        : null;
+
+      if (!bookId && requestedBook) {
+        setBookId(requestedBook.book_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load setup data");
     } finally {

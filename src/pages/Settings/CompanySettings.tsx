@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Company, CompanyCreate } from "../../types/bank";
 import { useCompanies, useCompanyEntities, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
+import { GLService, type GLExtractionFormat } from "../../services/glService";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,9 @@ export default function CompanySettings() {
   const deleteMutation = useDeleteCompany();
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [glFormats, setGlFormats] = useState<GLExtractionFormat[]>([]);
+  const [isLoadingGlFormats, setIsLoadingGlFormats] = useState(false);
+  const [defaultGlFormatId, setDefaultGlFormatId] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -33,7 +37,32 @@ export default function CompanySettings() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [companyToDelete, setCompanyToDelete] = useState<Company | null>(null);
 
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadGlFormats() {
+      setIsLoadingGlFormats(true);
+      try {
+        const formats = await GLService.getFormats();
+        if (isActive) setGlFormats(formats);
+      } catch (error) {
+        if (isActive) {
+          toast.error("Error", { description: errorMessage(error) });
+        }
+      } finally {
+        if (isActive) setIsLoadingGlFormats(false);
+      }
+    }
+
+    void loadGlFormats();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   const handleOpenModal = (company?: Company) => {
+    setDefaultGlFormatId("");
     if (company) {
       setEditingId(company.id);
       setFormData({
@@ -53,10 +82,17 @@ export default function CompanySettings() {
 
   const handleSaveClick = async () => {
     try {
+      let savedCompany: Company;
       if (editingId) {
-        await updateMutation.mutateAsync({ id: editingId, data: formData });
+        savedCompany = await updateMutation.mutateAsync({ id: editingId, data: formData });
       } else {
-        await createMutation.mutateAsync(formData);
+        savedCompany = await createMutation.mutateAsync(formData);
+        if (defaultGlFormatId) {
+          await GLService.assignCompanyBook({
+            companyId: savedCompany.id,
+            formatId: Number(defaultGlFormatId),
+          });
+        }
       }
       setIsDialogOpen(false);
       toast.success("Company saved successfully", { position: "top-center" });
@@ -213,6 +249,26 @@ export default function CompanySettings() {
               <Label>Description</Label>
               <Input value={formData.description || ""} onChange={e => setFormData({...formData, description: e.target.value})} />
             </div>
+            {!editingId && (
+              <div className="space-y-2">
+                <Label>Default GL Format</Label>
+                <select
+                  value={defaultGlFormatId}
+                  onChange={e => setDefaultGlFormatId(e.target.value)}
+                  disabled={isLoadingGlFormats}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">
+                    {isLoadingGlFormats ? "Loading formats..." : "None"}
+                  </option>
+                  {glFormats.map((format) => (
+                    <option key={format.id} value={format.id}>
+                      {format.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

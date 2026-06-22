@@ -1,8 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, ThumbsDown, Wallet, Clock, TrendingDown, TrendingUp, AlertCircle } from "lucide-react";
+import { BarChart3, ThumbsDown, Wallet, Clock, TrendingDown, TrendingUp } from "lucide-react";
 import { useDashboardSummary } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type SummaryCardsProps = {
   companyId?: number | null;

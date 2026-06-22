@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from "react";
-import { X, Calendar, ChevronRight, Layers, Settings2, Building2 } from "lucide-react";
+import { X, Calendar, ChevronRight, Settings2, Building2 } from "lucide-react";
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

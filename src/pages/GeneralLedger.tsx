@@ -1,7 +1,11 @@
 // src/pages/GeneralLedger.tsx
 
-import { useEffect, useMemo, useState } from "react";
-import { GLService, type CompanyGLCard } from "../services/glService";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  GLService,
+  type CompanyGLCard,
+  type GLExtractionFormat,
+} from "../services/glService";
 
 type PeriodType = "january" | "february" | "march" | "april" | "may" | "june" | "july" | "august" | "september" | "october" | "november" | "december" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
 
@@ -12,39 +16,68 @@ export default function GeneralLedger() {
   const [entityFilter, setEntityFilter] = useState("all");
 
   const [cards, setCards] = useState<CompanyGLCard[]>([]);
+  const [formats, setFormats] = useState<GLExtractionFormat[]>([]);
   const [loading, setLoading] = useState(false);
+  const [assigningCompanyId, setAssigningCompanyId] = useState<number | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
+
+  const loadCompanyCards = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const data = await GLService.getCompanyCards({ period, year });
+      setCards(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load GL cards");
+      setCards([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [period, year]);
+
+  useEffect(() => {
+    void loadCompanyCards();
+  }, [loadCompanyCards]);
 
   useEffect(() => {
     let isActive = true;
 
-    async function loadCompanyCards() {
-      setLoading(true);
-      setError(null);
-
+    async function loadFormats() {
       try {
-        const data = await GLService.getCompanyCards({ period, year });
-        if (isActive) {
-          setCards(data);
-        }
+        const data = await GLService.getFormats();
+        if (isActive) setFormats(data);
       } catch (err) {
         if (isActive) {
-          setError(err instanceof Error ? err.message : "Failed to load GL cards");
-          setCards([]);
-        }
-      } finally {
-        if (isActive) {
-          setLoading(false);
+          setError(
+            err instanceof Error ? err.message : "Failed to load GL formats"
+          );
         }
       }
     }
 
-    void loadCompanyCards();
+    void loadFormats();
 
     return () => {
       isActive = false;
     };
-  }, [period, year]);
+  }, []);
+
+  async function handleAssignFormat(companyId: number, formatId: number) {
+    setAssigningCompanyId(companyId);
+    setError(null);
+
+    try {
+      await GLService.assignCompanyBook({ companyId, formatId });
+      await loadCompanyCards();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign GL format");
+    } finally {
+      setAssigningCompanyId(null);
+    }
+  }
 
   // The company + book/entity filters are derived from the cards themselves, so
   // the dropdowns always match the GL-enabled companies the backend returns.
@@ -212,6 +245,9 @@ export default function GeneralLedger() {
               card={card}
               period={period}
               year={year}
+              formats={formats}
+              isAssigning={assigningCompanyId === card.company_id}
+              onAssignFormat={handleAssignFormat}
             />
           ))}
         </section>
@@ -224,11 +260,20 @@ function CompanyGLCardView({
   card,
   period,
   year,
+  formats,
+  isAssigning,
+  onAssignFormat,
 }: {
   card: CompanyGLCard;
   period: PeriodType;
   year: number;
+  formats: GLExtractionFormat[];
+  isAssigning: boolean;
+  onAssignFormat: (companyId: number, formatId: number) => void;
 }) {
+  const [selectedFormatId, setSelectedFormatId] = useState("");
+  const hasFormat = card.default_format_id != null;
+
   return (
     <div className="rounded-lg border bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -250,6 +295,41 @@ function CompanyGLCardView({
           </span>
         )}
       </div>
+
+      {!hasFormat && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+          <p className="text-sm font-medium text-amber-800">
+            No GL format assigned
+          </p>
+          <div className="mt-3 flex gap-2">
+            <select
+              className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm"
+              value={selectedFormatId}
+              disabled={isAssigning || formats.length === 0}
+              onChange={(event) => setSelectedFormatId(event.target.value)}
+            >
+              <option value="">
+                {formats.length === 0 ? "No formats available" : "Select format"}
+              </option>
+              {formats.map((format) => (
+                <option key={format.id} value={format.id}>
+                  {format.name}
+                </option>
+              ))}
+            </select>
+
+            <button
+              className="rounded-md bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+              disabled={!selectedFormatId || isAssigning}
+              onClick={() =>
+                onAssignFormat(card.company_id, Number(selectedFormatId))
+              }
+            >
+              {isAssigning ? "Assigning..." : "Assign"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 rounded-md bg-gray-50 p-3 dark:bg-muted">
         <p className="text-sm font-medium">{card.period_label}</p>
@@ -278,7 +358,8 @@ function CompanyGLCardView({
 
       <div className="mt-5 flex gap-2">
         <button
-          className="flex-1 rounded-md bg-black px-3 py-2 text-sm text-white"
+          className="flex-1 rounded-md bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+          disabled={!hasFormat}
           onClick={() =>
             window.location.assign(
               `/general-ledger/company/${card.company_id}?period=${period}&year=${year}`
@@ -289,7 +370,8 @@ function CompanyGLCardView({
         </button>
 
         <button
-          className="flex-1 rounded-md border px-3 py-2 text-sm"
+          className="flex-1 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
+          disabled={!hasFormat}
           onClick={() =>
             window.location.assign(
               `/general-ledger/upload?company_id=${card.company_id}`
