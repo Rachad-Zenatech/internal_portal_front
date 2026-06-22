@@ -1,93 +1,64 @@
 // src/pages/TrialBalance.tsx
 
-import { useEffect, useState } from "react";
-import { GLService } from "../services/glService";
-import type {
-  CompanyGLCard,
-  TrialBalance as TrialBalanceData,
-} from "@/types/gl";
+import { useEffect, useState, useMemo } from "react";
+import { useCompanyCards, useTrialBalance } from "@/hooks/useGL";
 import ConsolidatedTrialBalance from "./ConsolidatedTrailBalance";
+
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 const PERIODS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "q1", "q2", "q3", "q4", "year", "custom"] as const;
 type PeriodType = (typeof PERIODS)[number];
 
-function isPeriodType(value: string): value is PeriodType {
-  return (PERIODS as readonly string[]).includes(value);
+function formatMoney(value: number) {
+  if (value === 0) return "-";
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 export default function TrialBalance() {
-  const [companies, setCompanies] = useState<CompanyGLCard[]>([]);
+  const [period, setPeriod] = useState<PeriodType>("year");
+  const [year, setYear] = useState<number>(2026);
   const [companyId, setCompanyId] = useState<number | null>(null);
-  const [period, setPeriod] = useState<PeriodType>("q1");
-  const [year, setYear] = useState(2026);
+  const [activeTab, setActiveTab] = useState<"trial" | "consolidated">("trial");
 
-  const [activeTab, setActiveTab] = useState('trial');
-  const [error, setError] = useState<string | null>(null);
+  const { data: cards = [], isLoading: loadingCards, error: cardsError } = useCompanyCards(period, year);
 
-  const [trialBalance, setTrialBalance] = useState<TrialBalanceData | null>(null);
+  const companies = useMemo(() => {
+    const seen = new Map<number, { company_id: number; company_name: string }>();
+    for (const card of cards) {
+      if (!seen.has(card.company_id)) {
+        seen.set(card.company_id, {
+          company_id: card.company_id,
+          company_name: card.company_name,
+        });
+      }
+    }
+    return Array.from(seen.values());
+  }, [cards]);
 
-  // Load the company list once (reuses the GL dashboard cards endpoint).
-  // Initialize state from URL query parameters
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const periodParam = params.get('period');
-    const yearParam = params.get('year');
-    const companyParam = params.get('companyId');
+    if (companies.length > 0 && companyId === null) {
+      setCompanyId(companies[0].company_id);
+    }
+  }, [companies, companyId]);
 
-    if (periodParam && isPeriodType(periodParam)) setPeriod(periodParam);
-    if (yearParam && !isNaN(Number(yearParam))) setYear(Number(yearParam));
-    if (companyParam && !isNaN(Number(companyParam))) setCompanyId(Number(companyParam));
-  }, []);
-
-  // Sync URL when state changes
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (companyId !== null) params.set('companyId', String(companyId));
-    params.set('period', period);
-    params.set('year', String(year));
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState(null, '', newUrl);
-  }, [companyId, period, year]);
-
-  // Load the company list once (reuses the GL dashboard cards endpoint).
-  useEffect(() => {
-    GLService.getCompanyCards({ period, year })
-      .then((cards) => {
-        setCompanies(cards);
-        if (cards.length > 0 && companyId === null) setCompanyId(cards[0].company_id);
-      })
-      .catch((err) =>
-        setError(err instanceof Error ? err.message : "Failed to load companies")
-      );
-  }, [companyId, period, year]);
-
-  // Load the trial balance whenever the company/period/year changes.
-  useEffect(() => {
-    if (companyId == null) return;
-
-    setError(null);
-    GLService.getTrialBalance({ companyId, period, year })
-      .then(setTrialBalance)
-      .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : "Failed to load trial balance"
-        )
-      );
-  }, [companyId, period, year]);
-
-  const rows = trialBalance?.rows ?? [];
-  const totalDebit = trialBalance?.totals.debit ?? 0;
-  const totalCredit = trialBalance?.totals.credit ?? 0;
+  const { data: trialBalance, isLoading: loadingTB, error: tbError } = useTrialBalance(companyId, period, year);
 
   return (
-    <div className="space-y-6 p-8">
-      <div className="flex border-b border-gray-200 mb-6">
+    <div className="space-y-6 p-8 max-w-[1600px] mx-auto">
+      <div className="flex border-b mb-6 gap-2">
         <button
           onClick={() => setActiveTab('trial')}
           className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none
             ${activeTab === 'trial'
-              ? 'text-blue-600 dark:text-foreground after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-blue-600'
-              : 'text-gray-500 hover:text-gray-800 dark:text-foreground dark:hover:text-foreground'
+              ? 'text-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary'
+              : 'text-muted-foreground hover:text-foreground'
             }`}
         >
           Trial Balance
@@ -96,152 +67,132 @@ export default function TrialBalance() {
           onClick={() => setActiveTab('consolidated')}
           className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none
             ${activeTab === 'consolidated'
-              ? 'text-blue-600 dark:text-foreground after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-blue-600'
-              : 'text-gray-500 hover:text-gray-800 dark:text-foreground dark:hover:text-foreground'
+              ? 'text-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary'
+              : 'text-muted-foreground hover:text-foreground'
             }`}
         >
           Consolidated
         </button>
       </div>
+
       {activeTab === 'trial' && (
         <div className="grid w-full max-w-4xl gap-4 md:grid-cols-3">
-          <div>
-            <label className="mb-2 block text-sm font-medium">Company</label>
-            <select
-              value={companyId ?? ""}
-              onChange={(e) => setCompanyId(Number(e.target.value))}
-              className="w-full rounded-lg border p-2"
+          <div className="space-y-2">
+            <Label>Company</Label>
+            <Select
+              value={companyId ? String(companyId) : undefined}
+              onValueChange={(val) => setCompanyId(Number(val))}
+              disabled={loadingCards}
             >
-              {companies.map((item) => (
-                <option key={item.company_id} value={item.company_id}>
-                  {item.company_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium">Period</label>
-            <select
-              value={period}
-              onChange={(e) => {
-                if (isPeriodType(e.target.value)) {
-                  setPeriod(e.target.value);
-                }
-              }}
-              className="w-full rounded-lg border p-2"
-            >
-              <optgroup label="Months">
-                {PERIODS.filter(p => !p.startsWith('q') && p !== 'year' && p !== 'custom').map(p => (
-                  <option key={p} value={p}>
-                    {p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()}
-                  </option>
+              <SelectTrigger>
+                <SelectValue placeholder={loadingCards ? "Loading..." : "Select Company"} />
+              </SelectTrigger>
+              <SelectContent>
+                {companies.map((item) => (
+                  <SelectItem key={item.company_id} value={String(item.company_id)}>
+                    {item.company_name}
+                  </SelectItem>
                 ))}
-              </optgroup>
-              <optgroup label="Quarters">
-                {PERIODS.filter(p => p.startsWith('q')).map(p => (
-                  <option key={p} value={p}>
-                    {p.toUpperCase()}
-                  </option>
-                ))}
-              </optgroup>
-              <option value="year">Year</option>
-              <option value="custom">Custom</option>
-            </select>
+              </SelectContent>
+            </Select>
           </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium">Year</label>
-            <input
+
+          <div className="space-y-2">
+            <Label>Period</Label>
+            <Select value={period} onValueChange={(val) => setPeriod(val as PeriodType)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Months</SelectLabel>
+                  {PERIODS.filter(p => !p.startsWith('q') && p !== 'year' && p !== 'custom').map(p => (
+                    <SelectItem key={p} value={p}>
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Quarters</SelectLabel>
+                  <SelectItem value="q1">Q1</SelectItem>
+                  <SelectItem value="q2">Q2</SelectItem>
+                  <SelectItem value="q3">Q3</SelectItem>
+                  <SelectItem value="q4">Q4</SelectItem>
+                </SelectGroup>
+                <SelectItem value="year">Year</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Input
               type="number"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
-              className="w-full rounded-lg border p-2"
             />
           </div>
         </div>
       )}
 
-      {
-        error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
+      {cardsError || tbError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {cardsError?.message || tbError?.message}
+        </div>
+      ) : null}
+
+      {activeTab === 'trial' ? (
+        loadingTB || !trialBalance ? (
+          <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+            {companyId ? "Loading trial balance..." : "Select a company to view its trial balance."}
           </div>
-        )
-      }
-
-
-
-      {
-        activeTab === 'trial' ? (
-          <>
-            <div className="border-b bg-slate-50 p-4">
+        ) : trialBalance.rows.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+            No saved GL data for this company and period.
+          </div>
+        ) : (
+          <Card className="overflow-hidden">
+            <div className="border-b bg-muted/30 p-4">
               <h2 className="text-xl font-semibold">
-                {trialBalance?.company_name ?? "—"} Trial Balance
+                {trialBalance.company_name ?? "—"} Trial Balance
               </h2>
-              <p className="text-sm text-slate-500">
-                {trialBalance?.period_label ?? `${period.toUpperCase()} ${year}`}
+              <p className="text-sm text-muted-foreground">
+                {trialBalance.period_label ?? `${period.toUpperCase()} ${year}`}
               </p>
             </div>
-
-            <table className="w-full table-fixed">
-              <thead className="sticky top-0 z-10 bg-slate-100">
-                <tr>
-                  <th className="p-3 text-left w-1/5">Account</th>
-                  <th className="p-3 text-left w-1/5">Description</th>
-                  <th className="p-3 text-left w-1/5">Type</th>
-                  <th className="p-3 text-right w-1/5">Debit</th>
-                  <th className="p-3 text-right w-1/5">Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-6 text-center text-slate-500">
-                      No saved GL data for this company and period.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((row) => (
-                    <tr key={row.account_number} className="border-b">
-                      <td className="p-3">{row.account_number}</td>
-                      <td className="p-3">{row.account_name}</td>
-                      <td className="p-3">{row.account_type ?? "-"}</td>
-                      <td className="p-3 text-right">
-                        {row.debit.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                      <td className="p-3 text-right">
-                        {row.credit.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </td>
-                    </tr>
-                  ))
-                )}
-                <tr className="bg-slate-50 font-bold">
-                  <td colSpan={3} className="p-3">Totals</td>
-                  <td className="p-3 text-right">
-                    {totalDebit.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="p-3 text-right">
-                    {totalCredit.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </>
-        ) : (
-          <ConsolidatedTrialBalance />
+            <Table>
+              <TableHeader className="bg-muted/10">
+                <TableRow>
+                  <TableHead className="w-1/5">Account</TableHead>
+                  <TableHead className="w-1/5">Description</TableHead>
+                  <TableHead className="w-1/5">Type</TableHead>
+                  <TableHead className="w-1/5 text-right">Debit</TableHead>
+                  <TableHead className="w-1/5 text-right">Credit</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {trialBalance.rows.map((row) => (
+                  <TableRow key={row.account_number}>
+                    <TableCell className="font-medium">{row.account_number}</TableCell>
+                    <TableCell>{row.account_name}</TableCell>
+                    <TableCell>{row.account_type ?? "-"}</TableCell>
+                    <TableCell className="text-right">{formatMoney(row.debit)}</TableCell>
+                    <TableCell className="text-right">{formatMoney(row.credit)}</TableCell>
+                  </TableRow>
+                ))}
+                <TableRow className="bg-muted/20 font-bold">
+                  <TableCell colSpan={3}>Totals</TableCell>
+                  <TableCell className="text-right">{formatMoney(trialBalance.totals.debit)}</TableCell>
+                  <TableCell className="text-right">{formatMoney(trialBalance.totals.credit)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Card>
         )
-      }
-    </div >
+      ) : (
+        <ConsolidatedTrialBalance />
+      )}
+    </div>
   );
 }

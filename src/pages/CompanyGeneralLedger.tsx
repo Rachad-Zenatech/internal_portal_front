@@ -2,12 +2,43 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { GLService } from "../services/glService";
-import type {
-  CompanyLedger,
-  GLAccountGroup,
-  GLImportVisual,
-} from "@/types/gl";
+import { useCompanyLedger } from "@/hooks/useGL";
+import type { GLAccountGroup, GLImportVisual } from "@/types/gl";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+function formatMoney(value: number) {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatOptionalMoney(value: number | null | undefined) {
+  return value == null ? "-" : formatMoney(value);
+}
+
+function getAccountClosingBalance(account: GLAccountGroup) {
+  const lastWithBalance = [...account.transactions]
+    .reverse()
+    .find((txn) => txn.balance_after != null);
+
+  if (lastWithBalance?.balance_after != null) {
+    return lastWithBalance.balance_after;
+  }
+
+  if (account.beginning_balance != null) {
+    return account.beginning_balance + account.total_amount;
+  }
+
+  return account.total_amount;
+}
 
 export default function CompanyGeneralLedger() {
   const { companyId: idParam } = useParams<{ companyId: string }>();
@@ -19,46 +50,17 @@ export default function CompanyGeneralLedger() {
 
   const [period, setPeriod] = useState<string>(initialPeriod);
   const [year, setYear] = useState<number>(initialYear);
-
-  const [data, setData] = useState<CompanyLedger | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"all" | "bank">("all");
   const [search, setSearch] = useState("");
 
+  const { data, isLoading, error } = useCompanyLedger(companyId, period, year);
+
   useEffect(() => {
-    let isActive = true;
     const newParams = new URLSearchParams(window.location.search);
     newParams.set("period", period);
     newParams.set("year", String(year));
-    const newSearch = newParams.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}?${newSearch}`);
-
-    async function loadCompanyLedger() {
-      setError(null);
-      try {
-        const ledger = await GLService.getCompanyLedger({
-          companyId,
-          period,
-          year,
-        });
-        if (isActive) {
-          setData(ledger);
-        }
-      } catch (err) {
-        if (isActive) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load company ledger"
-          );
-        }
-      }
-    }
-
-    void loadCompanyLedger();
-
-    return () => {
-      isActive = false;
-    };
-  }, [companyId, period, year]);
+    window.history.replaceState(null, "", `${window.location.pathname}?${newParams.toString()}`);
+  }, [period, year]);
 
   const imports = useMemo(() => data?.imports ?? [], [data?.imports]);
 
@@ -91,139 +93,151 @@ export default function CompanyGeneralLedger() {
 
   if (error) {
     return (
-      <main className="space-y-4 p-6">
+      <main className="space-y-4 p-6 max-w-[1600px] mx-auto">
         <button
-          className="text-sm text-gray-500"
+          className="text-sm text-muted-foreground hover:underline"
           onClick={() => window.location.assign("/general-ledger")}
         >
           ← Back to General Ledger Dashboard
         </button>
         <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          {error.message || "Failed to load company ledger"}
         </section>
       </main>
     );
   }
 
-  if (!data) {
-    return <main className="p-6">Loading...</main>;
-  }
-
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-6 max-w-[1600px] mx-auto">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <button
-            className="mb-2 text-sm text-gray-500"
+            className="mb-2 text-sm text-muted-foreground hover:underline"
             onClick={() => window.location.assign("/general-ledger")}
           >
             ← Back to General Ledger Dashboard
           </button>
 
-          <h1 className="text-2xl font-semibold">{data.company_name}</h1>
-          <p className="text-sm text-gray-500">
-            {data.entity || "No Entity"} · {data.period_label}
+          <h1 className="text-3xl font-bold tracking-tight">
+            {data ? `${data.company_name} ${data.entity ? `(${data.entity})` : ""}` : "Loading..."}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {data ? data.period_label : "..."}
           </p>
         </div>
 
-        <button
-          className="rounded-md bg-black px-4 py-2 text-white"
+        <Button
+          disabled={!data}
           onClick={() =>
             window.location.assign(
-              `/general-ledger/upload?company_id=${data.company_id}`
+              `/general-ledger/upload?company_id=${data?.company_id}`
             )
           }
         >
           Upload GL for Company
-        </button>
+        </Button>
       </header>
 
       <section className="grid gap-4 md:grid-cols-4">
-        <Metric label="Imports" value={imports.length} />
-        <Metric
+        <MetricCard label="Imports" value={imports.length} />
+        <MetricCard
           label="Entries"
           value={imports.reduce((sum, item) => sum + item.gl_entries, 0)}
         />
-        <Metric
+        <MetricCard
           label="Lines"
           value={imports.reduce((sum, item) => sum + item.gl_entry_lines, 0)}
         />
-        <Metric
+        <MetricCard
           label="Bank Lines"
           value={imports.reduce((sum, item) => sum + item.bank_lines, 0)}
         />
       </section>
 
-      <section className="rounded-lg border bg-white p-4 shadow-sm">
+      <Card className="p-4">
         <div className="grid gap-4 md:grid-cols-5">
-          <label className="space-y-1 md:col-span-2">
-            <span className="text-sm font-medium">Search Transactions</span>
-            <input
-              className="w-full rounded-md border px-3 py-2"
+          <div className="space-y-2 md:col-span-2">
+            <Label>Search Transactions</Label>
+            <Input
               placeholder="Search name, memo, account, num..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </label>
+          </div>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Period</span>
-            <select
-              className="w-full rounded-md border px-3 py-2"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-            >
-              <optgroup label="Months">
-                <option value="january">January</option>
-                <option value="february">February</option>
-                <option value="march">March</option>
-                <option value="april">April</option>
-                <option value="may">May</option>
-                <option value="june">June</option>
-                <option value="july">July</option>
-                <option value="august">August</option>
-                <option value="september">September</option>
-                <option value="october">October</option>
-                <option value="november">November</option>
-                <option value="december">December</option>
-              </optgroup>
-              <optgroup label="Quarters">
-                <option value="q1">Q1</option>
-                <option value="q2">Q2</option>
-                <option value="q3">Q3</option>
-                <option value="q4">Q4</option>
-              </optgroup>
-              <option value="year">Year</option>
-              <option value="custom">Custom</option>
-            </select>
-          </label>
+          <div className="space-y-2">
+            <Label>Period</Label>
+            <Select value={period} onValueChange={setPeriod}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Months</SelectLabel>
+                  <SelectItem value="january">January</SelectItem>
+                  <SelectItem value="february">February</SelectItem>
+                  <SelectItem value="march">March</SelectItem>
+                  <SelectItem value="april">April</SelectItem>
+                  <SelectItem value="may">May</SelectItem>
+                  <SelectItem value="june">June</SelectItem>
+                  <SelectItem value="july">July</SelectItem>
+                  <SelectItem value="august">August</SelectItem>
+                  <SelectItem value="september">September</SelectItem>
+                  <SelectItem value="october">October</SelectItem>
+                  <SelectItem value="november">November</SelectItem>
+                  <SelectItem value="december">December</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Quarters</SelectLabel>
+                  <SelectItem value="q1">Q1</SelectItem>
+                  <SelectItem value="q2">Q2</SelectItem>
+                  <SelectItem value="q3">Q3</SelectItem>
+                  <SelectItem value="q4">Q4</SelectItem>
+                </SelectGroup>
+                <SelectItem value="year">Year</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Year</span>
-            <input
-              className="w-full rounded-md border px-3 py-2"
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            />
-          </label>
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Select value={String(year)} onValueChange={(val) => setYear(Number(val))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2024">2024</SelectItem>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium">View</span>
-            <select
-              className="w-full rounded-md border px-3 py-2"
-              value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as "all" | "bank")}
-            >
-              <option value="all">All Accounts</option>
-              <option value="bank">Bank Accounts Only</option>
-            </select>
-          </label>
+          <div className="space-y-2">
+            <Label>View</Label>
+            <Select value={viewMode} onValueChange={(val) => setViewMode(val as "all" | "bank")}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select View" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Accounts</SelectItem>
+                <SelectItem value="bank">Bank Accounts Only</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </section>
+      </Card>
 
-      {filteredImports.length === 0 ? (
-        <EmptyState text="No transactions found for this company and period." />
+      {isLoading ? (
+        <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+          Loading company ledger...
+        </div>
+      ) : filteredImports.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+          No transactions found for this company and period.
+        </div>
       ) : (
         <section className="space-y-6">
           {filteredImports.map((item) => (
@@ -248,36 +262,40 @@ function GLImportVisualCard({
       : item.accounts;
 
   return (
-    <div className="rounded-lg border bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b p-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">{item.filename}</h2>
-          <p className="text-sm text-gray-500">
-            {item.format_name} · Imported{" "}
-            {new Date(item.imported_at).toLocaleString()}
-          </p>
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex flex-col gap-3 border-b p-4 bg-muted/20 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">{item.filename}</h2>
+            <p className="text-sm text-muted-foreground">
+              {item.format_name} · Imported{" "}
+              {new Date(item.imported_at).toLocaleString()}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 text-right text-sm">
+            <InfoStat label="Entries" value={String(item.gl_entries)} />
+            <InfoStat label="Lines" value={String(item.gl_entry_lines)} />
+            <InfoStat label="Bank Lines" value={String(item.bank_lines)} />
+          </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 text-right text-sm">
-          <Info label="Entries" value={String(item.gl_entries)} />
-          <Info label="Lines" value={String(item.gl_entry_lines)} />
-          <Info label="Bank Lines" value={String(item.bank_lines)} />
-        </div>
-      </div>
-
-      {accounts.length === 0 ? (
-        <EmptyState text="No accounts match this view." />
-      ) : (
-        <div className="space-y-4 p-4">
-          {accounts.map((account) => (
-            <AccountTransactionGroup
-              key={`${item.id}-${account.account_number}`}
-              account={account}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+        {accounts.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-foreground">
+            No accounts match this view.
+          </div>
+        ) : (
+          <div className="space-y-4 p-4">
+            {accounts.map((account) => (
+              <AccountTransactionGroup
+                key={`${item.id}-${account.account_number}`}
+                account={account}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -285,22 +303,22 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
   const closingBalance = getAccountClosingBalance(account);
 
   return (
-    <div className="rounded-md border">
-      <div className="flex flex-col gap-2 border-b bg-gray-50 p-3 md:flex-row md:items-center md:justify-between">
+    <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+      <div className="flex flex-col gap-2 border-b bg-muted/40 p-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="font-medium">
             {account.account_number} · {account.account_name}
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted-foreground">
             {account.account_type || "Unknown account type"}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {account.is_bank_account && (
-            <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
+            <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">
               Bank Account
-            </span>
+            </Badge>
           )}
 
           <AccountBalanceStat
@@ -312,75 +330,71 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto overflow-y-auto max-h-[400px]">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="sticky top-0 z-10 bg-gray-50 border-b">
-              <Th>Date</Th>
-              <Th>Type</Th>
-              <Th>Num</Th>
-              <Th>Name</Th>
-              <Th>Memo</Th>
-              <Th>Split Account</Th>
-              <Th align="right">Amount</Th>
-              <Th align="right">Balance</Th>
-              <Th>Status</Th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr className="border-b bg-blue-50/60 font-medium text-gray-700">
-              <td colSpan={7} className="px-3 py-2 text-right">
+      <div className="max-h-[400px] overflow-y-auto">
+        <Table>
+          <TableHeader className="sticky top-0 bg-muted/50 z-10 shadow-sm">
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Num</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Memo</TableHead>
+              <TableHead>Split Account</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">Balance</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow className="bg-blue-50/40 font-medium">
+              <TableCell colSpan={7} className="text-right text-muted-foreground">
                 Beginning Balance
-              </td>
-              <td className="whitespace-nowrap px-3 py-2 text-right">
+              </TableCell>
+              <TableCell className="text-right">
                 {formatOptionalMoney(account.beginning_balance)}
-              </td>
-              <td />
-            </tr>
+              </TableCell>
+              <TableCell />
+            </TableRow>
 
             {account.transactions.map((txn) => (
-              <tr key={txn.entry_id} className="border-b last:border-b-0">
-                <Td>{txn.entry_date || "-"}</Td>
-                <Td>{txn.transaction_type || "-"}</Td>
-                <Td>{txn.transaction_number || "-"}</Td>
-                <Td>{txn.name || "-"}</Td>
-                <Td>{txn.memo || "-"}</Td>
-                <Td>
+              <TableRow key={txn.entry_id}>
+                <TableCell className="whitespace-nowrap">{txn.entry_date || "-"}</TableCell>
+                <TableCell className="whitespace-nowrap">{txn.transaction_type || "-"}</TableCell>
+                <TableCell className="whitespace-nowrap">{txn.transaction_number || "-"}</TableCell>
+                <TableCell className="whitespace-nowrap">{txn.name || "-"}</TableCell>
+                <TableCell className="max-w-[200px] truncate" title={txn.memo || ""}>
+                  {txn.memo || "-"}
+                </TableCell>
+                <TableCell className="max-w-[200px] truncate" title={txn.split_account_name || ""}>
                   {txn.split_account_number
-                    ? `${txn.split_account_number} · ${txn.split_account_name || ""
-                    }`
+                    ? `${txn.split_account_number} · ${txn.split_account_name || ""}`
                     : "-"}
-                </Td>
-                <Td align="right">{formatMoney(txn.amount)}</Td>
-                <Td align="right">
-                  {txn.balance_after == null
-                    ? "-"
-                    : formatMoney(txn.balance_after)}
-                </Td>
-                <Td>
+                </TableCell>
+                <TableCell className="text-right whitespace-nowrap">{formatMoney(txn.amount)}</TableCell>
+                <TableCell className="text-right whitespace-nowrap">
+                  {txn.balance_after == null ? "-" : formatMoney(txn.balance_after)}
+                </TableCell>
+                <TableCell>
                   {txn.is_bank_line ? (
-                    <Badge tone="green">Bank Line</Badge>
+                    <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">Bank Line</Badge>
                   ) : (
-                    <Badge tone="gray">GL Line</Badge>
+                    <Badge variant="secondary" className="bg-gray-100 text-gray-700 hover:bg-gray-100">GL Line</Badge>
                   )}
-                </Td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-
-          <tfoot>
-            <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-              <td colSpan={7} className="px-3 py-2 text-sm text-right text-gray-600">
+            
+            <TableRow className="border-t-2 bg-muted/40 font-semibold">
+              <TableCell colSpan={7} className="text-right text-muted-foreground">
                 Closing Balance
-              </td>
-              <td className="px-3 py-2 text-sm text-right text-gray-900">
+              </TableCell>
+              <TableCell className="text-right">
                 {formatMoney(closingBalance)}
-              </td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+              </TableCell>
+              <TableCell />
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
@@ -395,112 +409,30 @@ function AccountBalanceStat({
 }) {
   return (
     <span className="text-right text-sm">
-      <span className="block text-xs uppercase text-gray-500">{label}</span>
-      <span className="font-semibold text-gray-900">
+      <span className="block text-xs uppercase text-muted-foreground">{label}</span>
+      <span className="font-semibold">
         {formatOptionalMoney(value)}
       </span>
     </span>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-    </div>
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="mt-2 text-3xl font-bold tracking-tight">{value}</p>
+      </CardContent>
+    </Card>
   );
 }
 
-function Info({ label, value }: { label: string; value: string }) {
+function InfoStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-xs uppercase text-gray-500">{label}</p>
-      <p className="font-medium">{value}</p>
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium">{value}</p>
     </div>
   );
-}
-
-function Badge({
-  children,
-  tone,
-}: {
-  children: React.ReactNode;
-  tone: "green" | "gray";
-}) {
-  const className =
-    tone === "green"
-      ? "bg-green-100 text-green-700"
-      : "bg-gray-100 text-gray-700";
-
-  return (
-    <span className={`rounded-full px-2 py-1 text-xs ${className}`}>
-      {children}
-    </span>
-  );
-}
-
-function EmptyState({ text }: { text: string }) {
-  return (
-    <div className="rounded-lg border bg-white p-8 text-center text-sm text-gray-500">
-      {text}
-    </div>
-  );
-}
-
-function Th({
-  children,
-  align = "left",
-}: {
-  children: React.ReactNode;
-  align?: "left" | "right";
-}) {
-  return (
-    <th
-      className={`whitespace-nowrap px-3 py-2 text-${align} font-medium text-gray-600`}
-    >
-      {children}
-    </th>
-  );
-}
-
-function Td({
-  children,
-  align = "left",
-}: {
-  children: React.ReactNode;
-  align?: "left" | "right";
-}) {
-  return (
-    <td className={`whitespace-nowrap px-3 py-2 text-${align}`}>
-      {children}
-    </td>
-  );
-}
-
-function formatMoney(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatOptionalMoney(value: number | null | undefined) {
-  return value == null ? "-" : formatMoney(value);
-}
-
-function getAccountClosingBalance(account: GLAccountGroup) {
-  const lastWithBalance = [...account.transactions]
-    .reverse()
-    .find((txn) => txn.balance_after != null);
-
-  if (lastWithBalance?.balance_after != null) {
-    return lastWithBalance.balance_after;
-  }
-
-  if (account.beginning_balance != null) {
-    return account.beginning_balance + account.total_amount;
-  }
-
-  return account.total_amount;
 }

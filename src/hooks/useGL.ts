@@ -1,9 +1,18 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GLService } from '../services/glService';
 import type {
   CompanyGLCard,
   ConsolidatedMatrixResponse,
   TrialBalance,
+  GLExtractionFormat,
+  CompanyBook,
+  ParseImportResponse,
+  ImportPreview,
+  ManualGlEntryRequest,
+  MissingInBooksExportRow,
+  MissingInBooksExportDownload,
+  CompanyLedger,
+  ConsolidatedReconciliation,
 } from '@/types/gl';
 
 export const useConsolidatedMatrix = (period: string = "annual", year: number = 2026) => {
@@ -28,5 +37,112 @@ export const useTrialBalance = (companyId: number | null, period: string, year: 
       return GLService.getTrialBalance({ companyId, period, year });
     },
     enabled: companyId !== null,
+  });
+};
+
+export const useCompanyLedger = (companyId: number | null, period: string, year: number) => {
+  return useQuery<CompanyLedger, Error>({
+    queryKey: ['company-ledger', companyId, period, year],
+    queryFn: () => {
+      if (companyId === null) throw new Error("Company ID is required");
+      return GLService.getCompanyLedger({ companyId, period, year });
+    },
+    enabled: companyId !== null,
+  });
+};
+
+export const useConsolidated = (year: number, quarter: number) => {
+  return useQuery<ConsolidatedReconciliation, Error>({
+    queryKey: ['consolidated', year, quarter],
+    queryFn: () => GLService.getConsolidated({ year, quarter }),
+  });
+};
+
+export const useBooks = () => {
+  return useQuery<CompanyBook[], Error>({
+    queryKey: ['books'],
+    queryFn: () => GLService.getBooks(),
+  });
+};
+
+export const useGLFormats = () => {
+  return useQuery<GLExtractionFormat[], Error>({
+    queryKey: ['gl-formats'],
+    queryFn: () => GLService.getFormats(),
+  });
+};
+
+export const useAssignFormat = () => {
+  const queryClient = useQueryClient();
+  return useMutation<CompanyBook, Error, { companyId: number; formatId: number }>({
+    mutationFn: ({ companyId, formatId }) => GLService.assignCompanyBook({ companyId, formatId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+    },
+  });
+};
+
+export const useImportPreview = (sourceFileId: number | null, companyId: number | null) => {
+  return useQuery<ImportPreview, Error>({
+    queryKey: ['import-preview', sourceFileId, companyId],
+    queryFn: () => {
+      if (sourceFileId === null || companyId === null) throw new Error("Missing IDs");
+      return GLService.getImportPreview({ sourceFileId, companyId });
+    },
+    enabled: sourceFileId !== null && companyId !== null,
+  });
+};
+
+export const useParseImport = () => {
+  return useMutation<ParseImportResponse, Error, { companyBookId: number; file: File }>({
+    mutationFn: ({ companyBookId, file }) => GLService.parseImport({ companyBookId, file }),
+  });
+};
+
+export const useSaveImport = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { companyId: number; sourceFileId: number }>({
+    mutationFn: ({ companyId, sourceFileId }) => GLService.saveImport({ companyId, sourceFileId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['company-ledger'] });
+    },
+  });
+};
+
+export const useDeleteImport = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { companyId: number; sourceFileId: number }>({
+    mutationFn: ({ companyId, sourceFileId }) => GLService.deleteImport({ companyId, sourceFileId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['import-preview'] });
+    },
+  });
+};
+
+export const useAddManualEntry = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    { manual_entry: any; preview: ImportPreview },
+    Error,
+    { sourceFileId: number; entry: ManualGlEntryRequest }
+  >({
+    mutationFn: ({ sourceFileId, entry }) => GLService.addManualEntry({ sourceFileId, entry }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['import-preview', variables.sourceFileId] });
+    },
+  });
+};
+
+export const useDownloadMissingInBooksExport = () => {
+  return useMutation<
+    MissingInBooksExportDownload,
+    Error,
+    { companyId: number; year: number; quarter: number; items: MissingInBooksExportRow[] }
+  >({
+    mutationFn: ({ companyId, year, quarter, items }) =>
+      GLService.downloadMissingInBooksExport({ companyId, year, quarter, items }),
   });
 };

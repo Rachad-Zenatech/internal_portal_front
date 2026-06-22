@@ -1,8 +1,13 @@
 // src/pages/GeneralLedger.tsx
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { GLService } from "../services/glService";
+import { useMemo, useState } from "react";
 import type { CompanyGLCard, GLExtractionFormat } from "@/types/gl";
+import { useCompanyCards, useGLFormats, useAssignFormat } from "@/hooks/useGL";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 type PeriodType = "january" | "february" | "march" | "april" | "may" | "june" | "july" | "august" | "september" | "october" | "november" | "december" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
 
@@ -12,77 +17,12 @@ export default function GeneralLedger() {
   const [companyId, setCompanyId] = useState<string>("all");
   const [entityFilter, setEntityFilter] = useState("all");
 
-  const [cards, setCards] = useState<CompanyGLCard[]>([]);
-  const [formats, setFormats] = useState<GLExtractionFormat[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [assigningCompanyId, setAssigningCompanyId] = useState<number | null>(
-    null
-  );
-  const [error, setError] = useState<string | null>(null);
+  const { data: cards = [], isLoading: loadingCards, error: cardsError } = useCompanyCards(period, year);
+  const { data: formats = [] } = useGLFormats();
+  const assignFormatMutation = useAssignFormat();
 
-  const loadCompanyCards = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const data = await GLService.getCompanyCards({ period, year });
-      setCards(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load GL cards");
-      setCards([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [period, year]);
-
-  useEffect(() => {
-    void loadCompanyCards();
-  }, [loadCompanyCards]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadFormats() {
-      try {
-        const data = await GLService.getFormats();
-        if (isActive) setFormats(data);
-      } catch (err) {
-        if (isActive) {
-          setError(
-            err instanceof Error ? err.message : "Failed to load GL formats"
-          );
-        }
-      }
-    }
-
-    void loadFormats();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  async function handleAssignFormat(companyId: number, formatId: number) {
-    setAssigningCompanyId(companyId);
-    setError(null);
-
-    try {
-      await GLService.assignCompanyBook({ companyId, formatId });
-      await loadCompanyCards();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign GL format");
-    } finally {
-      setAssigningCompanyId(null);
-    }
-  }
-
-  // The company + book/entity filters are derived from the cards themselves, so
-  // the dropdowns always match the GL-enabled companies the backend returns.
   const companies = useMemo(() => {
-    const seen = new Map<
-      number,
-      { id: number; name: string; entity: string | null }
-    >();
+    const seen = new Map<number, { id: number; name: string; entity: string | null }>();
     for (const card of cards) {
       if (!seen.has(card.company_id)) {
         seen.set(card.company_id, {
@@ -96,141 +36,154 @@ export default function GeneralLedger() {
   }, [cards]);
 
   const entities = useMemo(() => {
-    const values = new Set(companies.map((company) => company.entity || "No Entity"));
+    const values = new Set<string>();
+    for (const company of companies) {
+      if (company.entity && company.entity.toLowerCase() !== "all") {
+        values.add(company.entity);
+      } else if (!company.entity) {
+        values.add("No Entity");
+      }
+    }
     return ["all", ...Array.from(values)];
   }, [companies]);
 
   const filteredCards = useMemo(() => {
     return cards.filter((card) => {
-      const matchesCompany =
-        companyId === "all" || card.company_id === Number(companyId);
-
-      const matchesEntity =
+      const matchCompany = companyId === "all" || card.company_id === Number(companyId);
+      const matchEntity =
         entityFilter === "all" ||
-        (card.entity || "No Entity") === entityFilter;
+        (entityFilter === "No Entity" ? !card.entity : card.entity === entityFilter);
 
-      return matchesCompany && matchesEntity;
+      return matchCompany && matchEntity;
     });
   }, [cards, companyId, entityFilter]);
 
   return (
-    <main className="space-y-6 p-6">
+    <main className="space-y-6 p-6 max-w-[1600px] mx-auto">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">General Ledger Dashboard</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="text-3xl font-bold tracking-tight">General Ledger Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
             View GL imports and transactions by company, book, and period.
           </p>
         </div>
-
-        <button
-          className="rounded-md bg-black px-4 py-2 text-white"
-          onClick={() => window.location.assign("/general-ledger/upload")}
-        >
+        <Button onClick={() => window.location.assign("/general-ledger/upload")}>
           Upload New GL
-        </button>
+        </Button>
       </header>
 
-      {error && (
+      {assignFormatMutation.isError && (
         <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          {assignFormatMutation.error?.message || "Failed to assign GL format"}
         </section>
       )}
 
-      <section className="rounded-lg border bg-white p-4 shadow-sm">
+      <Card className="p-6">
         <div className="grid gap-4 md:grid-cols-4">
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Company</span>
-            <select
-              className="w-full rounded-md border px-3 py-2"
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-            >
-              <option value="all">All Companies</option>
-              {companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.name} ({company.entity || "No Entity"})
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="space-y-2">
+            <Label>Company</Label>
+            <Select value={companyId} onValueChange={setCompanyId}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Companies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Companies</SelectItem>
+                {companies.map((company) => (
+                  <SelectItem key={String(company.id)} value={String(company.id)}>
+                    {company.name} ({company.entity || "No Entity"})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Period</span>
-            <select
-              className="w-full rounded-md border px-3 py-2"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value as PeriodType)}
-            >
-              <optgroup label="Months">
-                <option value="january">January</option>
-                <option value="february">February</option>
-                <option value="march">March</option>
-                <option value="april">April</option>
-                <option value="may">May</option>
-                <option value="june">June</option>
-                <option value="july">July</option>
-                <option value="august">August</option>
-                <option value="september">September</option>
-                <option value="october">October</option>
-                <option value="november">November</option>
-                <option value="december">December</option>
-              </optgroup>
-              <optgroup label="Quarters">
-                <option value="q1">Q1</option>
-                <option value="q2">Q2</option>
-                <option value="q3">Q3</option>
-                <option value="q4">Q4</option>
-              </optgroup>
-              <option value="year">Year</option>
-              <option value="custom">Custom</option>
-            </select>
-          </label>
+          <div className="space-y-2">
+            <Label>Period</Label>
+            <Select value={period} onValueChange={(val) => setPeriod(val as PeriodType)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Months</SelectLabel>
+                  <SelectItem value="january">January</SelectItem>
+                  <SelectItem value="february">February</SelectItem>
+                  <SelectItem value="march">March</SelectItem>
+                  <SelectItem value="april">April</SelectItem>
+                  <SelectItem value="may">May</SelectItem>
+                  <SelectItem value="june">June</SelectItem>
+                  <SelectItem value="july">July</SelectItem>
+                  <SelectItem value="august">August</SelectItem>
+                  <SelectItem value="september">September</SelectItem>
+                  <SelectItem value="october">October</SelectItem>
+                  <SelectItem value="november">November</SelectItem>
+                  <SelectItem value="december">December</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Quarters</SelectLabel>
+                  <SelectItem value="q1">Q1</SelectItem>
+                  <SelectItem value="q2">Q2</SelectItem>
+                  <SelectItem value="q3">Q3</SelectItem>
+                  <SelectItem value="q4">Q4</SelectItem>
+                </SelectGroup>
+                <SelectItem value="year">Year</SelectItem>
+                <SelectItem value="custom">Custom</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Year</span>
-            <input
-              className="w-full rounded-md border px-3 py-2"
-              type="number"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            />
-          </label>
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Select value={String(year)} onValueChange={(val) => setYear(Number(val))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2024">2024</SelectItem>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+                <SelectItem value="2027">2027</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Book / Entity</span>
-            <select
-              className="w-full rounded-md border px-3 py-2"
-              value={entityFilter}
-              onChange={(e) => setEntityFilter(e.target.value)}
-            >
-              {entities.map((entity) => (
-                <option key={entity} value={entity}>
-                  {entity === "all" ? "All Books" : entity}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="space-y-2">
+            <Label>Book / Entity</Label>
+            <Select value={entityFilter} onValueChange={setEntityFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Books" />
+              </SelectTrigger>
+              <SelectContent>
+                {entities.map((entity) => (
+                  <SelectItem key={entity} value={entity}>
+                    {entity === "all" ? "All Books" : entity}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </section>
+      </Card>
 
       <section className="grid gap-4 md:grid-cols-4">
-        <Metric label="Companies" value={filteredCards.length} />
-        <Metric
+        <MetricCard label="Companies" value={filteredCards.length} />
+        <MetricCard
           label="Imports"
-          value={filteredCards.reduce((sum, card) => sum + card.import_count, 0)}
+          value={filteredCards.reduce((sum, c) => sum + c.import_count, 0)}
         />
-        <Metric
+        <MetricCard
           label="GL Lines"
-          value={filteredCards.reduce((sum, card) => sum + card.gl_entry_lines, 0)}
+          value={filteredCards.reduce((sum, c) => sum + c.gl_entry_lines, 0)}
         />
-        <Metric
+        <MetricCard
           label="Bank Lines"
-          value={filteredCards.reduce((sum, card) => sum + card.bank_lines, 0)}
+          value={filteredCards.reduce((sum, c) => sum + c.bank_lines, 0)}
         />
       </section>
 
-      {loading ? (
+      {cardsError ? (
+        <EmptyState text={cardsError.message || "Failed to load GL cards"} />
+      ) : loadingCards ? (
         <EmptyState text="Loading company GL cards..." />
       ) : filteredCards.length === 0 ? (
         <EmptyState text="No GL data found for this company and period." />
@@ -243,8 +196,8 @@ export default function GeneralLedger() {
               period={period}
               year={year}
               formats={formats}
-              isAssigning={assigningCompanyId === card.company_id}
-              onAssignFormat={handleAssignFormat}
+              isAssigning={assignFormatMutation.isPending && assignFormatMutation.variables?.companyId === card.company_id}
+              onAssignFormat={(companyId, formatId) => assignFormatMutation.mutate({ companyId, formatId })}
             />
           ))}
         </section>
@@ -268,94 +221,63 @@ function CompanyGLCardView({
   isAssigning: boolean;
   onAssignFormat: (companyId: number, formatId: number) => void;
 }) {
-  const [selectedFormatId, setSelectedFormatId] = useState("");
+  const [selectedFormatId, setSelectedFormatId] = useState<string>();
   const hasFormat = card.default_format_id != null;
 
   return (
-    <div className="rounded-lg border bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
+    <Card className="flex flex-col">
+      <CardContent className="flex-1 p-5">
+        <div className="mb-4">
           <h2 className="text-lg font-semibold">{card.company_name}</h2>
-          <p className="text-sm text-gray-500">
-            {card.entity || "No Entity"} ·{" "}
-            {card.default_format_name || "No default format"}
+          <p className="text-sm text-muted-foreground">
+            {card.entity || "No Entity"} · {card.default_format_name || "No default format"}
           </p>
         </div>
 
-        {card.import_count > 0 ? (
-          <span className="rounded-full bg-green-100 px-2 py-1 text-xs text-green-700">
-            Loaded
-          </span>
-        ) : (
-          <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs text-yellow-700">
-            Missing
-          </span>
-        )}
-      </div>
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <InfoStat label="Imports" value={String(card.import_count)} />
+          <InfoStat label="GL Lines" value={String(card.gl_entry_lines)} />
+          <InfoStat label="Bank Lines" value={String(card.bank_lines)} />
+        </div>
 
-      {!hasFormat && (
-        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3">
-          <p className="text-sm font-medium text-amber-800">
-            No GL format assigned
-          </p>
-          <div className="mt-3 flex gap-2">
-            <select
-              className="min-w-0 flex-1 rounded-md border bg-white px-3 py-2 text-sm"
-              value={selectedFormatId}
-              disabled={isAssigning || formats.length === 0}
-              onChange={(event) => setSelectedFormatId(event.target.value)}
-            >
-              <option value="">
-                {formats.length === 0 ? "No formats available" : "Select format"}
-              </option>
-              {formats.map((format) => (
-                <option key={format.id} value={format.id}>
-                  {format.name}
-                </option>
-              ))}
-            </select>
+        {!hasFormat && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-800">No GL format assigned</p>
+            <div className="mt-3 flex gap-2">
+              <Select
+                value={selectedFormatId}
+                onValueChange={setSelectedFormatId}
+                disabled={isAssigning || formats.length === 0}
+              >
+                <SelectTrigger className="bg-white flex-1">
+                  <SelectValue placeholder="Select a format" />
+                </SelectTrigger>
+                <SelectContent>
+                  {formats.map((f) => (
+                    <SelectItem key={String(f.id)} value={String(f.id)}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-            <button
-              className="rounded-md bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
-              disabled={!selectedFormatId || isAssigning}
-              onClick={() =>
-                onAssignFormat(card.company_id, Number(selectedFormatId))
-              }
-            >
-              {isAssigning ? "Assigning..." : "Assign"}
-            </button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!selectedFormatId || isAssigning}
+                onClick={() => onAssignFormat(card.company_id, Number(selectedFormatId))}
+              >
+                {isAssigning ? "Saving..." : "Assign"}
+              </Button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </CardContent>
 
-      <div className="mb-4 rounded-md bg-gray-50 p-3 dark:bg-muted">
-        <p className="text-sm font-medium">{card.period_label}</p>
-        <p className="text-xs text-gray-500 dark:text-foreground">
-          Last Import: {card.last_import_filename || "None"}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-foreground">
-          Imported At:{" "}
-          {card.last_imported_at
-            ? new Date(card.last_imported_at).toLocaleString()
-            : "—"}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        <MiniMetric label="Imports" value={card.import_count} />
-        <MiniMetric label="Entries" value={card.gl_entries} />
-        <MiniMetric label="Lines" value={card.gl_entry_lines} />
-        <MiniMetric label="Bank Lines" value={card.bank_lines} />
-      </div>
-
-      <div className="mt-4 border-t pt-4">
-        <p className="text-xs uppercase text-gray-500">Total Amount</p>
-        <p className="text-xl font-semibold">{formatMoney(card.total_amount)}</p>
-      </div>
-
-      <div className="mt-5 flex gap-2">
-        <button
-          className="flex-1 rounded-md bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+      <div className="border-t p-4">
+        <Button
+          variant="outline"
+          className="w-full"
           disabled={!hasFormat}
           onClick={() =>
             window.location.assign(
@@ -363,54 +285,37 @@ function CompanyGLCardView({
             )
           }
         >
-          View Transactions
-        </button>
-
-        <button
-          className="flex-1 rounded-md border px-3 py-2 text-sm disabled:opacity-50"
-          disabled={!hasFormat}
-          onClick={() =>
-            window.location.assign(
-              `/general-ledger/upload?company_id=${card.company_id}`
-            )
-          }
-        >
-          Upload GL
-        </button>
+          {hasFormat ? "View Transactions" : "Assign format to view"}
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function MetricCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border bg-white p-4 shadow-sm">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-    </div>
+    <Card>
+      <CardContent className="p-6">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <p className="mt-2 text-3xl font-bold tracking-tight">{value}</p>
+      </CardContent>
+    </Card>
   );
 }
 
-function MiniMetric({ label, value }: { label: string; value: number }) {
+function InfoStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="font-semibold">{value}</p>
+    <div>
+      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium">{value}</p>
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-lg border bg-white p-10 text-center text-sm text-gray-500">
+    <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
       {text}
     </div>
   );
-}
-
-function formatMoney(value: number) {
-  return value.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }

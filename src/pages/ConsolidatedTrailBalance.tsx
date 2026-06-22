@@ -1,20 +1,24 @@
-// src/pages/ConsolidatedTrialBalance.tsx
+// src/pages/ConsolidatedTrailBalance.tsx
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Download } from "lucide-react";
-import { GLService } from "../services/glService";
 import type {
   ConsolidatedCompany,
-  ConsolidatedReconciliation,
   MissingInBooksExportRow,
   ReconcilingItem,
 } from "@/types/gl";
+import { useConsolidated, useDownloadMissingInBooksExport } from "@/hooks/useGL";
+
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const QUARTERS = [1, 2, 3, 4];
 const EMPTY_COMPANIES: ConsolidatedCompany[] = [];
 
-// The view selector encodes one of: all companies, a single entity, or a
-// single company. Value format: "all" | "entity:<entity>" | "company:<id>".
 type View = string;
 
 type EditableMissingInBooksRow = MissingInBooksExportRow & {
@@ -56,31 +60,7 @@ export default function ConsolidatedTrialBalance() {
   const [quarter, setQuarter] = useState(1);
   const [view, setView] = useState<View>("all");
 
-  const [data, setData] = useState<ConsolidatedReconciliation | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    GLService.getConsolidated({ year, quarter })
-      .then((reconciliation) => {
-        if (!isCurrent) return;
-        setData(reconciliation);
-        setError(null);
-      })
-      .catch((err) => {
-        if (!isCurrent) return;
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load consolidated reconciliation"
-        );
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [year, quarter]);
+  const { data, isLoading, error } = useConsolidated(year, quarter);
 
   const companies = data?.companies ?? EMPTY_COMPANIES;
 
@@ -92,7 +72,6 @@ export default function ConsolidatedTrialBalance() {
     return Array.from(set).sort();
   }, [companies]);
 
-  // The companies in scope for the current view selection.
   const selected = useMemo(() => {
     if (view === "all") return companies;
     if (view.startsWith("entity:")) {
@@ -106,7 +85,6 @@ export default function ConsolidatedTrialBalance() {
     return companies;
   }, [companies, view]);
 
-  // Aggregate balances + reconciling items across the selected companies.
   const summary = useMemo(() => {
     const bookBalance = selected.reduce((s, c) => s + c.book_balance, 0);
     const bankBalance = selected.reduce((s, c) => s + c.bank_balance, 0);
@@ -115,9 +93,6 @@ export default function ConsolidatedTrialBalance() {
     const inBankTotal = inBankNotInBooks.reduce((s, i) => s + i.amount, 0);
     const inBooksTotal = inBooksNotInBank.reduce((s, i) => s + i.amount, 0);
 
-    // Reconciliation proof: book balance adjusted for items that cleared the
-    // bank but aren't yet booked should tie to the bank balance adjusted for
-    // items booked but not yet cleared.
     const adjustedBook = bookBalance + inBankTotal;
     const adjustedBank = bankBalance - inBooksTotal;
 
@@ -136,188 +111,190 @@ export default function ConsolidatedTrialBalance() {
   }, [selected]);
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="space-y-6 pt-4 pb-8 max-w-[1600px] mx-auto">
       <div>
-        <h1 className="text-3xl font-bold">Consolidated Trial Balance</h1>
-        <p className="text-slate-500">
+        <h2 className="text-xl font-semibold">Book vs Bank Proof</h2>
+        <p className="text-sm text-muted-foreground mt-1">
           GL (book) vs bank across all companies — view by entity or a single
           company, with reconciliation proof.
         </p>
       </div>
 
-      {/* Controls */}
-      <div className="grid w-full max-w-4xl gap-4 md:grid-cols-3">
-        <div>
-          <label className="mb-2 block text-sm font-medium">View</label>
-          <select
-            value={view}
-            onChange={(e) => setView(e.target.value)}
-            className="w-full rounded-md border p-2"
-          >
-            <option value="all">All Companies (consolidated)</option>
-            {entities.length > 0 && (
-              <optgroup label="By Entity">
-                {entities.map((ent) => (
-                  <option key={ent} value={`entity:${ent}`}>
-                    Entity: {ent}
-                  </option>
+      <Card className="p-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label>View</Label>
+            <Select value={view} onValueChange={setView}>
+              <SelectTrigger>
+                <SelectValue placeholder="All Companies" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Companies (consolidated)</SelectItem>
+                {entities.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel>By Entity</SelectLabel>
+                    {entities.map((ent) => (
+                      <SelectItem key={ent} value={`entity:${ent}`}>
+                        Entity: {ent}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                <SelectGroup>
+                  <SelectLabel>By Company</SelectLabel>
+                  {companies.map((c) => (
+                    <SelectItem key={c.company_id} value={`company:${c.company_id}`}>
+                      {c.company_name} {c.entity ? `(${c.entity})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Quarter</Label>
+            <Select value={String(quarter)} onValueChange={(v) => setQuarter(Number(v))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Quarter" />
+              </SelectTrigger>
+              <SelectContent>
+                {QUARTERS.map((q) => (
+                  <SelectItem key={q} value={String(q)}>
+                    Q{q}
+                  </SelectItem>
                 ))}
-              </optgroup>
-            )}
-            <optgroup label="By Company">
-              {companies.map((c) => (
-                <option key={c.company_id} value={`company:${c.company_id}`}>
-                  {c.company_name}
-                  {c.entity ? ` (${c.entity})` : ""}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium">Quarter</label>
-          <select
-            value={quarter}
-            onChange={(e) => setQuarter(Number(e.target.value))}
-            className="w-full rounded-md border p-2"
-          >
-            {QUARTERS.map((q) => (
-              <option key={q} value={q}>
-                Q{q}
-              </option>
-            ))}
-          </select>
+          <div className="space-y-2">
+            <Label>Year</Label>
+            <Input
+              type="number"
+              value={year}
+              onChange={(e) => setYear(Number(e.target.value))}
+            />
+          </div>
         </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium">Year</label>
-          <input
-            type="number"
-            value={year}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full rounded-md border p-2"
-          />
-        </div>
-      </div>
+      </Card>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
+          {error.message || "Failed to load consolidated reconciliation"}
         </div>
       )}
 
-      {/* Per-company balances */}
-      <div className="overflow-hidden rounded-xl border bg-white">
-        <div className="border-b bg-slate-50 p-4">
-          <h2 className="text-xl font-semibold">
-            Book vs Bank — {data?.period_label ?? `Q${quarter} ${year}`}
-          </h2>
+      {isLoading ? (
+        <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
+          Loading consolidated trial balance...
         </div>
+      ) : (
+        <>
+          <Card className="overflow-hidden">
+            <div className="border-b bg-muted/30 p-4">
+              <h2 className="text-lg font-semibold">
+                Book vs Bank — {data?.period_label ?? `Q${quarter} ${year}`}
+              </h2>
+            </div>
 
-        <table className="w-full">
-          <thead className="bg-slate-100">
-            <tr>
-              <th className="p-3 text-left">Company</th>
-              <th className="p-3 text-left">Entity</th>
-              <th className="p-3 text-right">Book Balance</th>
-              <th className="p-3 text-right">Bank Balance</th>
-              <th className="p-3 text-right">Difference</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selected.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="p-6 text-center text-slate-500">
-                  No data for this selection.
-                </td>
-              </tr>
-            ) : (
-              selected.map((c: ConsolidatedCompany) => (
-                <tr key={c.company_id} className="border-b">
-                  <td className="p-3">{c.company_name}</td>
-                  <td className="p-3">{c.entity ?? "-"}</td>
-                  <td className="p-3 text-right">{money(c.book_balance)}</td>
-                  <td className="p-3 text-right">{money(c.bank_balance)}</td>
-                  <td className="p-3 text-right">{money(c.difference)}</td>
-                </tr>
-              ))
-            )}
-            <tr className="bg-slate-50 font-bold">
-              <td colSpan={2} className="p-3">
-                Totals
-              </td>
-              <td className="p-3 text-right">{money(summary.bookBalance)}</td>
-              <td className="p-3 text-right">{money(summary.bankBalance)}</td>
-              <td className="p-3 text-right">{money(summary.difference)}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            <Table>
+              <TableHeader className="bg-muted/10">
+                <TableRow>
+                  <TableHead>Company</TableHead>
+                  <TableHead>Entity</TableHead>
+                  <TableHead className="text-right">Book Balance</TableHead>
+                  <TableHead className="text-right">Bank Balance</TableHead>
+                  <TableHead className="text-right">Difference</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selected.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground p-6">
+                      No data for this selection.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  selected.map((c: ConsolidatedCompany) => (
+                    <TableRow key={c.company_id}>
+                      <TableCell className="font-medium">{c.company_name}</TableCell>
+                      <TableCell>{c.entity ?? "-"}</TableCell>
+                      <TableCell className="text-right">{money(c.book_balance)}</TableCell>
+                      <TableCell className="text-right">{money(c.bank_balance)}</TableCell>
+                      <TableCell className="text-right">{money(c.difference)}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+                <TableRow className="bg-muted/20 font-bold">
+                  <TableCell colSpan={2}>Totals</TableCell>
+                  <TableCell className="text-right">{money(summary.bookBalance)}</TableCell>
+                  <TableCell className="text-right">{money(summary.bankBalance)}</TableCell>
+                  <TableCell className="text-right">{money(summary.difference)}</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Card>
 
-      {/* Reconciliation proof */}
-      <div className="overflow-hidden rounded-xl border bg-white">
-        <div className="border-b bg-slate-50 p-4">
-          <h2 className="text-xl font-semibold">Reconciliation Proof</h2>
-        </div>
-        <table className="w-full">
-          <tbody>
-            <tr className="border-b">
-              <td className="p-3">Ending Book Balance</td>
-              <td className="p-3 text-right">{money(summary.bookBalance)}</td>
-            </tr>
-            <tr className="border-b">
-              <td className="p-3">+ In bank, not yet in books</td>
-              <td className="p-3 text-right">{money(summary.inBankTotal)}</td>
-            </tr>
-            <tr className="border-b font-semibold">
-              <td className="p-3">Adjusted Book Balance</td>
-              <td className="p-3 text-right">{money(summary.adjustedBook)}</td>
-            </tr>
-            <tr className="border-b">
-              <td className="p-3">Ending Bank Balance</td>
-              <td className="p-3 text-right">{money(summary.bankBalance)}</td>
-            </tr>
-            <tr className="border-b">
-              <td className="p-3">− In books, not in bank</td>
-              <td className="p-3 text-right">{money(summary.inBooksTotal)}</td>
-            </tr>
-            <tr className="border-b font-semibold">
-              <td className="p-3">Adjusted Bank Balance</td>
-              <td className="p-3 text-right">{money(summary.adjustedBank)}</td>
-            </tr>
-            <tr
-              className={`font-bold ${
-                summary.tiesOut ? "text-green-700" : "text-red-700"
-              }`}
-            >
-              <td className="p-3">
-                {summary.tiesOut ? "✓ Reconciled" : "✗ Out of balance"}
-              </td>
-              <td className="p-3 text-right">
-                {money(summary.adjustedBank - summary.adjustedBook)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+          <Card className="overflow-hidden">
+            <div className="border-b bg-muted/30 p-4">
+              <h2 className="text-lg font-semibold">Reconciliation Proof</h2>
+            </div>
+            <Table>
+              <TableBody>
+                <TableRow>
+                  <TableCell>Ending Book Balance</TableCell>
+                  <TableCell className="text-right font-medium">{money(summary.bookBalance)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>+ In bank, not yet in books</TableCell>
+                  <TableCell className="text-right">{money(summary.inBankTotal)}</TableCell>
+                </TableRow>
+                <TableRow className="bg-muted/10 font-semibold">
+                  <TableCell>Adjusted Book Balance</TableCell>
+                  <TableCell className="text-right">{money(summary.adjustedBook)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Ending Bank Balance</TableCell>
+                  <TableCell className="text-right font-medium">{money(summary.bankBalance)}</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>− In books, not in bank</TableCell>
+                  <TableCell className="text-right">{money(summary.inBooksTotal)}</TableCell>
+                </TableRow>
+                <TableRow className="bg-muted/10 font-semibold">
+                  <TableCell>Adjusted Bank Balance</TableCell>
+                  <TableCell className="text-right">{money(summary.adjustedBank)}</TableCell>
+                </TableRow>
+                <TableRow className={summary.tiesOut ? "bg-green-50/50" : "bg-red-50/50"}>
+                  <TableCell className={`font-bold ${summary.tiesOut ? "text-green-700" : "text-red-700"}`}>
+                    {summary.tiesOut ? "✓ Reconciled" : "✗ Out of balance"}
+                  </TableCell>
+                  <TableCell className={`text-right font-bold ${summary.tiesOut ? "text-green-700" : "text-red-700"}`}>
+                    {money(summary.adjustedBank - summary.adjustedBook)}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </Card>
 
-      {/* Reconciling item detail */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <ReconcilingTable
-          title="In Bank, Missing in Books"
-          subtitle="Cleared the bank — not yet recorded in the GL."
-          companies={selected}
-          getItems={(c) => c.in_bank_not_in_books}
-          exportMissingInBooks={{ year, quarter }}
-        />
-        <ReconcilingTable
-          title="In Books, Missing in Bank"
-          subtitle="Recorded in the GL — not yet cleared (outstanding)."
-          companies={selected}
-          getItems={(c) => c.in_books_not_in_bank}
-        />
-      </div>
+          <div className="grid gap-6 lg:grid-cols-2 items-start">
+            <ReconcilingTable
+              title="In Bank, Missing in Books"
+              subtitle="Cleared the bank — not yet recorded in the GL."
+              companies={selected}
+              getItems={(c) => c.in_bank_not_in_books}
+              exportMissingInBooks={{ year, quarter }}
+            />
+            <ReconcilingTable
+              title="In Books, Missing in Bank"
+              subtitle="Recorded in the GL — not yet cleared (outstanding)."
+              companies={selected}
+              getItems={(c) => c.in_books_not_in_bank}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -335,7 +312,6 @@ function ReconcilingTable({
   getItems: (c: ConsolidatedCompany) => ReconcilingItem[];
   exportMissingInBooks?: { year: number; quarter: number };
 }) {
-  // Build per-company groups, skipping companies with no items.
   const groups = companies
     .map((c) => ({
       company: c,
@@ -344,35 +320,24 @@ function ReconcilingTable({
     .filter((g) => g.items.length > 0)
     .sort((a, b) => compareCompanies(a.company, b.company));
 
-  const grandTotal = groups.reduce(
-    (s, g) => s + g.items.reduce((ss, i) => ss + i.amount, 0),
-    0
-  );
+  const grandTotal = groups.reduce((s, g) => s + g.items.reduce((ss, i) => ss + i.amount, 0), 0);
   const grandCount = groups.reduce((s, g) => s + g.items.length, 0);
-  const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<number>>(
-    () => new Set()
-  );
-  const [preview, setPreview] = useState<{
-    company: ConsolidatedCompany;
-    rows: EditableMissingInBooksRow[];
-  } | null>(null);
-  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<number>>(() => new Set());
+  const [preview, setPreview] = useState<{ company: ConsolidatedCompany; rows: EditableMissingInBooksRow[]; } | null>(null);
+  
+  const downloadMutation = useDownloadMissingInBooksExport();
 
   const toggleCompany = (companyId: number) => {
     setCollapsedCompanyIds((current) => {
       const next = new Set(current);
-      if (next.has(companyId)) {
-        next.delete(companyId);
-      } else {
-        next.add(companyId);
-      }
+      if (next.has(companyId)) next.delete(companyId);
+      else next.add(companyId);
       return next;
     });
   };
 
   const openPreview = (company: ConsolidatedCompany, items: ReconcilingItem[]) => {
-    setPreviewError(null);
     setPreview({
       company,
       rows: items.map((item, index) => ({
@@ -386,18 +351,10 @@ function ReconcilingTable({
     });
   };
 
-  const updatePreviewRow = (
-    id: string,
-    patch: Partial<EditableMissingInBooksRow>
-  ) => {
+  const updatePreviewRow = (id: string, patch: Partial<EditableMissingInBooksRow>) => {
     setPreview((current) =>
       current
-        ? {
-            ...current,
-            rows: current.rows.map((row) =>
-              row.id === id ? { ...row, ...patch } : row
-            ),
-          }
+        ? { ...current, rows: current.rows.map((row) => (row.id === id ? { ...row, ...patch } : row)) }
         : current
     );
   };
@@ -424,11 +381,7 @@ function ReconcilingTable({
   };
 
   const removePreviewRow = (id: string) => {
-    setPreview((current) =>
-      current
-        ? { ...current, rows: current.rows.filter((row) => row.id !== id) }
-        : current
-    );
+    setPreview((current) => (current ? { ...current, rows: current.rows.filter((row) => row.id !== id) } : current));
   };
 
   const generatePreviewExport = async () => {
@@ -441,11 +394,8 @@ function ReconcilingTable({
       kind: row.kind,
     }));
 
-    setIsGeneratingPreview(true);
-    setPreviewError(null);
-
     try {
-      const download = await GLService.downloadMissingInBooksExport({
+      const download = await downloadMutation.mutateAsync({
         companyId: preview.company.company_id,
         year: exportMissingInBooks.year,
         quarter: exportMissingInBooks.quarter,
@@ -461,41 +411,35 @@ function ReconcilingTable({
       URL.revokeObjectURL(url);
       setPreview(null);
     } catch (err) {
-      setPreviewError(
-        err instanceof Error ? err.message : "Failed to generate export"
-      );
-    } finally {
-      setIsGeneratingPreview(false);
+      // the mutation handles its own error states
     }
   };
 
-  const previewTotal =
-    preview?.rows.reduce((sum, row) => sum + Number(row.amountText || 0), 0) ??
-    0;
+  const previewTotal = preview?.rows.reduce((sum, row) => sum + Number(row.amountText || 0), 0) ?? 0;
 
   return (
-    <div className="overflow-hidden rounded-xl border bg-white">
-      <div className="border-b bg-slate-50 p-4">
-        <h3 className="flex flex-wrap items-center gap-1.5 font-semibold">
+    <Card className="overflow-hidden">
+      <div className="border-b bg-muted/30 p-4">
+        <h3 className="flex items-center gap-1.5 font-semibold text-lg">
           <HighlightedMissingTitle title={title} />
         </h3>
-        <p className="text-xs text-slate-500">{subtitle}</p>
+        <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
       </div>
-      <table className="w-full text-sm">
-        <thead className="bg-slate-100">
-          <tr>
-            <th className="p-2 text-left">Date</th>
-            <th className="p-2 text-left">Description</th>
-            <th className="p-2 text-right">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHeader className="bg-muted/10">
+          <TableRow>
+            <TableHead>Date</TableHead>
+            <TableHead>Description</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {groups.length === 0 ? (
-            <tr>
-              <td colSpan={3} className="p-4 text-center text-slate-500">
+            <TableRow>
+              <TableCell colSpan={3} className="text-center text-muted-foreground p-6">
                 Nothing outstanding.
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ) : (
             groups.map(({ company, items }) => {
               const companyTotal = items.reduce((s, i) => s + i.amount, 0);
@@ -504,232 +448,136 @@ function ReconcilingTable({
 
               return (
                 <Fragment key={company.company_id}>
-                  {/* Company header row */}
-                  <tr className="bg-slate-200">
-                    <td
-                      colSpan={3}
-                      className="px-2 py-1.5 font-semibold text-slate-700"
-                    >
-                      <div className="space-y-2">
+                  <TableRow className="bg-muted/20 hover:bg-muted/30">
+                    <TableCell colSpan={3} className="p-0">
+                      <div className="flex flex-col p-2 space-y-2">
                         <button
                           type="button"
                           aria-expanded={!isCollapsed}
-                          aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${
-                            company.company_name
-                          }`}
-                          title={`${isCollapsed ? "Expand" : "Collapse"} ${
-                            company.company_name
-                          }`}
                           onClick={() => toggleCompany(company.company_id)}
-                          className="flex w-full min-w-0 items-center justify-between gap-3 rounded px-1 py-0.5 text-left outline-none hover:bg-slate-300 focus-visible:ring-2 focus-visible:ring-slate-500"
+                          className="flex w-full items-center justify-between text-left font-medium"
                         >
-                          <span className="flex min-w-0 items-center gap-2">
-                            <ToggleIcon className="size-4 shrink-0" />
-                            <span className="truncate">
-                              {company.company_name}
-                            </span>
-                            {company.entity ? (
-                              <span className="shrink-0 text-xs font-normal text-slate-500">
-                                ({company.entity})
-                              </span>
-                            ) : null}
+                          <span className="flex items-center gap-2">
+                            <ToggleIcon className="h-4 w-4 text-muted-foreground" />
+                            {company.company_name}
+                            {company.entity && <span className="text-xs text-muted-foreground">({company.entity})</span>}
                           </span>
-                          <span className="shrink-0 text-xs font-medium text-slate-600">
+                          <span className="text-xs text-muted-foreground">
                             {items.length} | {money(companyTotal)}
                           </span>
                         </button>
 
-                        {exportMissingInBooks && (
-                          <button
-                            type="button"
-                            className="flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                        {exportMissingInBooks && !isCollapsed && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="w-full flex gap-2 justify-center"
                             onClick={() => openPreview(company, items)}
                           >
-                            <Download className="size-4" />
-                            Preview and edit Register workbook and CSV for In Bank,
-                            Missing in Books
-                          </button>
+                            <Download className="h-4 w-4" />
+                            Preview & Export Register Workbook
+                          </Button>
                         )}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
 
-                  {/* Item rows */}
                   {!isCollapsed &&
                     items.map((i, idx) => (
-                      <tr
-                        key={`${company.company_id}-${idx}`}
-                        className="border-b"
-                      >
-                        <td className="p-2">{i.date ?? "-"}</td>
-                        <td className="p-2">{i.description}</td>
-                        <td className="p-2 text-right">{money(i.amount)}</td>
-                      </tr>
+                      <TableRow key={`${company.company_id}-${idx}`}>
+                        <TableCell className="text-muted-foreground">{i.date ?? "-"}</TableCell>
+                        <TableCell>{i.description}</TableCell>
+                        <TableCell className="text-right font-medium">{money(i.amount)}</TableCell>
+                      </TableRow>
                     ))}
-
-                  {/* Company subtotal */}
-                  {!isCollapsed && (
-                    <tr className="bg-slate-50 text-slate-600">
-                    <td colSpan={2} className="p-2 pl-3 italic">
-                      Subtotal — {company.company_name} ({items.length})
-                    </td>
-                    <td className="p-2 text-right font-medium">
-                      {money(companyTotal)}
-                    </td>
-                    </tr>
-                  )}
                 </Fragment>
               );
             })
           )}
 
-          {/* Grand total */}
-          <tr className="bg-slate-100 font-semibold">
-            <td colSpan={2} className="p-2">
-              Total ({grandCount})
-            </td>
-            <td className="p-2 text-right">{money(grandTotal)}</td>
-          </tr>
-        </tbody>
-      </table>
+          <TableRow className="bg-muted/10 font-bold">
+            <TableCell colSpan={2}>Total ({grandCount})</TableCell>
+            <TableCell className="text-right">{money(grandTotal)}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
 
       {preview && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div className="border-b bg-slate-50 p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">
-                    Preview In Bank, Missing in Books Export
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Review and edit rows for {preview.company.company_name}.
-                    These changes only apply to the generated Register workbook
-                    and CSV.
-                  </p>
-                </div>
-                <div className="text-sm font-semibold text-slate-700">
-                  {preview.rows.length} rows | {money(previewTotal)}
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <Card className="w-full max-w-5xl flex flex-col max-h-[90vh] shadow-2xl">
+            <div className="border-b p-6 flex flex-col md:flex-row md:justify-between items-start">
+              <div>
+                <h3 className="text-xl font-bold">Preview In Bank, Missing in Books</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Review and edit rows for {preview.company.company_name}.
+                  These changes only apply to the generated Register workbook and CSV.
+                </p>
+              </div>
+              <div className="text-sm font-semibold mt-4 md:mt-0 bg-muted px-3 py-1.5 rounded-md">
+                {preview.rows.length} rows | {money(previewTotal)}
               </div>
             </div>
 
-            {previewError && (
-              <div className="border-b border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                {previewError}
+            {downloadMutation.error && (
+              <div className="border-b border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {downloadMutation.error.message || "Failed to generate export"}
               </div>
             )}
 
-            <div className="overflow-auto p-4">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead className="sticky top-0 z-10 bg-slate-100">
-                  <tr>
-                    <th className="p-2 text-left">Date</th>
-                    <th className="p-2 text-left">Description</th>
-                    <th className="p-2 text-right">Amount</th>
-                    <th className="p-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="overflow-auto flex-1 p-4">
+              <Table>
+                <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {preview.rows.map((row) => (
-                    <tr key={row.id} className="border-b align-top">
-                      <td className="p-2">
-                        <input
-                          type="date"
-                          value={row.date ?? ""}
-                          onChange={(event) =>
-                            updatePreviewRow(row.id, {
-                              date: event.target.value || null,
-                            })
-                          }
-                          className="w-full rounded-md border px-2 py-1"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          value={row.description}
-                          onChange={(event) =>
-                            updatePreviewRow(row.id, {
-                              description: event.target.value,
-                            })
-                          }
-                          className="w-full rounded-md border px-2 py-1"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={row.amountText}
-                          onChange={(event) =>
-                            updatePreviewRow(row.id, {
-                              amountText: event.target.value,
-                            })
-                          }
-                          className="w-full rounded-md border px-2 py-1 text-right"
-                        />
-                      </td>
-                      <td className="p-2 text-right">
-                        <button
-                          type="button"
-                          className="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50"
-                          onClick={() => removePreviewRow(row.id)}
-                        >
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Input type="date" value={row.date ?? ""} onChange={(e) => updatePreviewRow(row.id, { date: e.target.value || null })} />
+                      </TableCell>
+                      <TableCell>
+                        <Input value={row.description} onChange={(e) => updatePreviewRow(row.id, { description: e.target.value })} />
+                      </TableCell>
+                      <TableCell>
+                        <Input type="number" step="0.01" value={row.amountText} onChange={(e) => updatePreviewRow(row.id, { amountText: e.target.value })} className="text-right" />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="destructive" size="sm" onClick={() => removePreviewRow(row.id)}>Remove</Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
-            <div className="flex flex-col gap-3 border-t bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
-              <button
-                type="button"
-                className="rounded-md border bg-white px-3 py-2 text-sm"
-                onClick={addPreviewRow}
-              >
-                Add Row
-              </button>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  className="rounded-md border bg-white px-4 py-2 text-sm"
-                  disabled={isGeneratingPreview}
-                  onClick={() => setPreview(null)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  disabled={isGeneratingPreview}
-                  onClick={generatePreviewExport}
-                >
-                  {isGeneratingPreview
-                    ? "Generating..."
-                    : "Generate Register workbook and CSV"}
-                </button>
+            <div className="border-t p-4 bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <Button variant="outline" onClick={addPreviewRow}>Add Row</Button>
+              <div className="flex gap-2">
+                <Button variant="ghost" disabled={downloadMutation.isPending} onClick={() => setPreview(null)}>Cancel</Button>
+                <Button disabled={downloadMutation.isPending} onClick={generatePreviewExport}>
+                  {downloadMutation.isPending ? "Generating..." : "Generate Export"}
+                </Button>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
 function HighlightedMissingTitle({ title }: { title: string }) {
   const missingIndex = title.indexOf("Missing");
-
   if (missingIndex === -1) return title;
-
   return (
     <>
       <span>{title.slice(0, missingIndex)}</span>
-      <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200">
+      <span className="rounded-md bg-red-100 px-2 py-0.5 text-xs font-bold uppercase tracking-wide text-red-700">
         {title.slice(missingIndex)}
       </span>
     </>
