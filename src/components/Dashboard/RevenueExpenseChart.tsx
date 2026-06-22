@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 import {
   useRevenueExpenseChart,
@@ -71,7 +73,17 @@ export default function RevenueExpenseChart({
   }
 
   if (isError || !data) {
-    return <div className="text-red-500">Failed to load revenue vs expense data.</div>;
+    return (
+      <Card className="w-full">
+        <CardHeader>
+          <CardTitle>General Ledger Activity: Revenue vs Expenses</CardTitle>
+        </CardHeader>
+        <CardContent className="h-[350px] flex flex-col items-center justify-center p-6 text-center">
+          <h3 className="text-lg font-semibold">No data</h3>
+          <p className="text-sm text-muted-foreground mt-1">Failed to load revenue vs expense data.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

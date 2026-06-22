@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, ThumbsDown, Wallet, Clock, TrendingDown, TrendingUp } from "lucide-react";
+import { BarChart3, ThumbsDown, Wallet, Clock, TrendingDown, TrendingUp, AlertCircle } from "lucide-react";
 import { useDashboardSummary } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type SummaryCardsProps = {
   companyId?: number | null;
@@ -33,7 +34,17 @@ export default function SummaryCards({ companyId }: SummaryCardsProps) {
   }
 
   if (isError || !data) {
-    return <div className="text-red-500">Failed to load summary metrics.</div>;
+    return (
+      <Card className="w-full col-span-full">
+        <CardHeader>
+          <CardTitle>Dashboard Summary</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center justify-center p-6 text-center">
+          <h3 className="text-lg font-semibold">No data</h3>
+          <p className="text-sm text-muted-foreground mt-1">Failed to load summary metrics.</p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const liabilitiesChange = data.liabilitiesChange || 0;

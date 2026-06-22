@@ -125,8 +125,11 @@ export default function BankSettings() {
                 <TableRow><TableCell colSpan={4} className="text-center py-8">Loading...</TableCell></TableRow>
               ) : filteredBanks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-32 text-center text-muted-foreground border-b-0">
-                    No banks found.
+                  <TableCell colSpan={4} className="p-12 text-center border-b-0">
+                    <div className="flex flex-col items-center justify-center">
+                      <h3 className="text-lg font-semibold text-foreground">No data</h3>
+                      <p className="text-sm text-muted-foreground mt-1">No banks found.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : (

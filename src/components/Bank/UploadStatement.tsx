@@ -113,11 +113,13 @@ export default function UploadStatement({ onUploaded }: Props) {
               Original Document Preview
             </div>
             {fileUrl ? (
-              <iframe 
-                src={`${fileUrl}#toolbar=0`}
-                title="Statement PDF Preview"
-                className="w-full flex-1 border-0"
-              />
+              <div className="flex-1 relative overflow-hidden bg-muted/10 flex items-center justify-center">
+                <iframe 
+                  src={fileUrl}
+                  title="Statement PDF Preview"
+                  className="w-full h-full border-0"
+                />
+              </div>
             ) : (
               <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
                 No PDF preview available
@@ -131,7 +133,7 @@ export default function UploadStatement({ onUploaded }: Props) {
 
   // ── Upload form ──────────────────────────────────────────────────────────
   return (
-    <Card className="border-muted-foreground/15 shadow-sm max-w-3xl animate-in fade-in duration-200">
+    <Card className="border-muted-foreground/15 shadow-sm w-full animate-in fade-in duration-200">
       <CardContent className="space-y-6 p-6">
         <div className="border-b pb-4">
           <h2 className="text-xl font-bold tracking-tight mb-1">Upload Bank Statement</h2>
