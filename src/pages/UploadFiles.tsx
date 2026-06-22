@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Archive,
   Download,
@@ -64,11 +64,7 @@ export default function UploadFiles() {
     [uploadTypes]
   );
 
-  useEffect(() => {
-    void loadFiles(filter);
-  }, [filter]);
-
-  async function loadFiles(nextFilter: FilterValue = filter) {
+  const loadFiles = useCallback(async (nextFilter: FilterValue = filter) => {
     setIsLoading(true);
     setError(null);
 
@@ -85,7 +81,11 @@ export default function UploadFiles() {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [filter]);
+
+  useEffect(() => {
+    void loadFiles(filter);
+  }, [filter, loadFiles]);
 
   async function handlePreview(file: ArchivedUpload) {
     setPreviewFile(file);

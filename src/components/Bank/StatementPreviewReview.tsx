@@ -71,11 +71,33 @@ type Tab = (typeof TABS)[number];
 
 type EditableCheck = PreviewCheckTransaction & { _id: string };
 type EditableDeposit = PreviewDepositTransaction & { _id: string };
+type CheckUpdate = <K extends keyof EditableCheck>(
+  id: string,
+  field: K,
+  value: EditableCheck[K]
+) => void;
+type DepositUpdate = <K extends keyof EditableDeposit>(
+  id: string,
+  field: K,
+  value: EditableDeposit[K]
+) => void;
 
 type EditablePreview = Omit<StatementPreview, "checks" | "deposits"> & {
   checks: EditableCheck[];
   deposits: EditableDeposit[];
 };
+
+function withoutCheckId(row: EditableCheck): PreviewCheckTransaction {
+  const { _id, ...check } = row;
+  void _id;
+  return check;
+}
+
+function withoutDepositId(row: EditableDeposit): PreviewDepositTransaction {
+  const { _id, ...deposit } = row;
+  void _id;
+  return deposit;
+}
 
 interface Props {
   preview: StatementPreview;
@@ -123,14 +145,14 @@ export default function StatementPreviewReview({
 
   const txCount = localPreview.checks.length + localPreview.deposits.length;
 
-  const updateCheck = (id: string, field: keyof EditableCheck, value: any) => {
+  const updateCheck: CheckUpdate = (id, field, value) => {
     setLocalPreview(prev => ({
       ...prev,
       checks: prev.checks.map(c => c._id === id ? { ...c, [field]: value } : c)
     }));
   };
 
-  const updateDeposit = (id: string, field: keyof EditableDeposit, value: any) => {
+  const updateDeposit: DepositUpdate = (id, field, value) => {
     setLocalPreview(prev => ({
       ...prev,
       deposits: prev.deposits.map(d => d._id === id ? { ...d, [field]: value } : d)
@@ -192,8 +214,8 @@ export default function StatementPreviewReview({
     // Strip the temporary `_id` before saving
     const payload: StatementPreview = {
       ...localPreview,
-      checks: localPreview.checks.map(({ _id, ...c }) => c),
-      deposits: localPreview.deposits.map(({ _id, ...d }) => d),
+      checks: localPreview.checks.map(withoutCheckId),
+      deposits: localPreview.deposits.map(withoutDepositId),
     };
     onConfirm(payload);
   };
@@ -441,16 +463,7 @@ function AmountInput({ value, onChange, className }: { value: number | null, onC
   const [localValue, setLocalValue] = useState<string>(value === null ? "" : value.toFixed(2));
 
   useEffect(() => {
-    if (value === null) {
-      if (localValue !== "" && localValue !== "-") {
-        setLocalValue("");
-      }
-    } else {
-      const parsedLocal = parseFloat(localValue);
-      if (isNaN(parsedLocal) || parsedLocal !== value) {
-        setLocalValue(value.toFixed(2));
-      }
-    }
+    setLocalValue(value === null ? "" : value.toFixed(2));
   }, [value]);
 
   const handleBlur = () => {

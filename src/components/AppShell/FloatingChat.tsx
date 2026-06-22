@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles, MessageCircle, X, Maximize2, Minimize2, Paperclip, FileText } from "lucide-react";
+import { Loader2, Send, Sparkles, X, Minimize2, Paperclip, FileText } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
@@ -9,6 +9,18 @@ type Message = {
   content: string;
   file?: { name: string; type: string };
 };
+
+type ChatMutationInput = {
+  message: string;
+  history: Message[];
+  fileData?: string;
+  mimeType?: string;
+};
+
+type WindowWithWebkitAudio = Window &
+  typeof globalThis & {
+    webkitAudioContext?: typeof AudioContext;
+  };
 
 const SUGGESTIONS = [
   "Show pending approvals",
@@ -42,7 +54,9 @@ export default function FloatingChat() {
 
   const playNotificationSound = () => {
     try {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as WindowWithWebkitAudio).webkitAudioContext;
       if (!AudioContextClass) return;
       const ctx = new AudioContextClass();
       const osc = ctx.createOscillator();
@@ -65,8 +79,8 @@ export default function FloatingChat() {
     }
   };
 
-  const chatMutation = useMutation({
-    mutationFn: async ({ message, history, fileData, mimeType }: any) => {
+  const chatMutation = useMutation<string, Error, ChatMutationInput>({
+    mutationFn: async ({ message, history, fileData, mimeType }) => {
       const data = await apiClient.post<{reply: string}>("/ai/chat", {
         message,
         history,
@@ -100,7 +114,6 @@ export default function FloatingChat() {
   useEffect(() => {
     if (isOpen) {
       endRef.current?.scrollIntoView({ behavior: "smooth" });
-      setHasUnread(false);
     }
   }, [messages, loading, isOpen]);
 
@@ -110,12 +123,6 @@ export default function FloatingChat() {
     if (loading) return;
 
     const fileToSend = attachedFile;
-    let messageContent = question;
-    if (fileToSend) {
-      const fileStr = `[Attached File: ${fileToSend.name}]`;
-      messageContent = messageContent ? `${messageContent}\n\n${fileStr}` : fileStr;
-    }
-
     const nextMessages: Message[] = [
       ...messages,
       {
@@ -330,7 +337,13 @@ export default function FloatingChat() {
 
       {/* Floating Action Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          const nextOpen = !isOpen;
+          setIsOpen(nextOpen);
+          if (nextOpen) {
+            setHasUnread(false);
+          }
+        }}
         className="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 relative"
       >
         {isOpen ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}

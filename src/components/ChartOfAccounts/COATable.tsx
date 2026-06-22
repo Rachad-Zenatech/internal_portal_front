@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ChartOfAccount } from "@/types/chartOfAccount";
+import type { ChartOfAccount, ChartOfAccounts } from "@/types/chartOfAccount";
 import { useDeleteChartOfAccount, useUpdateChartOfAccount } from "@/hooks/useChartOfAccount";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface COATableProps {
-  result: any;
+  result: ChartOfAccounts | undefined;
   loadingData: boolean;
 }
 
@@ -29,7 +29,8 @@ export default function COATable({ result, loadingData }: COATableProps) {
 
   // Delete State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [accountToDelete, setAccountToDelete] = useState<any>(null);
+  const [accountToDelete, setAccountToDelete] =
+    useState<ChartOfAccount | null>(null);
 
   const handleEditClick = (account: ChartOfAccount) => {
     setEditForm({ ...account });
@@ -48,7 +49,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
     });
   };
 
-  const handleDeleteClick = (account: any) => {
+  const handleDeleteClick = (account: ChartOfAccount) => {
     setAccountToDelete(account);
     setIsDeleteDialogOpen(true);
   };
@@ -93,7 +94,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                result?.chart_of_accounts?.map((account: any, index: number) => (
+                result?.chart_of_accounts?.map((account, index) => (
                   <TableRow 
                     key={account.id} 
                     // Remove bottom border on the very last row so it doesn't double up with the Card's bottom border

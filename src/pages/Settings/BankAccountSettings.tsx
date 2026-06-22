@@ -11,6 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed";
+}
+
 export default function BankAccountSettings() {
   const { data: accounts = [], isLoading: isLoadingAccounts } = useBankAccounts();
   const { data: companies = [], isLoading: isLoadingCompanies } = useCompanies();
@@ -56,8 +60,8 @@ export default function BankAccountSettings() {
       }
       setIsDialogOpen(false);
       toast.success("Account saved successfully", { position: "top-center" });
-    } catch (e: any) {
-      toast.error("Error", { description: e.message });
+    } catch (error) {
+      toast.error("Error", { description: errorMessage(error) });
     }
   };
 
@@ -71,8 +75,8 @@ export default function BankAccountSettings() {
     try {
       await deleteMutation.mutateAsync(accountToDelete.id);
       toast.success("Account deleted", { position: "top-center" });
-    } catch (e: any) {
-      toast.error("Error", { description: e.message });
+    } catch (error) {
+      toast.error("Error", { description: errorMessage(error) });
     }
     setIsDeleteDialogOpen(false);
     setAccountToDelete(null);

@@ -8,12 +8,17 @@ import {
 } from "../services/glService";
 import ConsolidatedTrialBalance from "./ConsolidatedTrailBalance";
 
-const PERIODS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "q1", "q2", "q3", "q4", "year"];
+const PERIODS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "q1", "q2", "q3", "q4", "year", "custom"] as const;
+type PeriodType = (typeof PERIODS)[number];
+
+function isPeriodType(value: string): value is PeriodType {
+  return (PERIODS as readonly string[]).includes(value);
+}
 
 export default function TrialBalance() {
   const [companies, setCompanies] = useState<CompanyGLCard[]>([]);
   const [companyId, setCompanyId] = useState<number | null>(null);
-  const [period, setPeriod] = useState("q1");
+  const [period, setPeriod] = useState<PeriodType>("q1");
   const [year, setYear] = useState(2026);
 
   const [activeTab, setActiveTab] = useState('trial');
@@ -29,7 +34,7 @@ export default function TrialBalance() {
     const yearParam = params.get('year');
     const companyParam = params.get('companyId');
 
-    if (periodParam) setPeriod(periodParam as any);
+    if (periodParam && isPeriodType(periodParam)) setPeriod(periodParam);
     if (yearParam && !isNaN(Number(yearParam))) setYear(Number(yearParam));
     if (companyParam && !isNaN(Number(companyParam))) setCompanyId(Number(companyParam));
   }, []);
@@ -54,7 +59,7 @@ export default function TrialBalance() {
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Failed to load companies")
       );
-  }, [period, year]);
+  }, [companyId, period, year]);
 
   // Load the trial balance whenever the company/period/year changes.
   useEffect(() => {
@@ -118,7 +123,11 @@ export default function TrialBalance() {
             <label className="mb-2 block text-sm font-medium">Period</label>
             <select
               value={period}
-              onChange={(e) => setPeriod(e.target.value)}
+              onChange={(e) => {
+                if (isPeriodType(e.target.value)) {
+                  setPeriod(e.target.value);
+                }
+              }}
               className="w-full rounded-lg border p-2"
             >
               <optgroup label="Months">

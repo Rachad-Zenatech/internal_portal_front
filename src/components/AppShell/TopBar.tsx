@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
 import { useGlobalSearch } from "@/hooks/useSearch";
-import { cn } from "@/lib/utils";
 
 export default function TopBar() {
   const [inputValue, setInputValue] = useState("");

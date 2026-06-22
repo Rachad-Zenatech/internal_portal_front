@@ -8,7 +8,7 @@ export const apiClient = {
     return handleResponse<T>(res);
   },
   
-  async post<T>(endpoint: string, body?: any, options?: RequestInit): Promise<T> {
+  async post<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<T> {
     const isFormData = body instanceof FormData;
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
@@ -22,7 +22,7 @@ export const apiClient = {
     return handleResponse<T>(res);
   },
   
-  async patch<T>(endpoint: string, body?: any, options?: RequestInit): Promise<T> {
+  async patch<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       method: "PATCH",
@@ -35,7 +35,7 @@ export const apiClient = {
     return handleResponse<T>(res);
   },
   
-  async put<T>(endpoint: string, body?: any, options?: RequestInit): Promise<T> {
+  async put<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       method: "PUT",
