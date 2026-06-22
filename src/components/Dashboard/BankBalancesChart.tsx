@@ -143,6 +143,7 @@ export default function BankBalancesChart({ companyId }: BankBalancesChartProps)
                   tickFormatter={yAxisTickFormatter}
                   tick={{ fill: "#64748b", fontSize: 11 }}
                   width={55}
+                  domain={[0, 'auto']}
                 />
                 <Bar dataKey="beginning" fill="transparent" isAnimationActive={false} />
                 <Bar dataKey="ending" fill="transparent" isAnimationActive={false} />
@@ -165,7 +166,7 @@ export default function BankBalancesChart({ companyId }: BankBalancesChartProps)
                     interval={0}
                     height={80}
                   />
-                  <YAxis hide domain={['auto', 'auto']} />
+                  <YAxis hide domain={[0, 'auto']} />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9' }} />
                   <Bar dataKey="beginning" fill="#1e3a8a" radius={[2, 2, 0, 0]} barSize={20} />
                   <Bar dataKey="ending" fill="#60a5fa" radius={[2, 2, 0, 0]} barSize={20} />
