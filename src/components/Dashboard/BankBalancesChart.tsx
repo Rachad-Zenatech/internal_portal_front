@@ -1,11 +1,9 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import {
-  useBankBalancesChart,
-  type BankBalancePoint,
-} from "@/hooks/useDashboard";
+import { useBankBalancesChart } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { BankBalancePoint } from "@/types/dashboard";
 
 type BankTooltipSeries = {
   color?: string;

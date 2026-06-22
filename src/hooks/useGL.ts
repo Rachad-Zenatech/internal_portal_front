@@ -1,5 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { GLService, type ConsolidatedMatrixResponse, type CompanyGLCard, type TrialBalance } from '../services/glService';
+import { GLService } from '../services/glService';
+import type {
+  CompanyGLCard,
+  ConsolidatedMatrixResponse,
+  TrialBalance,
+} from '@/types/gl';
 
 export const useConsolidatedMatrix = (period: string = "annual", year: number = 2026) => {
   return useQuery<ConsolidatedMatrixResponse, Error>({

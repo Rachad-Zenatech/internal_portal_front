@@ -1,11 +1,9 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import {
-  useAccountDistribution,
-  type AccountDistributionPoint,
-} from "@/hooks/useDashboard";
+import { useAccountDistribution } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { AccountDistributionPoint } from "@/types/dashboard";
 
 const COLORS = ["#22c55e", "#a855f7", "#eab308", "#3b82f6", "#f97316"];
 

@@ -1,11 +1,11 @@
 // src/pages/TrialBalance.tsx
 
 import { useEffect, useState } from "react";
-import {
-  GLService,
-  type CompanyGLCard,
-  type TrialBalance as TrialBalanceData,
-} from "../services/glService";
+import { GLService } from "../services/glService";
+import type {
+  CompanyGLCard,
+  TrialBalance as TrialBalanceData,
+} from "@/types/gl";
 import ConsolidatedTrialBalance from "./ConsolidatedTrailBalance";
 
 const PERIODS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "q1", "q2", "q3", "q4", "year", "custom"] as const;

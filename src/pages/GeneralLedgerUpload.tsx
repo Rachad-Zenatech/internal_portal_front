@@ -1,13 +1,13 @@
 // src/pages/GeneralLedgerUpload.tsx
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  GLService,
-  type CompanyBook,
-  type ImportPreview,
-  type ImportPreviewAccount,
-  type ManualGlEntryRequest,
-} from "../services/glService";
+import { GLService } from "../services/glService";
+import type {
+  CompanyBook,
+  ImportPreview,
+  ImportPreviewAccount,
+  ManualGlEntryRequest,
+} from "@/types/gl";
 
 type ParseSummary = {
   company_id: number;

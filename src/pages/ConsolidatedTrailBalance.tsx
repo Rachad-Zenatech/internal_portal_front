@@ -2,12 +2,12 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import {
-  GLService,
-  type ConsolidatedCompany,
-  type ConsolidatedReconciliation,
-  type ReconcilingItem,
-} from "../services/glService";
+import { GLService } from "../services/glService";
+import type {
+  ConsolidatedCompany,
+  ConsolidatedReconciliation,
+  ReconcilingItem,
+} from "@/types/gl";
 
 const QUARTERS = [1, 2, 3, 4];
 const EMPTY_COMPANIES: ConsolidatedCompany[] = [];

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { Company, CompanyCreate } from "../../types/bank";
 import { useCompanies, useCompanyEntities, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
-import { GLService, type GLExtractionFormat } from "../../services/glService";
+import { GLService } from "../../services/glService";
+import type { GLExtractionFormat } from "@/types/gl";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

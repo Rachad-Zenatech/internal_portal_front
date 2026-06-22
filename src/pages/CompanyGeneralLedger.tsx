@@ -2,12 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import {
-  GLService,
-  type CompanyLedger,
-  type GLAccountGroup,
-  type GLImportVisual,
-} from "../services/glService";
+import { GLService } from "../services/glService";
+import type {
+  CompanyLedger,
+  GLAccountGroup,
+  GLImportVisual,
+} from "@/types/gl";
 
 export default function CompanyGeneralLedger() {
   const { companyId: idParam } = useParams<{ companyId: string }>();

@@ -2,11 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-import {
-  useRecentTransactions,
-  type RecentTransaction,
-} from "@/hooks/useDashboard";
+import { useRecentTransactions } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { RecentTransaction } from "@/types/dashboard";
 
 type RecentTransactionsTableProps = {
   companyId?: number | null;

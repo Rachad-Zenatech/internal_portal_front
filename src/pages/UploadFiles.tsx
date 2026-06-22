@@ -27,11 +27,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  type ArchivedUpload,
-  type UploadType,
-  uploadArchiveService,
-} from "@/services/uploadArchiveService";
+import { uploadArchiveService } from "@/services/uploadArchiveService";
+import type { ArchivedUpload, UploadType } from "@/types/uploadArchive";
 
 type FilterValue = "all" | UploadType;
 

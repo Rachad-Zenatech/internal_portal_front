@@ -1,42 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
-
-export type DashboardSummary = {
-  assets: number;
-  assetsChange: number;
-  liabilities: number;
-  liabilitiesChange: number;
-  equity: number;
-  equityChange: number;
-  netIncome: number;
-  netIncomeChange: number;
-};
-
-export type RevenueExpensePoint = {
-  month: string;
-  date?: string;
-  revenue: number;
-  expenses: number;
-};
-
-export type BankBalancePoint = {
-  account: string;
-  beginning: number;
-  ending: number;
-};
-
-export type AccountDistributionPoint = {
-  name: string;
-  value: number;
-  percentage: string;
-};
-
-export type RecentTransaction = {
-  id: number | string;
-  date: string;
-  description: string;
-  amount: number;
-};
+import type {
+  AccountDistributionPoint,
+  BankBalancePoint,
+  DashboardSummary,
+  RecentTransaction,
+  RevenueExpensePoint,
+} from "@/types/dashboard";
 
 function withCompany(endpoint: string, companyId?: number | null) {
   if (!companyId) return endpoint;

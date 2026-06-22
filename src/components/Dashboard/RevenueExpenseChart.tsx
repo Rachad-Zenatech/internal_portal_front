@@ -3,11 +3,9 @@ import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, X
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import {
-  useRevenueExpenseChart,
-  type RevenueExpensePoint,
-} from "@/hooks/useDashboard";
+import { useRevenueExpenseChart } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { RevenueExpensePoint } from "@/types/dashboard";
 
 type RevenueTooltipSeries = {
   color?: string;

@@ -1,13 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
-
-export type SearchResult = {
-  type: "company" | "gl_account" | "gl_entry" | "bank_transaction";
-  id: number;
-  title: string;
-  subtitle?: string;
-  url?: string;
-};
+import type { SearchResult } from "@/types/search";
 
 export function useGlobalSearch(query: string) {
   return useQuery({
