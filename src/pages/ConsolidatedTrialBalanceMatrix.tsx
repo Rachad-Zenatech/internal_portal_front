@@ -56,7 +56,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
   }, [data, activeTab]);
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500 text-foreground">
+    <div className="w-full space-y-8 text-foreground animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Consolidated Trial Balance</h1>

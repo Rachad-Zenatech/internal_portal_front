@@ -59,7 +59,7 @@ export default function GeneralLedger() {
   }, [cards, companyId, entityFilter]);
 
   return (
-    <main className="space-y-6 p-6 max-w-[1600px] mx-auto">
+    <main className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">General Ledger Dashboard</h1>

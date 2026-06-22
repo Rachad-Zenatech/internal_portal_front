@@ -118,7 +118,7 @@ export default function UploadFiles() {
   }
 
   return (
-    <main className="space-y-6 p-8">
+    <main className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Upload Files</h1>

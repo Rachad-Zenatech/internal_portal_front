@@ -3,9 +3,11 @@ import {
   FileSpreadsheet,
   Scale,
   Layers,
-  Download,
   Upload,
-  UserRoundCog
+  Bolt,
+  Landmark,
+  Building2,
+  ScrollText
 } from "lucide-react";
 
 export const navigation = [
@@ -28,6 +30,12 @@ export const navigation = [
     section: "ACCOUNTING",
   },
   {
+    label: "Bank Statements",
+    path: "/bank-statements",
+    icon: Layers,
+    section: "ACCOUNTING",
+  },
+  {
     label: "Trial Balance",
     path: "/trial-balance",
     icon: Scale,
@@ -36,31 +44,24 @@ export const navigation = [
   {
     label: "Consolidated Trial Balance",
     path: "/consolidated-trial-balance-matrix",
-    icon: Scale,
+    icon: Landmark,
     section: "ACCOUNTING",
   },
   {
-    label: "Bank Statements",
-    path: "/bank-statements",
-    icon: Layers,
-    section: "FINANCE",
-  },
-
-  {
     label: "Reports",
     path: "/reports",
-    icon: Download,
-    section: "FINANCE",
+    icon: ScrollText,
+    section: "REPORTS",
   },
   {
     label: "Configurations",
-    icon: UserRoundCog,
+    icon: Bolt,
     section: "Manage",
     subItems: [
-      { label: "Company", path: "/settings/company" },
-      { label: "Bank", path: "/settings/bank" },
-      { label: "Bank Account", path: "/settings/bank-account" },
-      { label: "Chart of Accounts", path: "/chart-of-accounts" },
+      { label: "Company", path: "/configurations/company" },
+      { label: "Bank", path: "/configurations/bank" },
+      { label: "Bank Account", path: "/configurations/bank-account" },
+      { label: "Chart of Accounts", path: "/configurations/chart-of-accounts" },
     ]
   },
 ];

@@ -51,7 +51,15 @@ export default function TrialBalance() {
   const { data: trialBalance, isLoading: loadingTB, error: tbError } = useTrialBalance(companyId, period, year);
 
   return (
-    <div className="space-y-6 p-8 max-w-[1600px] mx-auto">
+    <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Trial Balance</h1>
+          <p className="text-sm text-muted-foreground">
+            View the trial balance and consolidated statements for your companies.
+          </p>
+        </div>
+      </header>
       <div className="flex border-b mb-6 gap-2">
         <button
           onClick={() => setActiveTab('trial')}

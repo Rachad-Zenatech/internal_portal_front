@@ -29,6 +29,27 @@ export default function TopBar() {
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedDate = currentTime.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+  const formattedTime = currentTime.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  });
 
   // Debounce input
   useEffect(() => {
@@ -162,6 +183,14 @@ export default function TopBar() {
       </div>
       
       <div className="flex items-center gap-5">
+        <div className="hidden md:flex flex-col items-end justify-center mr-2">
+          <span className="text-sm font-bold text-foreground leading-tight tracking-tight">
+            {formattedTime}
+          </span>
+          <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">
+            {formattedDate}
+          </span>
+        </div>
         <ThemeSwitch />
         <div className="flex items-center gap-1.5 border-r pr-5 mr-1">
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">

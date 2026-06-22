@@ -8,7 +8,7 @@ export default function ChartOfAccounts() {
   const { data: result, isPending: loadingData } = useChartOfAccounts();
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8">
+    <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       {/* 1. HEADER */}
       <div className="flex items-center justify-between">
         <div>

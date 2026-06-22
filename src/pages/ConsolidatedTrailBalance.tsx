@@ -111,7 +111,7 @@ export default function ConsolidatedTrialBalance() {
   }, [selected]);
 
   return (
-    <div className="space-y-6 pt-4 pb-8 max-w-[1600px] mx-auto">
+    <div className="w-full space-y-6 pt-4 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <div>
         <h2 className="text-xl font-semibold">Book vs Bank Proof</h2>
         <p className="text-sm text-muted-foreground mt-1">

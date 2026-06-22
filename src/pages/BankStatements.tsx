@@ -21,7 +21,7 @@ export default function BankStatements() {
   }
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <div>
         <h1 className="text-3xl font-bold">Bank Statements</h1>
 

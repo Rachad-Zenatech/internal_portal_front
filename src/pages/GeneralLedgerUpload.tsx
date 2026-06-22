@@ -240,7 +240,7 @@ export default function GeneralLedgerUpload() {
   }
 
   return (
-    <main className="space-y-6 p-6 max-w-[1600px] mx-auto">
+    <main className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <header>
         <button
           className="mb-2 text-sm text-muted-foreground hover:underline"

@@ -85,7 +85,7 @@ export default function BankSettings() {
   );
 
   return (
-    <div className="p-8 max-w-[1600px] mx-auto space-y-8">
+    <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       {/* HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
