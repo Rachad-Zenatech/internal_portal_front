@@ -117,6 +117,23 @@ export default function FloatingChat() {
     }
   }, [messages, loading, isOpen]);
 
+  useEffect(() => {
+    const handleAskAi = (e: Event) => {
+      const customEvent = e as CustomEvent<{ query: string }>;
+      const query = customEvent.detail.query;
+      if (!query) return;
+      
+      setIsOpen(true);
+      setHasUnread(false);
+      
+      // Send the query automatically
+      sendMessage(query);
+    };
+
+    window.addEventListener("ask-ai", handleAskAi);
+    return () => window.removeEventListener("ask-ai", handleAskAi);
+  }, [messages, loading, attachedFile]); // Bind to latest state so sendMessage isn't stale
+
   async function sendMessage(text: string) {
     const question = text.trim();
     if (!question && !attachedFile) return;

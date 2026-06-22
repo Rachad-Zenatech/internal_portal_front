@@ -1,5 +1,5 @@
 import { useState, useMemo, Fragment } from "react";
-import { X, Calendar, ChevronRight, Settings2, Building2 } from "lucide-react";
+import { X, Calendar, ChevronRight, Settings2, Building2, Trash2 } from "lucide-react";
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -10,9 +10,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
@@ -339,19 +337,32 @@ export default function StatementList({ onSelect }: Props) {
                                   <X className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
-                              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete statement?</AlertDialogTitle>
-                                  <AlertDialogDescription>
+                              <AlertDialogContent onClick={(e) => e.stopPropagation()} className="sm:max-w-[400px] border-border/50 shadow-2xl rounded-2xl p-0 overflow-hidden">
+                                <div className="p-8 text-center flex flex-col items-center">
+                                  <div className="h-16 w-16 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-6 shadow-sm ring-8 ring-red-50 dark:ring-red-500/10">
+                                    <Trash2 className="h-8 w-8" />
+                                  </div>
+                                  
+                                  <div className="mb-2 w-full flex flex-col items-center text-center space-y-1.5">
+                                    <AlertDialogTitle className="text-2xl font-bold text-center">Delete statement?</AlertDialogTitle>
+                                  </div>
+                                  
+                                  <p className="text-muted-foreground text-center text-base mb-8 px-2">
                                     This will permanently delete this statement.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteStatement.mutate(stmt.id)}>
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
+                                  </p>
+
+                                  <AlertDialogFooter className="flex w-full gap-3 m-0 p-0 border-none bg-transparent sm:justify-center">
+                                    <AlertDialogCancel className="flex-1 rounded-xl h-11 font-semibold mt-0">
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => deleteStatement.mutate(stmt.id)}
+                                      className="flex-1 rounded-xl h-11 bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all border-none font-semibold"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </div>
                               </AlertDialogContent>
                             </AlertDialog>
                           </div>

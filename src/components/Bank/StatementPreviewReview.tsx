@@ -13,10 +13,7 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -394,13 +391,17 @@ export default function StatementPreviewReview({
       </div>
 
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia className="bg-destructive/10 text-destructive">
-              <AlertTriangle />
-            </AlertDialogMedia>
-            <AlertDialogTitle>Bank account does not match</AlertDialogTitle>
-            <AlertDialogDescription>
+        <AlertDialogContent className="sm:max-w-[400px] border-border/50 shadow-2xl rounded-2xl p-0 overflow-hidden">
+          <div className="p-8 text-center flex flex-col items-center">
+            <div className="h-16 w-16 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-6 shadow-sm ring-8 ring-red-50 dark:ring-red-500/10">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            
+            <div className="mb-2 w-full flex flex-col items-center text-center space-y-1.5">
+              <AlertDialogTitle className="text-2xl font-bold text-center">Bank account does not match</AlertDialogTitle>
+            </div>
+            
+            <p className="text-muted-foreground text-center text-sm mb-8 px-2">
               The account number on the uploaded statement
               {preview.account_number ? ` (****${preview.account_number})` : ""} does
               not match the bank account you selected
@@ -409,14 +410,17 @@ export default function StatementPreviewReview({
                 : ""}
               . You can't save this statement — go back and select the correct
               account, or upload the matching statement.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction variant="outline" onClick={() => setDialogOpen(false)}>
-              Review anyway
-            </AlertDialogAction>
-            <AlertDialogAction onClick={onCancel}>Back to upload</AlertDialogAction>
-          </AlertDialogFooter>
+            </p>
+
+            <AlertDialogFooter className="flex w-full gap-3 m-0 p-0 border-none bg-transparent sm:justify-center">
+              <AlertDialogAction variant="outline" onClick={() => setDialogOpen(false)} className="flex-1 rounded-xl h-11 font-semibold">
+                Review anyway
+              </AlertDialogAction>
+              <AlertDialogAction onClick={onCancel} className="flex-1 rounded-xl h-11 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all border-none font-semibold">
+                Back to upload
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </div>
         </AlertDialogContent>
       </AlertDialog>
     </div>
