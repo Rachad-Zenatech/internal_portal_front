@@ -14,6 +14,7 @@ import { apiClient } from "./apiClient";
 
 export const companyService = {
   getCompanies: () => apiClient.get<Company[]>("/company/companies"),
+  getEntities: () => apiClient.get<string[]>("/company/entities"),
   getCompany: (id: number) => apiClient.get<Company>(`/company/companies/${id}`),
   createCompany: (data: CompanyCreate) => apiClient.post<Company>("/company/companies", data),
   updateCompany: (id: number, data: CompanyUpdate) => apiClient.patch<Company>(`/company/companies/${id}`, data),

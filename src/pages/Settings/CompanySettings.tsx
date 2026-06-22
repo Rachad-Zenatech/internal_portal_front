@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Company, CompanyCreate } from "../../types/bank";
-import { useCompanies, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
+import { useCompanies, useCompanyEntities, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
 import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ function errorMessage(error: unknown) {
 
 export default function CompanySettings() {
   const { data: companies = [], isLoading } = useCompanies();
+  const { data: entityOptions = [], isLoading: isLoadingEntities } = useCompanyEntities();
   const createMutation = useCreateCompany();
   const updateMutation = useUpdateCompany();
   const deleteMutation = useDeleteCompany();
@@ -173,7 +174,21 @@ export default function CompanySettings() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Entity</Label>
-                <Input value={formData.entity || ""} onChange={e => setFormData({...formData, entity: e.target.value})} />
+                <select
+                  value={formData.entity || ""}
+                  onChange={e => setFormData({...formData, entity: e.target.value})}
+                  disabled={isLoadingEntities}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">
+                    {isLoadingEntities ? "Loading entities..." : "Select entity"}
+                  </option>
+                  {entityOptions.map((entity) => (
+                    <option key={entity} value={entity}>
+                      {entity}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-2">
                 <Label>Group</Label>

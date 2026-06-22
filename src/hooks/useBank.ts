@@ -20,6 +20,13 @@ import { queryKeys } from '../services/queryKeys';
 export function useCompanies() {
   return useQuery<Company[]>({ queryKey: queryKeys.companies(), queryFn: companyService.getCompanies });
 }
+
+export function useCompanyEntities() {
+  return useQuery<string[]>({
+    queryKey: queryKeys.companyEntities(),
+    queryFn: companyService.getEntities,
+  });
+}
  
 export function useCompany(id: number | null) {
   return useQuery<Company>({

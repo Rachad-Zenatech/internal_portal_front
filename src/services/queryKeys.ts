@@ -9,6 +9,7 @@
 
 export const queryKeys = {
   companies:         ():                                                    unknown[] => ["companies"],
+  companyEntities:   ():                                                    unknown[] => ["companies", "entities"],
   company:           (id: number):                                          unknown[] => ["companies", id],
   banks:             ():                                                    unknown[] => ["banks"],
   bank:              (id: number):                                          unknown[] => ["banks", id],
