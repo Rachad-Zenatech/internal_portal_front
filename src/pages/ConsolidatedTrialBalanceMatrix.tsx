@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useConsolidatedMatrix } from "../hooks/useGL";
 import { Network, Layers, Building2, Settings2 } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,7 +77,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
                 ))}
               </TabsList>
             ) : (
-              <div className="h-10" />
+              <></>
             )}
           </div>
         </div>
@@ -98,9 +99,15 @@ export default function ConsolidatedTrialBalanceMatrix() {
             </Card>
           </div>
         ) : error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error.message || "Failed to load matrix"}
-          </div>
+          <Card className="w-full mb-6">
+            <CardHeader>
+              <CardTitle>Error</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+              <h3 className="text-lg font-semibold text-foreground">Failed to load data</h3>
+              <p className="text-sm text-muted-foreground mt-1">{error.message || "Failed to load matrix"}</p>
+            </CardContent>
+          </Card>
         ) : !data || data.tabs.length === 0 ? (
           <div className="text-slate-500">No data available.</div>
         ) : (
@@ -108,7 +115,6 @@ export default function ConsolidatedTrialBalanceMatrix() {
 
         {data.tabs.map((tab) => {
           const activeTabData = tab;
-          const visibleColumns = activeTabData.columns.filter(c => !hiddenCompanies.has(c));
           
           return (
             <TabsContent key={tab.name} value={tab.name} className="space-y-4 mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2">
@@ -199,105 +205,7 @@ export default function ConsolidatedTrialBalanceMatrix() {
                 </div>
               </div>
 
-              <Card className="overflow-hidden p-0 border-slate-200 shadow-sm">
-                <Table className="m-0 relative border-collapse table-fixed" containerClassName="max-h-[calc(100vh-20rem)] w-full relative">
-                    <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
-                      <TableRow className="bg-slate-50 hover:bg-slate-50 border-b-slate-200">
-                        <TableHead className="sticky left-0 z-30 w-[120px] min-w-[120px] bg-slate-50 font-semibold text-foreground shadow-[1px_0_0_0_#e2e8f0] text-left border-r border-slate-200">
-                          Account
-                        </TableHead>
-                        <TableHead className="sticky left-[120px] z-30 w-[250px] min-w-[250px] bg-slate-50 font-semibold text-foreground shadow-[1px_0_0_0_#e2e8f0] text-left border-r border-slate-200">
-                          Name
-                        </TableHead>
-                        {visibleColumns.map((col) => (
-                          <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words font-semibold text-foreground leading-tight py-2 text-left border-r border-slate-200">
-                            {col}
-                          </TableHead>
-                        ))}
-                        <TableHead className="sticky right-0 z-30 w-[150px] min-w-[150px] bg-slate-50 text-left font-bold text-foreground shadow-[-1px_0_0_0_#e2e8f0] border-l border-slate-200">
-                          Total
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="divide-y divide-slate-100">
-                      {activeTabData.accounts.length === 0 ? (
-                        <TableRow>
-                          <TableCell
-                            colSpan={visibleColumns.length + 3}
-                            className="p-6 text-center text-slate-500"
-                          >
-                            No accounts mapped for this group.
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        activeTabData.accounts.map((acct) => {
-                          const rowTotal = visibleColumns.reduce(
-                            (sum, col) => sum + (acct.balances[col] || 0),
-                            0
-                          );
-                          return (
-                            <TableRow key={acct.account_number} className="group hover:bg-slate-50 border-b-slate-100">
-                              <TableCell className="sticky left-0 w-[120px] min-w-[120px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] font-medium text-foreground">
-                                {acct.account_number}
-                              </TableCell>
-                              <TableCell className="sticky left-[120px] w-[250px] min-w-[250px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] text-foreground truncate">
-                                {acct.account_name}
-                              </TableCell>
-                              {visibleColumns.map((col) => {
-                                const val = acct.balances[col] || 0;
-                                return (
-                                  <TableCell key={col} className="w-[150px] min-w-[150px] text-right text-foreground">
-                                    {money(val)}
-                                  </TableCell>
-                                );
-                              })}
-                              <TableCell className={`sticky right-0 w-[150px] min-w-[150px] bg-slate-50 shadow-[-1px_0_0_0_#e2e8f0] group-hover:bg-slate-100 text-right font-bold ${getColorClass(rowTotal)}`}>
-                                {moneyTotal(rowTotal)}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })
-                      )}
-                    </TableBody>
-                    {activeTabData.accounts.length > 0 && (
-                      <TableFooter className="sticky bottom-0 z-30 bg-slate-100 border-t-[24px] border-white">
-                        <TableRow className="hover:bg-slate-100 border-t-[3px] border-slate-300">
-                          <TableCell className="sticky left-0 z-40 w-[120px] min-w-[120px] bg-slate-100 shadow-[1px_0_0_0_#e2e8f0]"></TableCell>
-                          <TableCell className="sticky left-[120px] z-40 w-[250px] min-w-[250px] bg-slate-100 text-right font-bold text-foreground shadow-[1px_0_0_0_#e2e8f0]">
-                            Total:
-                          </TableCell>
-                          {visibleColumns.map((col) => {
-                            const colTotal = activeTabData.accounts.reduce(
-                              (sum, acct) => sum + (acct.balances[col] || 0),
-                              0
-                            );
-                            return (
-                              <TableCell key={col} className={`w-[150px] min-w-[150px] text-right font-bold ${getColorClass(colTotal)}`}>
-                                {moneyTotal(colTotal)}
-                              </TableCell>
-                            );
-                          })}
-                          <TableCell className="sticky right-0 z-40 w-[150px] min-w-[150px] bg-slate-100 text-right font-bold shadow-[-1px_0_0_0_#e2e8f0]">
-                            {(() => {
-                              const grandTotal = activeTabData.accounts.reduce((sum, acct) => {
-                                const rowSum = visibleColumns.reduce(
-                                  (rSum, col) => rSum + (acct.balances[col] || 0),
-                                  0
-                                );
-                                return sum + rowSum;
-                              }, 0);
-                              return (
-                                <span className={getColorClass(grandTotal)}>
-                                  {moneyTotal(grandTotal)}
-                                </span>
-                              );
-                            })()}
-                          </TableCell>
-                        </TableRow>
-                      </TableFooter>
-                    )}
-                  </Table>
-              </Card>
+              <MatrixTable activeTabData={activeTabData} hiddenCompanies={hiddenCompanies} />
               </TabsContent>
             );
           })}
@@ -305,5 +213,128 @@ export default function ConsolidatedTrialBalanceMatrix() {
         )}
       </Tabs>
     </div>
+  );
+}
+
+function MatrixTable({ activeTabData, hiddenCompanies }: { activeTabData: any, hiddenCompanies: Set<string> }) {
+  const visibleColumns = activeTabData.columns.filter((c: string) => !hiddenCompanies.has(c));
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: activeTabData.accounts.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 48,
+    overscan: 10,
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0 ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end : 0;
+
+  return (
+    <Card className="overflow-hidden p-0 border-slate-200 shadow-sm">
+      <Table containerRef={parentRef} className="m-0 relative border-collapse table-fixed" containerClassName="max-h-[calc(100vh-20rem)] w-full relative">
+        <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-sm">
+          <TableRow className="bg-slate-50 hover:bg-slate-50 border-b-slate-200">
+            <TableHead className="sticky left-0 z-30 w-[120px] min-w-[120px] bg-slate-50 font-semibold text-foreground shadow-[1px_0_0_0_#e2e8f0] text-left border-r border-slate-200">
+              Account
+            </TableHead>
+            <TableHead className="sticky left-[120px] z-30 w-[250px] min-w-[250px] bg-slate-50 font-semibold text-foreground shadow-[1px_0_0_0_#e2e8f0] text-left border-r border-slate-200">
+              Name
+            </TableHead>
+            {visibleColumns.map((col: string) => (
+              <TableHead key={col} className="w-[150px] min-w-[150px] whitespace-normal break-words font-semibold text-foreground leading-tight py-2 text-left border-r border-slate-200">
+                {col}
+              </TableHead>
+            ))}
+            <TableHead className="sticky right-0 z-30 w-[150px] min-w-[150px] bg-slate-50 text-left font-bold text-foreground shadow-[-1px_0_0_0_#e2e8f0] border-l border-slate-200">
+              Total
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-slate-100">
+          {activeTabData.accounts.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={visibleColumns.length + 3}
+                className="p-6 text-center text-slate-500"
+              >
+                No accounts mapped for this group.
+              </TableCell>
+            </TableRow>
+          ) : (
+            <>
+              {paddingTop > 0 && <tr><td style={{ height: `${paddingTop}px` }} /></tr>}
+              {virtualItems.map((virtualRow) => {
+                const acct = activeTabData.accounts[virtualRow.index];
+                const rowTotal = visibleColumns.reduce(
+                  (sum: number, col: string) => sum + (acct.balances[col] || 0),
+                  0
+                );
+                return (
+                  <TableRow key={acct.account_number} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} className="group hover:bg-slate-50 border-b-slate-100">
+                    <TableCell className="sticky left-0 w-[120px] min-w-[120px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] font-medium text-foreground">
+                      {acct.account_number}
+                    </TableCell>
+                    <TableCell className="sticky left-[120px] w-[250px] min-w-[250px] bg-white group-hover:bg-slate-50 shadow-[1px_0_0_0_#e2e8f0] text-foreground truncate">
+                      {acct.account_name}
+                    </TableCell>
+                    {visibleColumns.map((col: string) => {
+                      const val = acct.balances[col] || 0;
+                      return (
+                        <TableCell key={col} className="w-[150px] min-w-[150px] text-right text-foreground">
+                          {money(val)}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className={`sticky right-0 w-[150px] min-w-[150px] bg-slate-50 shadow-[-1px_0_0_0_#e2e8f0] group-hover:bg-slate-100 text-right font-bold ${getColorClass(rowTotal)}`}>
+                      {moneyTotal(rowTotal)}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {paddingBottom > 0 && <tr><td style={{ height: `${paddingBottom}px` }} /></tr>}
+            </>
+          )}
+        </TableBody>
+        {activeTabData.accounts.length > 0 && (
+          <TableFooter className="sticky bottom-0 z-30 bg-slate-100 border-t-[24px] border-white">
+            <TableRow className="hover:bg-slate-100 border-t-[3px] border-slate-300">
+              <TableCell className="sticky left-0 z-40 w-[120px] min-w-[120px] bg-slate-100 shadow-[1px_0_0_0_#e2e8f0]"></TableCell>
+              <TableCell className="sticky left-[120px] z-40 w-[250px] min-w-[250px] bg-slate-100 text-right font-bold text-foreground shadow-[1px_0_0_0_#e2e8f0]">
+                Total:
+              </TableCell>
+              {visibleColumns.map((col: string) => {
+                const colTotal = activeTabData.accounts.reduce(
+                  (sum: number, acct: any) => sum + (acct.balances[col] || 0),
+                  0
+                );
+                return (
+                  <TableCell key={col} className={`w-[150px] min-w-[150px] text-right font-bold ${getColorClass(colTotal)}`}>
+                    {moneyTotal(colTotal)}
+                  </TableCell>
+                );
+              })}
+              <TableCell className="sticky right-0 z-40 w-[150px] min-w-[150px] bg-slate-100 text-right font-bold shadow-[-1px_0_0_0_#e2e8f0]">
+                {(() => {
+                  const grandTotal = activeTabData.accounts.reduce((sum: number, acct: any) => {
+                    const rowSum = visibleColumns.reduce(
+                      (rSum: number, col: string) => rSum + (acct.balances[col] || 0),
+                      0
+                    );
+                    return sum + rowSum;
+                  }, 0);
+                  return (
+                    <span className={getColorClass(grandTotal)}>
+                      {moneyTotal(grandTotal)}
+                    </span>
+                  );
+                })()}
+              </TableCell>
+            </TableRow>
+          </TableFooter>
+        )}
+      </Table>
+    </Card>
   );
 }

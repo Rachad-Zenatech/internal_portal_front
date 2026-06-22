@@ -3,6 +3,7 @@ import { X, Calendar, ChevronRight, Layers, Settings2, Building2 } from "lucide-
 import { useStatements, useDeleteStatement, useBankAccounts } from "@/hooks/useBank";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -194,14 +195,24 @@ export default function StatementList({ onSelect }: Props) {
       )}
       
       {error && (
-        <p className="text-sm text-destructive">{(error as Error).message}</p>
+        <Card className="w-full mb-6">
+          <CardHeader>
+            <CardTitle>Error</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center justify-center p-10 text-center">
+            <h3 className="text-lg font-semibold text-foreground">Failed to load data</h3>
+            <p className="text-sm text-muted-foreground mt-1">{(error as Error).message}</p>
+          </CardContent>
+        </Card>
       )}
       
       {!isLoading && statements.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-24 text-muted-foreground bg-card border rounded-xl border-dashed">
-          <Layers className="h-12 w-12 mb-4 text-muted-foreground/30" />
-          <p>No bank statements found.</p>
-        </div>
+        <Card className="w-full">
+          <CardContent className="flex flex-col items-center justify-center p-12 text-center">
+            <h3 className="text-lg font-semibold text-foreground">No data</h3>
+            <p className="text-sm text-muted-foreground mt-1">No bank statements found.</p>
+          </CardContent>
+        </Card>
       )}
 
       {/* Main Data Table */}
