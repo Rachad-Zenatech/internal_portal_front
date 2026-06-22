@@ -1,11 +1,12 @@
 // src/pages/ConsolidatedTrialBalance.tsx
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Download } from "lucide-react";
 import { GLService } from "../services/glService";
 import type {
   ConsolidatedCompany,
   ConsolidatedReconciliation,
+  MissingInBooksExportRow,
   ReconcilingItem,
 } from "@/types/gl";
 
@@ -15,6 +16,11 @@ const EMPTY_COMPANIES: ConsolidatedCompany[] = [];
 // The view selector encodes one of: all companies, a single entity, or a
 // single company. Value format: "all" | "entity:<entity>" | "company:<id>".
 type View = string;
+
+type EditableMissingInBooksRow = MissingInBooksExportRow & {
+  id: string;
+  amountText: string;
+};
 
 function money(value: number) {
   return value.toLocaleString(undefined, {
@@ -303,6 +309,7 @@ export default function ConsolidatedTrialBalance() {
           subtitle="Cleared the bank — not yet recorded in the GL."
           companies={selected}
           getItems={(c) => c.in_bank_not_in_books}
+          exportMissingInBooks={{ year, quarter }}
         />
         <ReconcilingTable
           title="In Books, Missing in Bank"
@@ -320,11 +327,13 @@ function ReconcilingTable({
   subtitle,
   companies,
   getItems,
+  exportMissingInBooks,
 }: {
   title: string;
   subtitle: string;
   companies: ConsolidatedCompany[];
   getItems: (c: ConsolidatedCompany) => ReconcilingItem[];
+  exportMissingInBooks?: { year: number; quarter: number };
 }) {
   // Build per-company groups, skipping companies with no items.
   const groups = companies
@@ -343,6 +352,12 @@ function ReconcilingTable({
   const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<number>>(
     () => new Set()
   );
+  const [preview, setPreview] = useState<{
+    company: ConsolidatedCompany;
+    rows: EditableMissingInBooksRow[];
+  } | null>(null);
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const toggleCompany = (companyId: number) => {
     setCollapsedCompanyIds((current) => {
@@ -355,6 +370,108 @@ function ReconcilingTable({
       return next;
     });
   };
+
+  const openPreview = (company: ConsolidatedCompany, items: ReconcilingItem[]) => {
+    setPreviewError(null);
+    setPreview({
+      company,
+      rows: items.map((item, index) => ({
+        id: `${company.company_id}-${index}-${item.date ?? "no-date"}`,
+        date: item.date,
+        description: item.description,
+        amount: item.amount,
+        amountText: String(item.amount),
+        kind: item.kind ?? null,
+      })),
+    });
+  };
+
+  const updatePreviewRow = (
+    id: string,
+    patch: Partial<EditableMissingInBooksRow>
+  ) => {
+    setPreview((current) =>
+      current
+        ? {
+            ...current,
+            rows: current.rows.map((row) =>
+              row.id === id ? { ...row, ...patch } : row
+            ),
+          }
+        : current
+    );
+  };
+
+  const addPreviewRow = () => {
+    setPreview((current) =>
+      current
+        ? {
+            ...current,
+            rows: [
+              ...current.rows,
+              {
+                id: `manual-${Date.now()}`,
+                date: null,
+                description: "",
+                amount: 0,
+                amountText: "0.00",
+                kind: "manual",
+              },
+            ],
+          }
+        : current
+    );
+  };
+
+  const removePreviewRow = (id: string) => {
+    setPreview((current) =>
+      current
+        ? { ...current, rows: current.rows.filter((row) => row.id !== id) }
+        : current
+    );
+  };
+
+  const generatePreviewExport = async () => {
+    if (!preview || !exportMissingInBooks) return;
+
+    const items = preview.rows.map((row) => ({
+      date: row.date || null,
+      description: row.description.trim() || "Missing bank transaction",
+      amount: Number(row.amountText || 0),
+      kind: row.kind,
+    }));
+
+    setIsGeneratingPreview(true);
+    setPreviewError(null);
+
+    try {
+      const download = await GLService.downloadMissingInBooksExport({
+        companyId: preview.company.company_id,
+        year: exportMissingInBooks.year,
+        quarter: exportMissingInBooks.quarter,
+        items,
+      });
+      const url = URL.createObjectURL(download.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = download.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setPreview(null);
+    } catch (err) {
+      setPreviewError(
+        err instanceof Error ? err.message : "Failed to generate export"
+      );
+    } finally {
+      setIsGeneratingPreview(false);
+    }
+  };
+
+  const previewTotal =
+    preview?.rows.reduce((sum, row) => sum + Number(row.amountText || 0), 0) ??
+    0;
 
   return (
     <div className="overflow-hidden rounded-xl border bg-white">
@@ -393,33 +510,47 @@ function ReconcilingTable({
                       colSpan={3}
                       className="px-2 py-1.5 font-semibold text-slate-700"
                     >
-                      <button
-                        type="button"
-                        aria-expanded={!isCollapsed}
-                        aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${
-                          company.company_name
-                        }`}
-                        title={`${isCollapsed ? "Expand" : "Collapse"} ${
-                          company.company_name
-                        }`}
-                        onClick={() => toggleCompany(company.company_id)}
-                        className="flex w-full items-center justify-between gap-3 rounded px-1 py-0.5 text-left outline-none hover:bg-slate-300 focus-visible:ring-2 focus-visible:ring-slate-500"
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <ToggleIcon className="size-4 shrink-0" />
-                          <span className="truncate">
-                            {company.company_name}
-                          </span>
-                          {company.entity ? (
-                            <span className="shrink-0 text-xs font-normal text-slate-500">
-                              ({company.entity})
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          aria-expanded={!isCollapsed}
+                          aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${
+                            company.company_name
+                          }`}
+                          title={`${isCollapsed ? "Expand" : "Collapse"} ${
+                            company.company_name
+                          }`}
+                          onClick={() => toggleCompany(company.company_id)}
+                          className="flex w-full min-w-0 items-center justify-between gap-3 rounded px-1 py-0.5 text-left outline-none hover:bg-slate-300 focus-visible:ring-2 focus-visible:ring-slate-500"
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <ToggleIcon className="size-4 shrink-0" />
+                            <span className="truncate">
+                              {company.company_name}
                             </span>
-                          ) : null}
-                        </span>
-                        <span className="shrink-0 text-xs font-medium text-slate-600">
-                          {items.length} | {money(companyTotal)}
-                        </span>
-                      </button>
+                            {company.entity ? (
+                              <span className="shrink-0 text-xs font-normal text-slate-500">
+                                ({company.entity})
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="shrink-0 text-xs font-medium text-slate-600">
+                            {items.length} | {money(companyTotal)}
+                          </span>
+                        </button>
+
+                        {exportMissingInBooks && (
+                          <button
+                            type="button"
+                            className="flex w-full items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+                            onClick={() => openPreview(company, items)}
+                          >
+                            <Download className="size-4" />
+                            Preview and edit Register workbook and CSV for In Bank,
+                            Missing in Books
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
 
@@ -461,6 +592,131 @@ function ReconcilingTable({
           </tr>
         </tbody>
       </table>
+
+      {preview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="border-b bg-slate-50 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    Preview In Bank, Missing in Books Export
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Review and edit rows for {preview.company.company_name}.
+                    These changes only apply to the generated Register workbook
+                    and CSV.
+                  </p>
+                </div>
+                <div className="text-sm font-semibold text-slate-700">
+                  {preview.rows.length} rows | {money(previewTotal)}
+                </div>
+              </div>
+            </div>
+
+            {previewError && (
+              <div className="border-b border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {previewError}
+              </div>
+            )}
+
+            <div className="overflow-auto p-4">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="sticky top-0 z-10 bg-slate-100">
+                  <tr>
+                    <th className="p-2 text-left">Date</th>
+                    <th className="p-2 text-left">Description</th>
+                    <th className="p-2 text-right">Amount</th>
+                    <th className="p-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.rows.map((row) => (
+                    <tr key={row.id} className="border-b align-top">
+                      <td className="p-2">
+                        <input
+                          type="date"
+                          value={row.date ?? ""}
+                          onChange={(event) =>
+                            updatePreviewRow(row.id, {
+                              date: event.target.value || null,
+                            })
+                          }
+                          className="w-full rounded-md border px-2 py-1"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          value={row.description}
+                          onChange={(event) =>
+                            updatePreviewRow(row.id, {
+                              description: event.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border px-2 py-1"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={row.amountText}
+                          onChange={(event) =>
+                            updatePreviewRow(row.id, {
+                              amountText: event.target.value,
+                            })
+                          }
+                          className="w-full rounded-md border px-2 py-1 text-right"
+                        />
+                      </td>
+                      <td className="p-2 text-right">
+                        <button
+                          type="button"
+                          className="rounded-md border px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          onClick={() => removePreviewRow(row.id)}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t bg-slate-50 p-4 md:flex-row md:items-center md:justify-between">
+              <button
+                type="button"
+                className="rounded-md border bg-white px-3 py-2 text-sm"
+                onClick={addPreviewRow}
+              >
+                Add Row
+              </button>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  className="rounded-md border bg-white px-4 py-2 text-sm"
+                  disabled={isGeneratingPreview}
+                  onClick={() => setPreview(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  disabled={isGeneratingPreview}
+                  onClick={generatePreviewExport}
+                >
+                  {isGeneratingPreview
+                    ? "Generating..."
+                    : "Generate Register workbook and CSV"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

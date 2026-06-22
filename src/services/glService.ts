@@ -1,6 +1,6 @@
 // src/services/glService.ts
 
-import { apiClient } from "./apiClient";
+import { BASE_URL, apiClient } from "./apiClient";
 import type {
   CompanyBook,
   CompanyBooksResponse,
@@ -11,6 +11,8 @@ import type {
   GLExtractionFormat,
   GLFormatsResponse,
   ImportPreview,
+  MissingInBooksExportDownload,
+  MissingInBooksExportRow,
   ManualGlEntryRequest,
   ManualGlEntryResponse,
   ParseImportResponse,
@@ -134,4 +136,53 @@ export const GLService = {
       `/reports/consolidated-trial-balance-matrix?period=${period}&year=${year}`
     );
   },
+
+  missingInBooksExportUrl(params: {
+    companyId: number;
+    year: number;
+    quarter: number;
+  }): string {
+    return `${BASE_URL}/accounting/gl/company/${params.companyId}/missing-in-books-export?year=${params.year}&quarter=${params.quarter}`;
+  },
+
+  async downloadMissingInBooksExport(params: {
+    companyId: number;
+    year: number;
+    quarter: number;
+    items: MissingInBooksExportRow[];
+  }): Promise<MissingInBooksExportDownload> {
+    const url = `${BASE_URL}/accounting/gl/company/${params.companyId}/missing-in-books-export?year=${params.year}&quarter=${params.quarter}`;
+    const response = await fetch(
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: params.items }),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response
+        .json()
+        .catch(() => ({ detail: response.statusText }));
+      throw new Error(error.detail || "Failed to generate export");
+    }
+
+    return {
+      blob: await response.blob(),
+      filename: filenameFromContentDisposition(
+        response.headers.get("Content-Disposition")
+      ),
+    };
+  },
 };
+
+function filenameFromContentDisposition(value: string | null) {
+  if (!value) return "missing_in_books_export.zip";
+
+  const encoded = value.match(/filename\*=UTF-8''([^;]+)/i);
+  if (encoded?.[1]) return decodeURIComponent(encoded[1]);
+
+  const plain = value.match(/filename="([^"]+)"/i);
+  return plain?.[1] || "missing_in_books_export.zip";
+}

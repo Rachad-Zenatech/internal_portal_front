@@ -236,6 +236,18 @@ export type ReconcilingItem = {
   kind?: string;
 };
 
+export type MissingInBooksExportRow = {
+  date: string | null;
+  description: string;
+  amount: number;
+  kind?: string | null;
+};
+
+export type MissingInBooksExportDownload = {
+  blob: Blob;
+  filename: string;
+};
+
 export type ConsolidatedCompany = {
   company_id: number;
   company_name: string;
