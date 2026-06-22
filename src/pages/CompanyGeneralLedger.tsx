@@ -282,6 +282,8 @@ function GLImportVisualCard({
 }
 
 function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
+  const closingBalance = getAccountClosingBalance(account);
+
   return (
     <div className="rounded-md border">
       <div className="flex flex-col gap-2 border-b bg-gray-50 p-3 md:flex-row md:items-center md:justify-between">
@@ -301,9 +303,12 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
             </span>
           )}
 
-          <span className="text-sm font-semibold">
-            Total Amount: {formatMoney(account.total_amount)}
-          </span>
+          <AccountBalanceStat
+            label="Beginning"
+            value={account.beginning_balance}
+          />
+          <AccountBalanceStat label="Activity" value={account.total_amount} />
+          <AccountBalanceStat label="Closing" value={closingBalance} />
         </div>
       </div>
 
@@ -324,6 +329,16 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
           </thead>
 
           <tbody>
+            <tr className="border-b bg-blue-50/60 font-medium text-gray-700">
+              <td colSpan={7} className="px-3 py-2 text-right">
+                Beginning Balance
+              </td>
+              <td className="whitespace-nowrap px-3 py-2 text-right">
+                {formatOptionalMoney(account.beginning_balance)}
+              </td>
+              <td />
+            </tr>
+
             {account.transactions.map((txn) => (
               <tr key={txn.entry_id} className="border-b last:border-b-0">
                 <Td>{txn.entry_date || "-"}</Td>
@@ -360,13 +375,7 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
                 Closing Balance
               </td>
               <td className="px-3 py-2 text-sm text-right text-gray-900">
-                {(() => {
-                  const txns = account.transactions;
-                  const last = txns[txns.length - 1];
-                  return last?.balance_after != null
-                    ? formatMoney(last.balance_after)
-                    : formatMoney(account.total_amount);
-                })()}
+                {formatMoney(closingBalance)}
               </td>
               <td />
             </tr>
@@ -374,6 +383,23 @@ function AccountTransactionGroup({ account }: { account: GLAccountGroup }) {
         </table>
       </div>
     </div>
+  );
+}
+
+function AccountBalanceStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  return (
+    <span className="text-right text-sm">
+      <span className="block text-xs uppercase text-gray-500">{label}</span>
+      <span className="font-semibold text-gray-900">
+        {formatOptionalMoney(value)}
+      </span>
+    </span>
   );
 }
 
@@ -457,4 +483,24 @@ function formatMoney(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function formatOptionalMoney(value: number | null | undefined) {
+  return value == null ? "-" : formatMoney(value);
+}
+
+function getAccountClosingBalance(account: GLAccountGroup) {
+  const lastWithBalance = [...account.transactions]
+    .reverse()
+    .find((txn) => txn.balance_after != null);
+
+  if (lastWithBalance?.balance_after != null) {
+    return lastWithBalance.balance_after;
+  }
+
+  if (account.beginning_balance != null) {
+    return account.beginning_balance + account.total_amount;
+  }
+
+  return account.total_amount;
 }

@@ -928,6 +928,7 @@ function ReviewAccountGroup({
   onFilter: () => void;
 }) {
   const transactions = account.transactions ?? [];
+  const closingBalance = getPreviewAccountClosingBalance(account);
 
   return (
     <div className="overflow-hidden rounded-md border">
@@ -970,6 +971,11 @@ function ReviewAccountGroup({
           >
             Net {formatMoney(account.net_amount)}
           </span>
+          <ReviewBalanceStat
+            label="Beginning"
+            value={account.beginning_balance}
+          />
+          <ReviewBalanceStat label="Closing" value={closingBalance} />
           {!isFiltered && (
             <button className="rounded-md border bg-white px-2 py-1 text-xs" onClick={onFilter}>
               Focus
@@ -998,6 +1004,16 @@ function ReviewAccountGroup({
               </tr>
             </thead>
             <tbody>
+              <tr className="border-b bg-blue-50/60 font-medium text-gray-700">
+                <td colSpan={8} className="px-3 py-2 text-right">
+                  Beginning Balance
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {formatOptionalMoney(account.beginning_balance)}
+                </td>
+                <td />
+              </tr>
+
               {transactions.map((txn) => (
                 <tr key={txn.entry_id} className="border-b align-top last:border-b-0">
                   <td className="whitespace-nowrap px-3 py-2">
@@ -1039,10 +1055,38 @@ function ReviewAccountGroup({
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                <td colSpan={8} className="px-3 py-2 text-right text-gray-600">
+                  Closing Balance
+                </td>
+                <td className="px-3 py-2 text-right text-gray-900">
+                  {formatMoney(closingBalance)}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
     </div>
+  );
+}
+
+function ReviewBalanceStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | null;
+}) {
+  return (
+    <span className="rounded-md bg-white px-2 py-1 text-right text-xs text-gray-600">
+      {label}:{" "}
+      <span className="font-semibold text-gray-900">
+        {formatOptionalMoney(value)}
+      </span>
+    </span>
   );
 }
 
@@ -1137,6 +1181,10 @@ function formatMoney(value: number) {
   });
 }
 
+function formatOptionalMoney(value: number | null | undefined) {
+  return value == null ? "-" : formatMoney(value);
+}
+
 function formatCheckValue(check: string, value: number | null | undefined) {
   if (value === null || value === undefined) return "-";
   const lower = check.toLowerCase();
@@ -1159,4 +1207,20 @@ function formatDateRange(account: ImportPreviewAccount) {
     return `${account.first_date} to ${account.last_date}`;
   }
   return account.first_date || account.last_date || "-";
+}
+
+function getPreviewAccountClosingBalance(account: ImportPreviewAccount) {
+  const lastWithBalance = [...(account.transactions ?? [])]
+    .reverse()
+    .find((txn) => txn.balance_after != null);
+
+  if (lastWithBalance?.balance_after != null) {
+    return lastWithBalance.balance_after;
+  }
+
+  if (account.beginning_balance != null) {
+    return account.beginning_balance + account.net_amount;
+  }
+
+  return account.net_amount;
 }

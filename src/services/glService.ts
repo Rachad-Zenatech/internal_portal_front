@@ -94,6 +94,7 @@ export type ImportPreviewAccount = {
   debits: number;
   credits: number;
   net_amount: number;
+  beginning_balance: number | null;
   transactions: ImportPreviewAccountTransaction[];
 };
 
@@ -178,6 +179,7 @@ export type GLAccountGroup = {
   account_type: string | null;
   is_bank_account: boolean;
   total_amount: number;
+  beginning_balance: number | null;
   transactions: GLVisualTransaction[];
 };
 
