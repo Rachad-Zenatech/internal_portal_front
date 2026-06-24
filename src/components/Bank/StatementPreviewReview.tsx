@@ -97,9 +97,9 @@ function withoutDepositId(row: EditableDeposit): PreviewDepositTransaction {
 }
 
 interface Props {
-  preview: StatementPreview;
+  previews: StatementPreview[];
   /** Persist the previewed statement. */
-  onConfirm: (preview: StatementPreview) => void;
+  onConfirm: (previews: StatementPreview[]) => void;
   /** Discard the preview and return to the upload form. */
   onCancel: () => void;
   isCommitting?: boolean;
@@ -107,28 +107,49 @@ interface Props {
 }
 
 export default function StatementPreviewReview({
-  preview,
+  previews,
   onConfirm,
   onCancel,
   isCommitting,
   error,
   children,
 }: Props & { children?: React.ReactNode }) {
-  const accountMismatch = !preview.account_matches;
+  const [activePreviewIndex, setActivePreviewIndex] = useState(0);
+
+  // Initialize editable local state with UUIDs to avoid input focus loss on sort
+  const [localPreviews, setLocalPreviews] = useState<EditablePreview[]>(() => previews.map(p => ({
+    ...p,
+    checks: p.checks.map(c => ({ ...c, _id: crypto.randomUUID() })),
+    deposits: p.deposits.map(d => ({ ...d, _id: crypto.randomUUID() })),
+  })));
+
+  const safeActiveIndex = Math.min(activePreviewIndex, Math.max(0, localPreviews.length - 1));
+  const preview = previews[Math.min(safeActiveIndex, previews.length - 1)] || previews[0];
+  const localPreview = localPreviews[safeActiveIndex];
+
+  useEffect(() => {
+    if (activePreviewIndex !== safeActiveIndex) {
+      setActivePreviewIndex(safeActiveIndex);
+    }
+  }, [activePreviewIndex, safeActiveIndex]);
+
+  const accountMismatch = previews.some(p => !p.account_matches);
   const [dialogOpen, setDialogOpen] = useState(accountMismatch);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>(TABS[0]);
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set(["Reference"]));
+
+  const handleCancelClick = () => {
+    if (!accountMismatch) {
+      setCancelConfirmOpen(true);
+    } else {
+      onCancel();
+    }
+  };
 
   const activeColumns = activeTab.includes("deposit")
     ? ["Date", "Deposit ID", "Received From", "Reference", "Amount"]
     : ["Date", "Check #", "Type", "Paid To", "Reference", "Amount"];
-
-  // Initialize editable local state with UUIDs to avoid input focus loss on sort
-  const [localPreview, setLocalPreview] = useState<EditablePreview>(() => ({
-    ...preview,
-    checks: preview.checks.map(c => ({ ...c, _id: crypto.randomUUID() })),
-    deposits: preview.deposits.map(d => ({ ...d, _id: crypto.randomUUID() })),
-  }));
 
   const meta: [string, string][] = [
     ["Company", localPreview.company_name ?? "—"],
@@ -140,80 +161,191 @@ export default function StatementPreviewReview({
     ["Date", localPreview.statement_date],
   ];
 
-  const txCount = localPreview.checks.length + localPreview.deposits.length;
+  function getMonthKey(dateStr: string | null | undefined) {
+    if (!dateStr) return "Unknown";
+    const parts = dateStr.includes("/") ? dateStr.split("/") : dateStr.split("-");
+    if (parts.length === 3) {
+      if (dateStr.includes("/")) return `${parts[2]}-${parts[0].padStart(2, '0')}`;
+      return `${parts[0]}-${parts[1].padStart(2, '0')}`;
+    }
+    return "Unknown";
+  }
+
+  function rebalancePreviews(prevs: EditablePreview[], transactionId: string, isDeposit: boolean, newDate: string | null | undefined) {
+    let currentPIdx = -1;
+    let transaction: any = null;
+    
+    for (let i = 0; i < prevs.length; i++) {
+      const arr = isDeposit ? prevs[i].deposits : prevs[i].checks;
+      const t = arr.find(x => x._id === transactionId);
+      if (t) {
+        currentPIdx = i;
+        transaction = t;
+        break;
+      }
+    }
+    
+    if (!transaction || currentPIdx === -1) return prevs;
+    
+    const txMonthKey = getMonthKey(newDate);
+    const previewMonthKey = getMonthKey(prevs[currentPIdx].statement_date);
+    
+    if (txMonthKey === previewMonthKey || txMonthKey === "Unknown") {
+      return prevs;
+    }
+    
+    const nextPrevs = [...prevs];
+    nextPrevs[currentPIdx] = { ...nextPrevs[currentPIdx] };
+    
+    if (isDeposit) {
+      nextPrevs[currentPIdx].deposits = nextPrevs[currentPIdx].deposits.filter(x => x._id !== transactionId);
+    } else {
+      nextPrevs[currentPIdx].checks = nextPrevs[currentPIdx].checks.filter(x => x._id !== transactionId);
+    }
+    
+    let targetPIdx = nextPrevs.findIndex(p => getMonthKey(p.statement_date) === txMonthKey);
+    
+    if (targetPIdx !== -1) {
+      nextPrevs[targetPIdx] = { ...nextPrevs[targetPIdx] };
+      if (isDeposit) {
+        nextPrevs[targetPIdx].deposits = [...nextPrevs[targetPIdx].deposits, transaction];
+      } else {
+        nextPrevs[targetPIdx].checks = [...nextPrevs[targetPIdx].checks, transaction];
+      }
+    } else {
+      const parts = newDate!.includes("/") ? newDate!.split("/") : newDate!.split("-");
+      const year = newDate!.includes("/") ? Number(parts[2]) : Number(parts[0]);
+      const month = newDate!.includes("/") ? Number(parts[0]) : Number(parts[1]);
+      const lastDay = new Date(year, month, 0).getDate();
+      const statement_date = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      
+      const newPreview: EditablePreview = {
+        ...nextPrevs[currentPIdx],
+        statement_date,
+        beginning_balance: 0,
+        ending_balance: 0,
+        total_additions: 0,
+        total_subtractions: 0,
+        checks: isDeposit ? [] : [transaction],
+        deposits: isDeposit ? [transaction] : [],
+      };
+      nextPrevs.push(newPreview);
+    }
+    
+    nextPrevs.sort((a, b) => {
+       const da = new Date(a.statement_date || 0).getTime();
+       const db = new Date(b.statement_date || 0).getTime();
+       return da - db;
+    });
+    
+    const filteredPrevs = nextPrevs.filter(p => p.checks.length > 0 || p.deposits.length > 0);
+    return filteredPrevs.length > 0 ? filteredPrevs : prevs;
+  }
 
   const updateCheck: CheckUpdate = (id, field, value) => {
-    setLocalPreview(prev => ({
-      ...prev,
-      checks: prev.checks.map(c => c._id === id ? { ...c, [field]: value } : c)
-    }));
+    setLocalPreviews(prev => {
+      let next = [...prev];
+      next[safeActiveIndex] = {
+        ...next[safeActiveIndex],
+        checks: next[safeActiveIndex].checks.map(c => c._id === id ? { ...c, [field]: value } : c)
+      };
+      if (field === "date") {
+        next = rebalancePreviews(next, id, false, value as string | null);
+      }
+      return next;
+    });
   };
 
   const updateDeposit: DepositUpdate = (id, field, value) => {
-    setLocalPreview(prev => ({
-      ...prev,
-      deposits: prev.deposits.map(d => d._id === id ? { ...d, [field]: value } : d)
-    }));
+    setLocalPreviews(prev => {
+      let next = [...prev];
+      next[safeActiveIndex] = {
+        ...next[safeActiveIndex],
+        deposits: next[safeActiveIndex].deposits.map(d => d._id === id ? { ...d, [field]: value } : d)
+      };
+      if (field === "date") {
+        next = rebalancePreviews(next, id, true, value as string | null);
+      }
+      return next;
+    });
   };
 
   const handleRemoveCheck = (id: string) => {
-    setLocalPreview(prev => ({
-      ...prev,
-      checks: prev.checks.filter(c => c._id !== id)
-    }));
+    setLocalPreviews(prev => {
+      const next = [...prev];
+      next[safeActiveIndex] = {
+        ...next[safeActiveIndex],
+        checks: next[safeActiveIndex].checks.filter(c => c._id !== id)
+      };
+      const filtered = next.filter(p => p.checks.length > 0 || p.deposits.length > 0);
+      return filtered.length > 0 ? filtered : next;
+    });
   };
 
   const handleRemoveDeposit = (id: string) => {
-    setLocalPreview(prev => ({
-      ...prev,
-      deposits: prev.deposits.filter(d => d._id !== id)
-    }));
+    setLocalPreviews(prev => {
+      const next = [...prev];
+      next[safeActiveIndex] = {
+        ...next[safeActiveIndex],
+        deposits: next[safeActiveIndex].deposits.filter(d => d._id !== id)
+      };
+      const filtered = next.filter(p => p.checks.length > 0 || p.deposits.length > 0);
+      return filtered.length > 0 ? filtered : next;
+    });
   };
 
   const handleAddRow = () => {
     if (activeTab.includes("deposit")) {
-      setLocalPreview((prev) => ({
-        ...prev,
-        deposits: [
-          ...prev.deposits,
-          {
-            _id: crypto.randomUUID(),
-            section: activeTab,
-            date: "",
-            deposit_id: "",
-            received_from: "",
-            reference: "",
-            amount: 0,
-          },
-        ],
-      }));
+      setLocalPreviews((prev) => {
+        const next = [...prev];
+        next[safeActiveIndex] = {
+          ...next[safeActiveIndex],
+          deposits: [
+            ...next[safeActiveIndex].deposits,
+            {
+              _id: crypto.randomUUID(),
+              section: activeTab,
+              date: localPreview.statement_date ?? "",
+              deposit_id: "",
+              received_from: "",
+              reference: "",
+              amount: 0,
+            },
+          ],
+        };
+        return next;
+      });
     } else {
-      setLocalPreview((prev) => ({
-        ...prev,
-        checks: [
-          ...prev.checks,
-          {
-            _id: crypto.randomUUID(),
-            section: activeTab,
-            date: "",
-            check_number: "",
-            type: "Check",
-            paid_to: "",
-            reference: "",
-            amount: 0,
-          },
-        ],
-      }));
+      setLocalPreviews((prev) => {
+        const next = [...prev];
+        next[safeActiveIndex] = {
+          ...next[safeActiveIndex],
+          checks: [
+            ...next[safeActiveIndex].checks,
+            {
+              _id: crypto.randomUUID(),
+              section: activeTab,
+              date: localPreview.statement_date ?? "",
+              check_number: "",
+              type: "Check",
+              paid_to: "",
+              reference: "",
+              amount: 0,
+            },
+          ],
+        };
+        return next;
+      });
     }
   };
 
   const handleConfirm = () => {
     // Strip the temporary `_id` before saving
-    const payload: StatementPreview = {
-      ...localPreview,
-      checks: localPreview.checks.map(withoutCheckId),
-      deposits: localPreview.deposits.map(withoutDepositId),
-    };
+    const payload: StatementPreview[] = localPreviews.map(lp => ({
+      ...lp,
+      checks: lp.checks.map(withoutCheckId),
+      deposits: lp.deposits.map(withoutDepositId),
+    }));
     onConfirm(payload);
   };
 
@@ -226,7 +358,7 @@ export default function StatementPreviewReview({
             Confirm and edit the parsed statement before saving. All fields are editable.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={onCancel} className="shrink-0">
+        <Button variant="outline" size="sm" onClick={handleCancelClick} className="shrink-0">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to upload
         </Button>
@@ -272,6 +404,30 @@ export default function StatementPreviewReview({
           </div>
         </CardContent>
       </Card>
+
+      {localPreviews.length > 1 && (
+        <Tabs value={String(activePreviewIndex)} onValueChange={(v) => setActivePreviewIndex(Number(v))} className="mb-3 shrink-0">
+          <TabsList variant="line" className="w-full justify-start overflow-x-auto flex-nowrap border-b border-border">
+            {localPreviews.map((lp, idx) => {
+              let label = `Statement ${idx + 1}`;
+              if (lp.statement_date) {
+                const parts = lp.statement_date.split("-");
+                if (parts.length === 3) {
+                  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                  label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                } else {
+                  label = lp.statement_date;
+                }
+              }
+              return (
+                <TabsTrigger key={idx} value={String(idx)} className="capitalize px-4 pb-2 pt-1 font-semibold text-muted-foreground data-[state=active]:text-primary border-b-2 border-transparent hover:text-foreground">
+                  {label}
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
+      )}
 
       <div className="grid lg:grid-cols-10 gap-8 flex-1 min-h-0">
         <div className="lg:col-span-6 flex flex-col min-h-0 overflow-hidden pr-2">
@@ -379,13 +535,13 @@ export default function StatementPreviewReview({
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
-        <Button variant="outline" onClick={onCancel} disabled={isCommitting} className="h-10 px-6 font-semibold">
+        <Button variant="outline" onClick={handleCancelClick} disabled={isCommitting} className="h-10 px-6 font-semibold">
           Cancel
         </Button>
         {!accountMismatch && (
           <Button onClick={handleConfirm} disabled={isCommitting} className="gap-2 h-10 px-8 font-bold">
             <CheckCircle2 className="h-4 w-4" />
-            {isCommitting ? "Saving…" : `Save (${txCount})`}
+            {isCommitting ? "Saving…" : `Save (${localPreviews.length} months)`}
           </Button>
         )}
       </div>
@@ -418,6 +574,33 @@ export default function StatementPreviewReview({
               </AlertDialogAction>
               <AlertDialogAction onClick={onCancel} className="flex-1 rounded-xl h-11 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all border-none font-semibold">
                 Back to upload
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
+        <AlertDialogContent className="sm:max-w-[400px] border-border/50 shadow-2xl rounded-2xl p-0 overflow-hidden">
+          <div className="p-8 text-center flex flex-col items-center">
+            <div className="h-16 w-16 bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-500 rounded-full flex items-center justify-center mb-6 shadow-sm ring-8 ring-amber-50 dark:ring-amber-500/10">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            
+            <div className="mb-2 w-full flex flex-col items-center text-center space-y-1.5">
+              <AlertDialogTitle className="text-2xl font-bold text-center">Are you sure you want to leave this page?</AlertDialogTitle>
+            </div>
+            
+            <p className="text-muted-foreground text-center text-sm mb-8 px-2">
+              Edited data will be lost.
+            </p>
+
+            <AlertDialogFooter className="flex w-full gap-3 m-0 p-0 border-none bg-transparent sm:justify-center">
+              <AlertDialogAction variant="outline" onClick={() => setCancelConfirmOpen(false)} className="flex-1 rounded-xl h-11 font-semibold">
+                Cancel
+              </AlertDialogAction>
+              <AlertDialogAction onClick={onCancel} className="flex-1 rounded-xl h-11 bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-md hover:shadow-lg transition-all border-none font-semibold">
+                Confirm
               </AlertDialogAction>
             </AlertDialogFooter>
           </div>

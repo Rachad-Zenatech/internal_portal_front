@@ -228,7 +228,7 @@ export function useDeleteStatement() {
 export function useUploadStatement() {
   const qc = useQueryClient();
   return useMutation<
-    BankStatement,
+    BankStatement[],
     Error,
     { accountId: number; bankType: string; file: File; tesseractCmd?: string | null }
   >({
@@ -241,7 +241,7 @@ export function useUploadStatement() {
 // Parse a PDF for review — returns extracted data without persisting it.
 export function usePreviewStatement() {
   return useMutation<
-    StatementPreview,
+    StatementPreview[],
     Error,
     { accountId: number; bankType: string; file: File; tesseractCmd?: string | null }
   >({
@@ -253,7 +253,7 @@ export function usePreviewStatement() {
 // Persist a reviewed preview to the database.
 export function useCommitStatement() {
   const qc = useQueryClient();
-  return useMutation<BankStatement, Error, StatementPreview>({
+  return useMutation<BankStatement[], Error, StatementPreview[]>({
     mutationFn: statementService.commitStatement,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["statements"] }),
   });

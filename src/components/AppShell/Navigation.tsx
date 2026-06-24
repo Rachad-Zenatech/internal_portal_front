@@ -6,7 +6,6 @@ import {
   Upload,
   Bolt,
   Landmark,
-  Building2,
   ScrollText
 } from "lucide-react";
 

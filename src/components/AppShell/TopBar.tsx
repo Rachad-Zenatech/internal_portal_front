@@ -38,12 +38,11 @@ export default function TopBar() {
     return () => clearInterval(timer);
   }, []);
 
-  const formattedDate = currentTime.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    year: "numeric"
-  });
+  const dayName = currentTime.toLocaleDateString("en-US", { weekday: "short" });
+  const monthName = currentTime.toLocaleDateString("en-US", { month: "short" });
+  const dateNum = currentTime.getDate();
+  const yearNum = currentTime.getFullYear();
+  const formattedDate = `${monthName}, ${dateNum} ${yearNum} (${dayName})`;
   const formattedTime = currentTime.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",

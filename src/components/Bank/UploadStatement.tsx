@@ -26,7 +26,7 @@ export default function UploadStatement({ onUploaded }: Props) {
   const [accountId,    setAccountId]    = useState<string>("");
   const [file,         setFile]         = useState<File | null>(null);
   const [tesseractCmd, setTesseractCmd] = useState<string>("");
-  const [preview,      setPreview]      = useState<StatementPreview | null>(null);
+  const [previews,     setPreviews]     = useState<StatementPreview[] | null>(null);
   const [fileUrl,      setFileUrl]      = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,23 +65,25 @@ export default function UploadStatement({ onUploaded }: Props) {
       file,
       tesseractCmd: tesseractCmd || null,
     });
-    setPreview(parsed);
+    setPreviews(parsed);
   }
 
   // Step 2 — persist the reviewed preview.
-  async function handleConfirm(editedPreview?: StatementPreview) {
-    const finalPreview = editedPreview || preview;
-    if (!finalPreview) return;
+  async function handleConfirm(editedPreviews?: StatementPreview[]) {
+    const finalPreviews = editedPreviews || previews;
+    if (!finalPreviews) return;
     try {
-      const stmt = await commitMut.mutateAsync(finalPreview);
-      toast.success("Statement added to the database", {
-        description: `ID ${stmt.id} — ${stmt.statement_date}`,
+      const stmts = await commitMut.mutateAsync(finalPreviews);
+      toast.success("Statements added to the database", {
+        description: `Successfully added ${stmts.length} statements.`,
       });
-      setPreview(null);
+      setPreviews(null);
       setFile(null);
-      onUploaded?.(stmt);
+      if (stmts.length > 0) {
+        onUploaded?.(stmts[0]);
+      }
     } catch (err) {
-      toast.error("Failed to add statement to the database", {
+      toast.error("Failed to add statements to the database", {
         description: (err as Error).message,
       });
     }
@@ -89,7 +91,7 @@ export default function UploadStatement({ onUploaded }: Props) {
 
   // Discard the preview and return to the form.
   function handleCancel() {
-    setPreview(null);
+    setPreviews(null);
     commitMut.reset();
   }
 
@@ -97,11 +99,11 @@ export default function UploadStatement({ onUploaded }: Props) {
     "px-4 text-xs font-bold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90";
 
   // ── Preview / confirm screen ─────────────────────────────────────────────
-  if (preview) {
+  if (previews) {
     return (
       <div className="animate-in fade-in zoom-in-95 duration-300 h-[calc(100vh-64px)] flex flex-col">
         <StatementPreviewReview
-          preview={preview}
+          previews={previews}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
           isCommitting={commitMut.isPending}

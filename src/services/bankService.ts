@@ -81,7 +81,7 @@ export const statementService = {
     form.append("file", file);
     let url = `/bank_statement/statements/upload?account_id=${accountId}&bank_type=${bankType}`;
     if (tesseractCmd) url += `&tesseract_cmd=${encodeURIComponent(tesseractCmd)}`;
-    return apiClient.post<BankStatement>(url, form);
+    return apiClient.post<BankStatement[]>(url, form);
   },
 
   previewStatement: (accountId: number, bankType: string, file: File, tesseractCmd?: string | null) => {
@@ -89,10 +89,10 @@ export const statementService = {
     form.append("file", file);
     let url = `/bank_statement/statements/preview?account_id=${accountId}&bank_type=${bankType}`;
     if (tesseractCmd) url += `&tesseract_cmd=${encodeURIComponent(tesseractCmd)}`;
-    return apiClient.post<StatementPreview>(url, form);
+    return apiClient.post<StatementPreview[]>(url, form);
   },
 
-  commitStatement: (preview: StatementPreview) => apiClient.post<BankStatement>("/bank_statement/statements/commit", preview),
+  commitStatement: (previews: StatementPreview[]) => apiClient.post<BankStatement[]>("/bank_statement/statements/commit", previews),
 };
 
 // ─── Check transaction service ────────────────────────────────────────────────
