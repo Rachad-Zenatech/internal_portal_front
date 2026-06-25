@@ -77,8 +77,42 @@ export const useAssignFormat = () => {
   const queryClient = useQueryClient();
   return useMutation<CompanyBook, Error, { companyId: number; formatId: number }>({
     mutationFn: ({ companyId, formatId }) => GLService.assignCompanyBook({ companyId, formatId }),
-    onSuccess: () => {
+    onSuccess: (assignedBook) => {
+      queryClient.setQueriesData<CompanyGLCard[]>(
+        { queryKey: ['company-cards'] },
+        (cards) =>
+          cards?.map((card) =>
+            card.company_id === assignedBook.company_id
+              ? {
+                  ...card,
+                  default_format_id: assignedBook.format_id,
+                  default_format_name: assignedBook.format_name,
+                }
+              : card
+          )
+      );
+
+      queryClient.setQueryData<CompanyBook[]>(['books'], (books) => {
+        const updatedBook = { ...assignedBook, is_default: true };
+        if (!books) return [updatedBook];
+
+        let found = false;
+        const nextBooks = books.map((book) => {
+          if (book.book_id === assignedBook.book_id) {
+            found = true;
+            return updatedBook;
+          }
+          if (book.company_id === assignedBook.company_id) {
+            return { ...book, is_default: false };
+          }
+          return book;
+        });
+
+        return found ? nextBooks : [...nextBooks, updatedBook];
+      });
+
       queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['books'] });
     },
   });
 };

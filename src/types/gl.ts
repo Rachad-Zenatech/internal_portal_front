@@ -6,6 +6,7 @@ export type CompanyBook = {
   format_id: number;
   format_code: string;
   format_name: string;
+  is_default: boolean;
 };
 
 export type GLExtractionFormat = {

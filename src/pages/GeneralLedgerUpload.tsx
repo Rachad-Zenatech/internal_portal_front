@@ -115,7 +115,9 @@ export default function GeneralLedgerUpload() {
     const companyParam = new URLSearchParams(window.location.search).get("company_id");
     const requestedCompanyId = companyParam ? Number(companyParam) : null;
     if (requestedCompanyId && books.length > 0 && !bookId) {
-      const requestedBook = books.find((book) => book.company_id === requestedCompanyId);
+      const requestedBook =
+        books.find((book) => book.company_id === requestedCompanyId && book.is_default) ??
+        books.find((book) => book.company_id === requestedCompanyId);
       if (requestedBook) {
         setBookId(requestedBook.book_id);
       }
@@ -349,6 +351,7 @@ export default function GeneralLedgerUpload() {
                   {books.map((book) => (
                     <SelectItem key={book.book_id} value={String(book.book_id)}>
                       {book.book_name} — {book.format_name}
+                      {book.is_default ? " (default)" : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

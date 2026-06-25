@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { Company, CompanyCreate } from "../../types/bank";
 import { useCompanies, useCompanyEntities, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
 import { GLService } from "../../services/glService";
@@ -23,6 +24,7 @@ export default function CompanySettings() {
   const createMutation = useCreateCompany();
   const updateMutation = useUpdateCompany();
   const deleteMutation = useDeleteCompany();
+  const queryClient = useQueryClient();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [glFormats, setGlFormats] = useState<GLExtractionFormat[]>([]);
@@ -95,6 +97,10 @@ export default function CompanySettings() {
           });
         }
       }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["company-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["books"] }),
+      ]);
       setIsDialogOpen(false);
       toast.success("Company saved successfully", { position: "top-center" });
     } catch (error) {
@@ -111,6 +117,10 @@ export default function CompanySettings() {
     if (!companyToDelete) return;
     try {
       await deleteMutation.mutateAsync(companyToDelete.id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["company-cards"] }),
+        queryClient.invalidateQueries({ queryKey: ["books"] }),
+      ]);
       toast.success("Company deleted", { position: "top-center" });
     } catch (error) {
       toast.error("Error", { description: errorMessage(error) });
