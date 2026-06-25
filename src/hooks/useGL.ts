@@ -3,6 +3,7 @@ import { GLService } from '../services/glService';
 import type {
   CompanyGLCard,
   ConsolidatedMatrixResponse,
+  GLAccountSuggestionsResponse,
   TrialBalance,
   GLExtractionFormat,
   CompanyBook,
@@ -96,6 +97,22 @@ export const useImportPreview = (sourceFileId: number | null, companyId: number 
 export const useParseImport = () => {
   return useMutation<ParseImportResponse, Error, { companyBookId: number; file: File }>({
     mutationFn: ({ companyBookId, file }) => GLService.parseImport({ companyBookId, file }),
+  });
+};
+
+export const useGLAccountSuggestions = () => {
+  return useMutation<
+    GLAccountSuggestionsResponse,
+    Error,
+    {
+      file: File;
+      formatCode: string;
+      includeAll?: boolean;
+      useXgboost?: boolean;
+      xgboostMinConfidence?: number;
+    }
+  >({
+    mutationFn: (params) => GLService.getAccountSuggestions(params),
   });
 };
 

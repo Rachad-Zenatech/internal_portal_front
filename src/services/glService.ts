@@ -8,6 +8,7 @@ import type {
   CompanyLedger,
   ConsolidatedMatrixResponse,
   ConsolidatedReconciliation,
+  GLAccountSuggestionsResponse,
   GLExtractionFormat,
   GLFormatsResponse,
   ImportPreview,
@@ -49,6 +50,29 @@ export const GLService = {
     formData.append("file", params.file);
 
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
+  },
+
+  async getAccountSuggestions(params: {
+    file: File;
+    formatCode: string;
+    includeAll?: boolean;
+    useXgboost?: boolean;
+    xgboostMinConfidence?: number;
+  }): Promise<GLAccountSuggestionsResponse> {
+    const formData = new FormData();
+    formData.append("file", params.file);
+    formData.append("format_code", params.formatCode);
+    formData.append("include_all", String(params.includeAll ?? false));
+    formData.append("use_xgboost", String(params.useXgboost ?? true));
+    formData.append(
+      "xgboost_min_confidence",
+      String(params.xgboostMinConfidence ?? 0.85)
+    );
+
+    return apiClient.post<GLAccountSuggestionsResponse>(
+      "/accounting/gl/exports/account-suggestions",
+      formData
+    );
   },
 
   async saveImport(params: {

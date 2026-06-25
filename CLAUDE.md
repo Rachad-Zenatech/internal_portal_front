@@ -1,35 +1,30 @@
 # Claude Project Skill
 
-Follow these project coding rules for the enterprise internal portal.
+Lean rules for this enterprise internal portal.
 
-## Core Rules
+## Stack
 
-- Frontend stack: React, TypeScript, Vite, Tailwind, shadcn UI, React Query.
-- API calls must go through `src/services/apiClient.ts`.
-- Shared/domain types must live in `src/types/*`.
-- Do not export shared types from services or hooks.
-- Use `import type` for type-only imports.
+- React, TypeScript, Vite, Tailwind, shadcn UI, React Query.
+- API calls go through `src/services/apiClient.ts`; shared API/domain types live in `src/types/*`.
+- Services and hooks must not export shared types; use `import type`.
 
 ## Frontend
 
-- Add new API/domain types to `src/types`, for example GL types in `src/types/gl.ts`, dashboard types in `src/types/dashboard.ts`, upload archive types in `src/types/uploadArchive.ts`.
-- Keep one-off component prop types local to the component.
-- Services should be API-call wrappers only.
-- Hooks should wrap React Query and coordinate server state only.
-- Prefer shadcn components from `src/components/ui` instead of raw HTML controls for app UI.
-- Use theme tokens and shadcn variants for dark mode: `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`.
-- Keep finance behavior consistent: expenses subtract, income adds, credit cards subtract, bank balances add, liability increases are negative signals.
+- Put reusable backend shapes in `src/types`; keep one-off props local.
+- Prefer shadcn components from `src/components/ui`.
+- Services are API wrappers only; hooks only coordinate React Query/server state.
+- Use theme tokens and shadcn variants for dark mode.
+- Preserve finance math: bank/income add; expenses/credit cards subtract; liability increases are negative.
 
 ## Backend
 
-- Keep backend response/request schemas aligned with frontend files in `src/types`.
+- Keep explicit request/response schemas aligned with frontend `src/types`.
 - Preserve route groups: `/accounting`, `/bank_statement`, `/dashboard`, `/reports`, `/upload-files`.
-- For uploads, support multipart form data and return metadata useful to the frontend.
-- Current storage can be local server files, but keep the design easy to swap to S3 later.
-- Avoid destructive accounting operations unless the route and UI explicitly describe replacement.
+- Uploads use multipart form data, stable IDs/metadata, and S3-swappable local storage.
+- Avoid destructive accounting operations unless route and UI explicitly say replace.
 
 ## Checks
 
 - Frontend: run `npm run build` after code changes.
-- Run `npm run lint` after broad refactors.
-- Backend: run the backend test suite or endpoint tests for touched routes.
+- Run `npm run lint` after broad/shared changes.
+- Backend: run the backend suite or touched endpoint tests.

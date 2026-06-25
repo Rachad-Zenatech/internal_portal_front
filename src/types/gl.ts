@@ -37,6 +37,62 @@ export type ParseImportResponse = {
   summary: ParseSummary;
 };
 
+export type GLAccountSuggestion = {
+  row_number: number;
+  date: string | null;
+  transaction_type: string | null;
+  transaction_number: string | null;
+  name: string | null;
+  memo: string | null;
+  amount: number;
+  ledger_account_number: string | null;
+  ledger_account_name: string | null;
+  current_split_account_number: string | null;
+  current_split_account_name: string | null;
+  target_field: "ledger_account" | "split_account" | string;
+  current_target_account_number: string | null;
+  current_target_account_name: string | null;
+  suggested_target_account_number: string | null;
+  suggested_target_account_name: string | null;
+  suggested_split_account_number: string | null;
+  suggested_split_account_name: string | null;
+  suggested_account_number: string | null;
+  suggested_account_name: string | null;
+  confidence: number;
+  reason: string;
+  rule: string;
+  requires_manual_review: boolean;
+  xgboost_suggested_account_number: string | null;
+  xgboost_suggested_account_name: string | null;
+  xgboost_confidence: number | null;
+  xgboost_model_loaded: boolean;
+  xgboost_reason: string | null;
+  training_vendor: string | null;
+  training_amount: number;
+  training_description: string | null;
+  approved_account: string | null;
+};
+
+export type GLAccountSuggestionsResponse = {
+  filename: string;
+  format_code: string;
+  metadata?: Record<string, string | null>;
+  transaction_count: number;
+  suggestion_count: number;
+  changed_suggestion_count: number;
+  manual_review_count: number;
+  review_mode: string;
+  xgboost_min_confidence: number;
+  xgboost_model_status: {
+    xgboost_installed?: boolean;
+    model_loaded?: boolean;
+    label_mapping_present?: boolean;
+    model_path?: string;
+    labels_path?: string;
+  };
+  suggestions: GLAccountSuggestion[];
+};
+
 export type ImportPreviewRow = {
   gl_id: number;
   date: string | null;
