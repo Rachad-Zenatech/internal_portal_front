@@ -11,6 +11,7 @@ import ChartOfAccounts from "./pages/Configurations/ChartOfAccounts";
 import CompanySettings from "./pages/Configurations/CompanySettings";
 import BankSettings from "./pages/Configurations/BankSettings";
 import BankAccountSettings from "./pages/Configurations/BankAccountSettings";
+import BankFeedRules from "./pages/Configurations/BankFeedRules";
 import { BrowserRouter,  Routes, Route, Navigate } from "react-router-dom";
 import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
 import CompanyGeneralLedger from "./pages/CompanyGeneralLedger";
@@ -46,6 +47,7 @@ function App() {
           <Route path="/configurations/company" element={<CompanySettings />} />
           <Route path="/configurations/bank" element={<BankSettings />} />
           <Route path="/configurations/bank-account" element={<BankAccountSettings />} />
+          <Route path="/configurations/bank-feed-rules" element={<BankFeedRules />} />
         </Routes>
       </AppShell>
     </BrowserRouter>

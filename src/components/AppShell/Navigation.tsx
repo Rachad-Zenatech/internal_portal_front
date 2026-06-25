@@ -60,6 +60,7 @@ export const navigation = [
       { label: "Company", path: "/configurations/company" },
       { label: "Bank", path: "/configurations/bank" },
       { label: "Bank Account", path: "/configurations/bank-account" },
+      { label: "Bank Feed Rules", path: "/configurations/bank-feed-rules" },
       { label: "Chart of Accounts", path: "/configurations/chart-of-accounts" },
     ]
   },

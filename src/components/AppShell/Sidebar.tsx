@@ -31,7 +31,7 @@ export default function Sidebar({
   return (
     <aside
       className={`
-        flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap
+        h-full flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap
         ${isOpen ? "w-72" : "w-20"}
       `}
     >
@@ -55,7 +55,7 @@ export default function Sidebar({
       </div>
 
       <TooltipProvider delayDuration={0}>
-        <nav className="space-y-6 px-3 mt-6 pb-6 overflow-y-auto scrollbar-hide flex-1">
+        <nav className="space-y-6 px-3 mt-6 pb-6 overflow-y-auto scrollbar-hide flex-1 min-h-0">
           {Object.entries(groupedNavigation).map(([section, items]) => (
           <div key={section} className="space-y-1">
             {isOpen ? (
@@ -106,7 +106,7 @@ export default function Sidebar({
                 </Tooltip>
                 <div 
                   className={`ml-9 space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${
-                    isOpen && isExpanded ? "max-h-48 mt-1 opacity-100" : "max-h-0 opacity-0"
+                    isOpen && isExpanded ? "max-h-96 mt-1 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
                   {item.subItems.map((sub) => {
