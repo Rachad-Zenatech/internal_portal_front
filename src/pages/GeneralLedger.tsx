@@ -1,6 +1,6 @@
 // src/pages/GeneralLedger.tsx
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CompanyGLCard, GLExtractionFormat } from "@/types/gl";
 import { useCompanyCards, useGLFormats, useAssignFormat } from "@/hooks/useGL";
 
@@ -221,8 +221,15 @@ function CompanyGLCardView({
   isAssigning: boolean;
   onAssignFormat: (companyId: number, formatId: number) => void;
 }) {
-  const [selectedFormatId, setSelectedFormatId] = useState<string>();
+  const currentFormatId = card.default_format_id == null ? "" : String(card.default_format_id);
+  const [selectedFormatId, setSelectedFormatId] = useState<string>(currentFormatId);
   const hasFormat = card.default_format_id != null;
+  const canSaveFormat =
+    selectedFormatId !== "" && selectedFormatId !== currentFormatId && !isAssigning;
+
+  useEffect(() => {
+    setSelectedFormatId(currentFormatId);
+  }, [currentFormatId]);
 
   return (
     <Card className="flex flex-col">
@@ -240,38 +247,44 @@ function CompanyGLCardView({
           <InfoStat label="Bank Lines" value={String(card.bank_lines)} />
         </div>
 
-        {!hasFormat && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm font-medium text-amber-800">No GL format assigned</p>
-            <div className="mt-3 flex gap-2">
-              <Select
-                value={selectedFormatId}
-                onValueChange={setSelectedFormatId}
-                disabled={isAssigning || formats.length === 0}
-              >
-                <SelectTrigger className="bg-white flex-1">
-                  <SelectValue placeholder="Select a format" />
-                </SelectTrigger>
-                <SelectContent>
-                  {formats.map((f) => (
-                    <SelectItem key={String(f.id)} value={String(f.id)}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <div
+          className={
+            hasFormat
+              ? "rounded-md border bg-muted/30 p-3"
+              : "rounded-md border border-amber-200 bg-amber-50 p-3"
+          }
+        >
+          <p className={hasFormat ? "text-sm font-medium" : "text-sm font-medium text-amber-800"}>
+            {hasFormat ? "Default GL format" : "No GL format assigned"}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Select
+              value={selectedFormatId || undefined}
+              onValueChange={setSelectedFormatId}
+              disabled={isAssigning || formats.length === 0}
+            >
+              <SelectTrigger className="flex-1 bg-background">
+                <SelectValue placeholder="Select a format" />
+              </SelectTrigger>
+              <SelectContent>
+                {formats.map((f) => (
+                  <SelectItem key={String(f.id)} value={String(f.id)}>
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!selectedFormatId || isAssigning}
-                onClick={() => onAssignFormat(card.company_id, Number(selectedFormatId))}
-              >
-                {isAssigning ? "Saving..." : "Assign"}
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canSaveFormat}
+              onClick={() => onAssignFormat(card.company_id, Number(selectedFormatId))}
+            >
+              {isAssigning ? "Saving..." : hasFormat ? "Update" : "Assign"}
+            </Button>
           </div>
-        )}
+        </div>
       </CardContent>
 
       <div className="border-t p-4">
