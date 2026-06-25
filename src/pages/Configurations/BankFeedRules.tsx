@@ -20,6 +20,7 @@ const formatConditionValue = (type: number, value: any) => {
 
 const formatActionValue = (value: any) => {
   if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (Array.isArray(value) && value.length === 0) return "";
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 };
@@ -32,15 +33,15 @@ export default function BankFeedRules() {
   const filteredRules = rules?.filter(r => r.rule_name.toLowerCase().includes(searchQuery.toLowerCase())) || [];
 
   return (
-    <div className="w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-      <div className="flex items-center justify-between">
+    <div className="w-full h-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Bank Feed Rules</h1>
           <p className="text-slate-500 mt-1">Manage rules for automatically categorizing bank transactions.</p>
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div className="relative w-72">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
           <Input 
@@ -52,9 +53,9 @@ export default function BankFeedRules() {
         </div>
       </div>
 
-      <Card className="overflow-hidden border-slate-200 shadow-sm p-0">
-        <Table>
-          <TableHeader className="bg-slate-50 border-b border-slate-200">
+      <Card className="flex-1 min-h-0 overflow-hidden border-slate-200 shadow-sm p-0 flex flex-col">
+        <Table containerClassName="flex-1 overflow-auto">
+          <TableHeader className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
             <TableRow>
               <TableHead className="h-12 font-semibold text-slate-700">Rule Name</TableHead>
               <TableHead className="h-12 font-semibold text-slate-700">Conditions</TableHead>
@@ -134,14 +135,17 @@ export default function BankFeedRules() {
               </div>
               
               <div className="space-y-2.5">
-                {selectedRule?.actions.map((a, i) => (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 bg-blue-50/30 border border-blue-100/50 p-3 rounded-lg text-sm">
-                    <span className="font-medium text-slate-600 sm:w-1/3 shrink-0">{a.action_type_name || `Action ${a.action_type}`}</span>
-                    <span className="text-slate-900 font-semibold break-words whitespace-normal flex-1">
-                      {formatActionValue(a.value)}
-                    </span>
-                  </div>
-                ))}
+                {selectedRule?.actions.map((a, i) => {
+                  if (Array.isArray(a.value) && a.value.length === 0) return null;
+                  return (
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 bg-blue-50/30 border border-blue-100/50 p-3 rounded-lg text-sm">
+                      <span className="font-medium text-slate-600 sm:w-1/3 shrink-0">{a.action_type_name || `Action ${a.action_type}`}</span>
+                      <span className="text-slate-900 font-semibold break-words whitespace-normal flex-1">
+                        {formatActionValue(a.value)}
+                      </span>
+                    </div>
+                  );
+                })}
                 {(!selectedRule?.actions || selectedRule.actions.length === 0) && (
                   <div className="text-sm text-slate-500 italic p-3 text-center bg-slate-50/50 rounded-lg">No actions set.</div>
                 )}
