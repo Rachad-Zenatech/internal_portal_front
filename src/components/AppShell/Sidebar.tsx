@@ -46,7 +46,7 @@ export default function Sidebar({
   return (
     <aside
       className={`
-        h-full flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap
+        h-full flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground overflow-hidden whitespace-nowrap
         ${isOpen ? "w-72" : "w-20"}
       `}
     >

@@ -92,6 +92,7 @@ export default function UserRoleAssignment() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userRoles", selectedUserId] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success("Role assignments saved successfully");
     },
     onError: () => toast.error("Failed to save role assignments"),
