@@ -55,3 +55,18 @@ export function useReplaceBankFeedRules() {
     },
   });
 }
+
+export function useUploadBankFeedRules() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return apiClient.post<BankFeedRule[]>(`${ENDPOINT}/upload`, formData);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bank-feed-rules'] });
+    },
+  });
+}

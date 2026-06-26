@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { BankFeedRule, BankFeedRuleCreate } from "../../types/bankFeedRule";
-import { useBankFeedRules, useReplaceBankFeedRules } from "../../hooks/useBankFeedRule";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { BankFeedRule } from "../../types/bankFeedRule";
+import { useBankFeedRules, useUploadBankFeedRules } from "../../hooks/useBankFeedRule";
 import { Search, Upload, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import * as xlsx from "xlsx";
 
 const formatConditionValue = (type: number, value: any) => {
   if (type === 10) {
@@ -31,7 +30,7 @@ const formatActionValue = (value: any) => {
 
 export default function BankFeedRules() {
   const { data: rules, isPending: loadingRules } = useBankFeedRules();
-  const { mutate: replaceRules, isPending: isReplacing } = useReplaceBankFeedRules();
+  const { mutate: uploadRules, isPending: isUploading } = useUploadBankFeedRules();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRule, setSelectedRule] = useState<BankFeedRule | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,83 +41,19 @@ export default function BankFeedRules() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target?.result;
-        const wb = xlsx.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = xlsx.utils.sheet_to_json(ws, { header: 1 });
-        
-        // Skip header row
-        const rows = data.slice(1) as any[][];
-        
-        const newRules: BankFeedRuleCreate[] = [];
-        
-        for (const row of rows) {
-          if (!row[0]) continue; // Skip empty rows
-          
-          let conditions: any[] = [];
-          let isAndRule = false;
-          try {
-            if (row[1]) {
-              const condData = JSON.parse(row[1]);
-              isAndRule = condData.isAndRule || false;
-              conditions = condData.ruleConditions.map((c: any) => ({
-                rule_type: c.ruleType,
-                value: c.value
-              }));
-            }
-          } catch (err) {
-            console.error("Failed to parse conditions:", err);
-          }
-          
-          let actions: any[] = [];
-          try {
-            if (row[2]) {
-              const actData = JSON.parse(row[2]);
-              actions = actData.ruleActions.map((a: any) => ({
-                action_type: a.actionType,
-                value: a.value
-              }));
-            }
-          } catch (err) {
-            console.error("Failed to parse actions:", err);
-          }
-          
-          newRules.push({
-            rule_name: row[0],
-            is_and_rule: isAndRule,
-            conditions,
-            actions
-          });
-        }
-        
-        if (newRules.length === 0) {
-          toast.error("No valid rules found in the file.");
-          return;
-        }
-
-        replaceRules(newRules, {
-          onSuccess: () => {
-            toast.success(`Successfully replaced with ${newRules.length} rules.`);
-          },
-          onError: (err) => {
-            toast.error("Failed to replace rules.");
-            console.error(err);
-          }
-        });
-      } catch (error) {
-        console.error("Error processing Excel file:", error);
-        toast.error("Failed to process the Excel file.");
+    uploadRules(file, {
+      onSuccess: () => {
+        toast.success("Successfully replaced rules.");
+      },
+      onError: (err) => {
+        toast.error("Failed to process the uploaded file.");
+        console.error(err);
       }
-      
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    };
-    reader.readAsBinaryString(file);
+    });
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   return (
@@ -157,11 +92,11 @@ export default function BankFeedRules() {
             <AlertDialogTrigger asChild>
               <Button 
                 variant="destructive" 
-                disabled={isReplacing}
+                disabled={isUploading}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >
                 <Upload className="w-4 h-4 mr-2" />
-                {isReplacing ? "Replacing Rules..." : "Replace Rules"}
+                {isUploading ? "Uploading..." : "Replace Rules"}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="sm:max-w-[400px] p-0 pt-10 overflow-hidden border border-slate-200 shadow-2xl rounded-[28px] bg-white gap-0">

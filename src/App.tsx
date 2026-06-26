@@ -12,45 +12,61 @@ import CompanySettings from "./pages/Configurations/CompanySettings";
 import BankSettings from "./pages/Configurations/BankSettings";
 import BankAccountSettings from "./pages/Configurations/BankAccountSettings";
 import BankFeedRules from "./pages/Configurations/BankFeedRules";
-import { BrowserRouter,  Routes, Route, Navigate } from "react-router-dom";
+import Users from "./pages/Configurations/Users";
+import Roles from "./pages/Configurations/Roles";
+import UserRoleAssignment from "./pages/Configurations/UserRoleAssignment";
+import RolePagePermissions from "./pages/Configurations/RolePagePermissions";
+import RoleMcpToolPermissions from "./pages/Configurations/RoleMcpToolPermissions";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
 import CompanyGeneralLedger from "./pages/CompanyGeneralLedger";
+import AuditLog from "./pages/Log/AuditLog";
+import Login from "./pages/Login";
+import { AuthProvider } from "./lib/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 function App() {
   return (
-    <BrowserRouter>
-      <AppShell>
+    <AuthProvider>
+      <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/upload-files" element={<UploadFile/>} />
-          <Route path="/general-ledger" element={<GeneralLedger />} />
-           <Route path="/general-ledger/company/:companyId" element={<CompanyGeneralLedger />} />
-      <Route path="/general-ledger/upload" element={<GeneralLedgerUpload />} />
-          <Route path="/trial-balance" element={<TrialBalance/>} />
-          <Route
-            path="/bank-statements"
-            element={<BankStatements />}
-          />
-          <Route
-            path="/consolidated-trial-balance"
-            element={<ConsolidatedTrailBalance />}
-          />
-          <Route
-            path="/consolidated-trial-balance-matrix"
-            element={<ConsolidatedTrialBalanceMatrix />}
-          />
-          <Route
-            path="/configurations/chart-of-accounts"
-            element={<ChartOfAccounts />}
-          />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />
-          <Route path="/configurations/company" element={<CompanySettings />} />
-          <Route path="/configurations/bank" element={<BankSettings />} />
-          <Route path="/configurations/bank-account" element={<BankAccountSettings />} />
-          <Route path="/configurations/bank-feed-rules" element={<BankFeedRules />} />
+          <Route path="/login" element={<Login />} />
+          
+          {/* Main app layout routes */}
+          <Route element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}>
+            <Route path="/" element={<ProtectedRoute pageCode="DASHBOARD"><Dashboard /></ProtectedRoute>} />
+            <Route path="/upload-files" element={<ProtectedRoute pageCode="UPLOAD_FILES"><UploadFile/></ProtectedRoute>} />
+            <Route path="/general-ledger" element={<ProtectedRoute pageCode="GENERAL_LEDGER"><GeneralLedger /></ProtectedRoute>} />
+            <Route path="/general-ledger/company/:companyId" element={<ProtectedRoute pageCode="GENERAL_LEDGER"><CompanyGeneralLedger /></ProtectedRoute>} />
+            <Route path="/general-ledger/upload" element={<ProtectedRoute pageCode="GENERAL_LEDGER" actionCode="IMPORT"><GeneralLedgerUpload /></ProtectedRoute>} />
+            <Route path="/trial-balance" element={<ProtectedRoute pageCode="TRIAL_BALANCE"><TrialBalance/></ProtectedRoute>} />
+            <Route path="/bank-statements" element={<ProtectedRoute pageCode="BANK_STATEMENTS"><BankStatements /></ProtectedRoute>} />
+            <Route path="/consolidated-trial-balance" element={<ProtectedRoute pageCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
+            <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute pageCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
+            
+            {/* Configuration Routes */}
+            <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />
+            
+            {/* We use a parent route wrapper or just protect individual config routes */}
+            <Route path="/configurations/chart-of-accounts" element={<ProtectedRoute pageCode="CONFIG_CHART_OF_ACCOUNTS"><ChartOfAccounts /></ProtectedRoute>} />
+            <Route path="/configurations/company" element={<ProtectedRoute pageCode="CONFIG_COMPANY"><CompanySettings /></ProtectedRoute>} />
+            <Route path="/configurations/bank" element={<ProtectedRoute pageCode="CONFIG_BANK"><BankSettings /></ProtectedRoute>} />
+            <Route path="/configurations/bank-account" element={<ProtectedRoute pageCode="CONFIG_BANK_ACCOUNT"><BankAccountSettings /></ProtectedRoute>} />
+            <Route path="/configurations/bank-feed-rules" element={<ProtectedRoute pageCode="CONFIG_BANK_FEED_RULES"><BankFeedRules /></ProtectedRoute>} />
+            
+            <Route path="/configurations/users" element={<ProtectedRoute pageCode="CONFIG_USERS"><Users /></ProtectedRoute>} />
+            <Route path="/configurations/roles" element={<ProtectedRoute pageCode="CONFIG_ROLES"><Roles /></ProtectedRoute>} />
+            <Route path="/configurations/user-role-assignment" element={<ProtectedRoute pageCode="CONFIG_USER_ROLE_ASSIGNMENT"><UserRoleAssignment /></ProtectedRoute>} />
+            <Route path="/configurations/role-page-permissions" element={<ProtectedRoute pageCode="CONFIG_ROLE_PAGE_PERMISSIONS"><RolePagePermissions /></ProtectedRoute>} />
+            <Route path="/configurations/role-mcp-tool-permissions" element={<ProtectedRoute pageCode="CONFIG_ROLE_MCP_TOOL_PERMISSIONS"><RoleMcpToolPermissions /></ProtectedRoute>} />
+            
+            {/* Logs */}
+            <Route path="/log/audit-log" element={<ProtectedRoute pageCode="AUDIT_LOG"><AuditLog /></ProtectedRoute>} />
+
+            <Route path="/reports" element={<ProtectedRoute pageCode="REPORTS"><Reports /></ProtectedRoute>} />
+          </Route>
         </Routes>
-      </AppShell>
-    </BrowserRouter>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

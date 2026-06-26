@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles } from "lucide-react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
 import { useGlobalSearch } from "@/hooks/useSearch";
+import { useAuth } from "@/lib/AuthContext";
+import { apiClient } from "@/services/apiClient";
 
 export default function TopBar() {
   const [inputValue, setInputValue] = useState("");
@@ -29,7 +31,59 @@ export default function TopBar() {
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const { user, roles, logout } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  // Reset profile dialog state when opened
+  useEffect(() => {
+    if (isProfileOpen) {
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+      setPasswordSuccess(false);
+    }
+  }, [isProfileOpen]);
+
+  const handleSaveProfile = async () => {
+    if (newPassword || confirmPassword) {
+      if (newPassword !== confirmPassword) {
+        setPasswordError("Passwords do not match");
+        return;
+      }
+      if (newPassword.length < 10) {
+        setPasswordError("Password must be at least 10 characters long");
+        return;
+      }
+      if (!/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
+        setPasswordError("Password must contain at least 1 symbol");
+        return;
+      }
+      
+      try {
+        setIsSavingPassword(true);
+        setPasswordError("");
+        await apiClient.put("/api/me/password", { new_password: newPassword });
+        setPasswordSuccess(true);
+        setNewPassword("");
+        setConfirmPassword("");
+        // Optional: dismiss success message after a few seconds
+        setTimeout(() => setPasswordSuccess(false), 3000);
+      } catch (err: any) {
+        setPasswordError(err.response?.data?.detail || "Failed to change password");
+      } finally {
+        setIsSavingPassword(false);
+      }
+    } else {
+      // Just close if nothing to save
+      setIsProfileOpen(false);
+    }
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -203,11 +257,13 @@ export default function TopBar() {
           <DropdownMenuTrigger asChild>
             <div className="flex items-center gap-2 sm:gap-3 cursor-pointer hover:bg-muted p-1.5 sm:p-2 sm:pr-3 rounded-xl transition-colors border border-transparent hover:border-border outline-none">
               <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-muted overflow-hidden flex items-center justify-center shrink-0 border border-border shadow-sm">
-                <img src="https://ui-avatars.com/api/?name=Darrell+Steward&background=eff6ff&color=2563eb&rounded=true&bold=true" alt="User avatar" className="h-full w-full object-cover" />
+                <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || user?.email || "User")}&background=eff6ff&color=2563eb&rounded=true&bold=true`} alt="User avatar" className="h-full w-full object-cover" />
               </div>
               <div className="hidden md:flex flex-col text-left">
-                <span className="text-sm font-bold text-foreground leading-tight">Darrell Steward</span>
-                <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">Super admin</span>
+                <span className="text-sm font-bold text-foreground leading-tight">{user?.full_name || "User"}</span>
+                <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">
+                  {user?.is_super_admin ? "Super Admin" : roles.length > 0 ? roles[0].name : "Standard User"}
+                </span>
               </div>
             </div>
           </DropdownMenuTrigger>
@@ -229,12 +285,12 @@ export default function TopBar() {
       </div>
 
       <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-        <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden border-border/50 shadow-2xl rounded-2xl">
-          <div className="h-32 bg-gradient-to-r from-primary to-primary/60 relative">
+        <DialogContent className="w-[95vw] sm:max-w-[425px] p-0 overflow-hidden border-border/50 shadow-2xl rounded-2xl max-h-[90vh] flex flex-col">
+          <div className="h-32 shrink-0 bg-gradient-to-r from-primary to-primary/60 relative">
             <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
               <div className="relative group">
                 <div className="h-24 w-24 rounded-full border-4 border-card bg-muted overflow-hidden shadow-lg">
-                  <img src="https://ui-avatars.com/api/?name=Darrell+Steward&background=eff6ff&color=2563eb&rounded=true&bold=true" alt="User avatar" className="h-full w-full object-cover" />
+                  <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || user?.email || "User")}&background=eff6ff&color=2563eb&rounded=true&bold=true`} alt="User avatar" className="h-full w-full object-cover" />
                 </div>
                 <button className="absolute bottom-0 right-0 h-8 w-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-md hover:scale-105 transition-transform">
                   <Camera className="h-4 w-4" />
@@ -243,32 +299,23 @@ export default function TopBar() {
             </div>
           </div>
           
-          <div className="pt-16 px-6 pb-6">
+          <div className="pt-16 px-4 sm:px-6 pb-6 overflow-y-auto flex-1">
             <div className="text-center mb-6 flex flex-col items-center space-y-1.5">
-              <DialogTitle className="text-2xl font-bold">Darrell Steward</DialogTitle>
-              <DialogDescription className="text-sm">
-                Super admin · darrell.steward@example.com
+              <DialogTitle className="text-xl sm:text-2xl font-bold">{user?.full_name || "User"}</DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm">
+                {user?.is_super_admin ? "Super Admin" : roles.length > 0 ? roles.map(r => r.name).join(", ") : "Standard User"} · {user?.email}
               </DialogDescription>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="firstName" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  First Name
+                  Full Name
                 </Label>
                 <Input
                   id="firstName"
-                  defaultValue="Darrell"
-                  className="bg-muted/50 border-transparent focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="lastName" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Last Name
-                </Label>
-                <Input
-                  id="lastName"
-                  defaultValue="Steward"
+                  readOnly
+                  defaultValue={user?.full_name || ""}
                   className="bg-muted/50 border-transparent focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
                 />
               </div>
@@ -276,21 +323,72 @@ export default function TopBar() {
                 <Label htmlFor="email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   Email Address
                 </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  defaultValue="darrell.steward@example.com"
-                  className="bg-muted/50 border-transparent focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
-                />
+                <div className="flex rounded-xl shadow-sm">
+                  <Input
+                    id="email"
+                    type="text"
+                    readOnly
+                    defaultValue={user?.email ? user.email.replace(/@zenatech\.com$/, "") : ""}
+                    className="bg-muted/50 border-transparent focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl rounded-tr-none rounded-br-none h-11 border-r-0"
+                  />
+                  <span className="inline-flex items-center rounded-r-xl border border-transparent border-l-0 bg-muted/50 px-3 text-sm text-slate-500 dark:text-zinc-400">
+                    @zenatech.com
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border mt-6">
+                <h4 className="text-sm font-semibold mb-4">Change Password</h4>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="newPassword" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      New Password
+                    </Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => { setNewPassword(e.target.value); setPasswordError(""); }}
+                      placeholder="Enter new password"
+                      className="border-border focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="confirmPassword" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Confirm New Password
+                    </Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
+                      placeholder="Confirm new password"
+                      className="border-border focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
+                    />
+                  </div>
+                  {passwordError && (
+                    <p className="text-sm text-red-500 font-medium">{passwordError}</p>
+                  )}
+                  {passwordSuccess && (
+                    <p className="text-sm text-emerald-500 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4" /> Password changed successfully
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <DialogFooter className="mt-8 flex gap-3 sm:justify-end">
-              <Button variant="outline" onClick={() => setIsProfileOpen(false)} className="rounded-xl flex-1 sm:flex-none font-semibold">
+            <DialogFooter className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+              <Button variant="outline" onClick={() => setIsProfileOpen(false)} className="rounded-xl w-full sm:w-auto font-semibold">
                 Cancel
               </Button>
-              <Button type="button" onClick={() => setIsProfileOpen(false)} className="rounded-xl flex-1 sm:flex-none bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all font-semibold">
-                Save changes
+              <Button 
+                type="button" 
+                onClick={handleSaveProfile} 
+                disabled={isSavingPassword}
+                className="rounded-xl w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all font-semibold min-w-[120px]"
+              >
+                {isSavingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
               </Button>
             </DialogFooter>
           </div>
@@ -318,7 +416,10 @@ export default function TopBar() {
               </Button>
               <Button 
                 variant="destructive" 
-                onClick={() => setIsLogoutOpen(false)} 
+                onClick={() => {
+                  setIsLogoutOpen(false);
+                  logout();
+                }} 
                 className="flex-1 rounded-xl h-11 bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all border-none font-semibold"
               >
                 Confirm
