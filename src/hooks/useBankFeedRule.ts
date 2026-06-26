@@ -44,3 +44,14 @@ export function useDeleteBankFeedRule() {
     },
   });
 }
+
+export function useReplaceBankFeedRules() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (rules: BankFeedRuleCreate[]) => apiClient.post<BankFeedRule[]>(`${ENDPOINT}/replace`, rules),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bank-feed-rules'] });
+    },
+  });
+}

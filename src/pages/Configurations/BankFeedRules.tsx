@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import type { BankFeedRule } from "../../types/bankFeedRule";
-import { useBankFeedRules } from "../../hooks/useBankFeedRule";
-import { Search } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { BankFeedRule, BankFeedRuleCreate } from "../../types/bankFeedRule";
+import { useBankFeedRules, useReplaceBankFeedRules } from "../../hooks/useBankFeedRule";
+import { Search, Upload, AlertTriangle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import * as xlsx from "xlsx";
 
 const formatConditionValue = (type: number, value: any) => {
   if (type === 10) {
@@ -27,10 +31,95 @@ const formatActionValue = (value: any) => {
 
 export default function BankFeedRules() {
   const { data: rules, isPending: loadingRules } = useBankFeedRules();
+  const { mutate: replaceRules, isPending: isReplacing } = useReplaceBankFeedRules();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRule, setSelectedRule] = useState<BankFeedRule | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredRules = rules?.filter(r => r.rule_name.toLowerCase().includes(searchQuery.toLowerCase())) || [];
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = xlsx.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = xlsx.utils.sheet_to_json(ws, { header: 1 });
+        
+        // Skip header row
+        const rows = data.slice(1) as any[][];
+        
+        const newRules: BankFeedRuleCreate[] = [];
+        
+        for (const row of rows) {
+          if (!row[0]) continue; // Skip empty rows
+          
+          let conditions: any[] = [];
+          let isAndRule = false;
+          try {
+            if (row[1]) {
+              const condData = JSON.parse(row[1]);
+              isAndRule = condData.isAndRule || false;
+              conditions = condData.ruleConditions.map((c: any) => ({
+                rule_type: c.ruleType,
+                value: c.value
+              }));
+            }
+          } catch (err) {
+            console.error("Failed to parse conditions:", err);
+          }
+          
+          let actions: any[] = [];
+          try {
+            if (row[2]) {
+              const actData = JSON.parse(row[2]);
+              actions = actData.ruleActions.map((a: any) => ({
+                action_type: a.actionType,
+                value: a.value
+              }));
+            }
+          } catch (err) {
+            console.error("Failed to parse actions:", err);
+          }
+          
+          newRules.push({
+            rule_name: row[0],
+            is_and_rule: isAndRule,
+            conditions,
+            actions
+          });
+        }
+        
+        if (newRules.length === 0) {
+          toast.error("No valid rules found in the file.");
+          return;
+        }
+
+        replaceRules(newRules, {
+          onSuccess: () => {
+            toast.success(`Successfully replaced with ${newRules.length} rules.`);
+          },
+          onError: (err) => {
+            toast.error("Failed to replace rules.");
+            console.error(err);
+          }
+        });
+      } catch (error) {
+        console.error("Error processing Excel file:", error);
+        toast.error("Failed to process the Excel file.");
+      }
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   return (
     <div className="w-full h-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
@@ -41,15 +130,73 @@ export default function BankFeedRules() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between shrink-0">
-        <div className="relative w-72">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
-          <Input 
-            placeholder="Search rules..." 
-            className="pl-9 bg-white" 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+      <div className="flex items-start justify-between shrink-0">
+        <div className="flex flex-col gap-1.5">
+          <div className="relative w-72">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500" />
+            <Input 
+              placeholder="Search rules..." 
+              className="pl-9 bg-white" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <p className="text-sm text-slate-500 pl-1">
+            Total rules: {rules?.length || 0}
+          </p>
+        </div>
+        <div className="pt-0.5">
+          <input 
+            type="file" 
+            accept=".xls,.xlsx,.csv" 
+            className="hidden" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
           />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="destructive" 
+                disabled={isReplacing}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {isReplacing ? "Replacing Rules..." : "Replace Rules"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="sm:max-w-[400px] p-0 pt-10 overflow-hidden border border-slate-200 shadow-2xl rounded-[28px] bg-white gap-0">
+              <div className="flex flex-col items-center justify-center text-center px-6">
+                <div className="mx-auto flex h-[88px] w-[88px] items-center justify-center rounded-full bg-red-50 mb-5">
+                  <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-red-100/80">
+                    <AlertTriangle className="h-7 w-7 text-red-600" strokeWidth={2.25} />
+                  </div>
+                </div>
+                
+                <AlertDialogTitle className="text-[24px] font-bold tracking-tight text-slate-900 mb-4">
+                  Replace Rules?
+                </AlertDialogTitle>
+                
+                <AlertDialogDescription className="text-center text-[15px] leading-[1.6] text-slate-500/90 font-medium px-4">
+                  Are you sure you want to replace <strong className="text-slate-700 font-semibold">all<br />existing rules</strong>?
+                  <span className="block mt-1">
+                    This action cannot be undone and will<br />overwrite all current bank feed rules.
+                  </span>
+                </AlertDialogDescription>
+              </div>
+              
+              <div className="mt-8 p-[6px] mx-6 mb-6 rounded-[20px] flex gap-[6px]">
+                <AlertDialogCancel className="m-0 flex-1 rounded-[14px] h-[46px] text-[14px] font-semibold text-slate-900 bg-white border border-slate-200/60 hover:bg-slate-50 shadow-sm transition-all">
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="m-0 flex-1 rounded-[14px] h-[46px] text-[14px] font-semibold bg-[#18181b] hover:bg-[#27272a] text-white shadow-sm transition-all border-none"
+                >
+                  Yes, Replace
+                </AlertDialogAction>
+              </div>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
@@ -115,7 +262,9 @@ export default function BankFeedRules() {
               </div>
               
               <div className="space-y-2.5">
-                {selectedRule?.conditions.map((c, i) => (
+                {selectedRule?.conditions
+                  .filter((c) => !c.rule_type_name?.toLowerCase().includes("auto-add"))
+                  .map((c, i) => (
                   <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 bg-slate-50/80 border border-slate-100 p-3 rounded-lg text-sm">
                     <span className="font-medium text-slate-600 sm:w-1/3 shrink-0">{c.rule_type_name || `Type ${c.rule_type}`}</span>
                     <span className="text-slate-900 font-semibold break-words whitespace-normal flex-1">
@@ -123,7 +272,7 @@ export default function BankFeedRules() {
                     </span>
                   </div>
                 ))}
-                {(!selectedRule?.conditions || selectedRule.conditions.length === 0) && (
+                {(!selectedRule?.conditions || selectedRule.conditions.filter((c) => !c.rule_type_name?.toLowerCase().includes("auto-add")).length === 0) && (
                   <div className="text-sm text-slate-500 italic p-3 text-center bg-slate-50/50 rounded-lg">No conditions set.</div>
                 )}
               </div>
@@ -135,7 +284,9 @@ export default function BankFeedRules() {
               </div>
               
               <div className="space-y-2.5">
-                {selectedRule?.actions.map((a, i) => {
+                {selectedRule?.actions
+                  .filter((a) => !a.action_type_name?.toLowerCase().includes("auto-add"))
+                  .map((a, i) => {
                   if (Array.isArray(a.value) && a.value.length === 0) return null;
                   return (
                     <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 bg-blue-50/30 border border-blue-100/50 p-3 rounded-lg text-sm">
@@ -146,7 +297,7 @@ export default function BankFeedRules() {
                     </div>
                   );
                 })}
-                {(!selectedRule?.actions || selectedRule.actions.length === 0) && (
+                {(!selectedRule?.actions || selectedRule.actions.filter((a) => !a.action_type_name?.toLowerCase().includes("auto-add")).length === 0) && (
                   <div className="text-sm text-slate-500 italic p-3 text-center bg-slate-50/50 rounded-lg">No actions set.</div>
                 )}
               </div>
