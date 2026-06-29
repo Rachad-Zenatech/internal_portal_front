@@ -36,7 +36,7 @@ import type { User } from "@/lib/AuthContext";
 import { useNavigate } from "react-router-dom";
 
 export default function Users() {
-  const { canAccessPage } = useAuth();
+  const { canAccessNavigationItem } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -218,7 +218,7 @@ export default function Users() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          {canAccessPage("CONFIG_USERS", "CREATE") && (
+          {canAccessNavigationItem("CONFIG_USERS", "CREATE") && (
             <Button onClick={openCreateDialog} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Add User
             </Button>
@@ -282,17 +282,17 @@ export default function Users() {
                     )}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    {canAccessPage("CONFIG_USER_ROLE_ASSIGNMENT", "VIEW") && (
+                    {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "VIEW") && (
                       <Button variant="outline" size="sm" onClick={() => navigate(`/configurations/user-role-assignment?userId=${user.id}`)}>
                         <KeyRound className="h-4 w-4 mr-1" /> Roles
                       </Button>
                     )}
-                    {canAccessPage("CONFIG_USERS", "EDIT") && (
+                    {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
                         <Edit className="h-4 w-4 text-blue-600" />
                       </Button>
                     )}
-                    {canAccessPage("CONFIG_USERS", "EDIT") && (
+                    {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
                       <Button variant="ghost" size="icon" onClick={() => {
                         setUserToDeactivate(user);
                         setIsDeactivateDialogOpen(true);
@@ -300,7 +300,7 @@ export default function Users() {
                         {user.is_active ? <Ban className="h-4 w-4 text-orange-600" /> : <Power className="h-4 w-4 text-green-600" />}
                       </Button>
                     )}
-                    {canAccessPage("CONFIG_USERS", "DELETE") && (
+                    {canAccessNavigationItem("CONFIG_USERS", "DELETE") && (
                       <Button variant="ghost" size="icon" onClick={() => {
                         setUserToDelete(user);
                         setIsDeleteDialogOpen(true);

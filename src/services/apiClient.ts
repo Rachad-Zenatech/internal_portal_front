@@ -2,7 +2,7 @@ import { handleResponse } from "./helper";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem("token");
   return token ? { "Authorization": `Bearer ${token}` } : {};
 };
@@ -14,8 +14,8 @@ export const apiClient = {
       method: "GET",
       headers: {
         ...getAuthHeaders(),
-        ...options?.headers
-      }
+        ...(options?.headers as Record<string, string>)
+      } as HeadersInit
     });
     return handleResponse<T>(res);
   },
@@ -28,8 +28,8 @@ export const apiClient = {
       headers: {
         ...(isFormData ? {} : { "Content-Type": "application/json" }),
         ...getAuthHeaders(),
-        ...options?.headers,
-      },
+        ...(options?.headers as Record<string, string>),
+      } as HeadersInit,
       body: isFormData ? body : JSON.stringify(body),
     });
     return handleResponse<T>(res);
@@ -42,8 +42,8 @@ export const apiClient = {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
-        ...options?.headers,
-      },
+        ...(options?.headers as Record<string, string>),
+      } as HeadersInit,
       body: JSON.stringify(body),
     });
     return handleResponse<T>(res);
@@ -56,8 +56,8 @@ export const apiClient = {
       headers: {
         "Content-Type": "application/json",
         ...getAuthHeaders(),
-        ...options?.headers,
-      },
+        ...(options?.headers as Record<string, string>),
+      } as HeadersInit,
       body: JSON.stringify(body),
     });
     return handleResponse<T>(res);
@@ -69,8 +69,8 @@ export const apiClient = {
       method: "DELETE",
       headers: {
         ...getAuthHeaders(),
-        ...options?.headers
-      }
+        ...(options?.headers as Record<string, string>)
+      } as HeadersInit
     });
     return handleResponse<T>(res);
   }

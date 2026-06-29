@@ -1,48 +1,59 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { apiClient } from "@/services/apiClient";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Loader2, Lock, Mail } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refreshPermissions } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password) {
-      toast.error("Please enter both email and password");
-      return;
-    }
+  useEffect(() => {
+    const handleSsoCallback = async () => {
+      const token = searchParams.get("token");
+      const userId = searchParams.get("user_id");
+      const email = searchParams.get("email");
 
-    const finalEmail = email.includes("@") ? email : `${email}@zenatech.com`;
+      if (token && userId && email) {
+        setIsLoading(true);
+        try {
+          localStorage.setItem("token", token);
+          localStorage.setItem("user", JSON.stringify({ id: userId, email }));
+          
+          await refreshPermissions();
+          
+          toast.success("Successfully logged in");
+          
+          // Clear URL params
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          navigate("/");
+        } catch (error) {
+          console.error("Failed to process SSO login", error);
+          toast.error("Failed to process login");
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
 
-    setIsLoading(true);
-    try {
-      const res = await apiClient.post<any>("/api/auth/login", { email: finalEmail, password });
-      
-      localStorage.setItem("token", res.token);
-      localStorage.setItem("user", JSON.stringify(res.user));
-      
-      // Refresh AuthContext permissions so it knows the user is logged in
-      await refreshPermissions();
-      
-      toast.success("Successfully logged in");
-      navigate("/");
-    } catch (error) {
-      toast.error("Invalid email or password");
-    } finally {
-      setIsLoading(false);
-    }
+    handleSsoCallback();
+  }, [searchParams, navigate, refreshPermissions]);
+
+  const handleLogin = () => {
+    // Redirect to backend Microsoft SSO endpoint
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    window.location.href = `${baseUrl}/api/auth/microsoft/login`;
+  };
+
+  const handleMockLogin = () => {
+    // Redirect to mock endpoint for local testing
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    window.location.href = `${baseUrl}/api/auth/mock/login?email=admin@zenatech.com`;
   };
 
   return (
@@ -65,69 +76,39 @@ export default function Login() {
               Welcome
             </CardTitle>
             <CardDescription className="text-slate-500 dark:text-zinc-400 font-medium">
-              Enter your credentials to access your account
+              Sign in with your @zenatech.com account
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
-                  Email Address
-                </Label>
-                <div className="flex rounded-xl shadow-sm relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 z-10" />
-                  <Input 
-                    id="email" 
-                    type="text" 
-                    placeholder="name" 
-                    value={email.replace(/@zenatech\.com$/, "")}
-                    onChange={(e) => setEmail(e.target.value.replace(/@.*$/, ""))}
-                    className="pl-10 h-12 rounded-xl rounded-r-none bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 border-r-0 focus-visible:ring-blue-500/30 transition-all"
-                    required
-                  />
-                  <span className="inline-flex items-center rounded-r-xl border border-l-0 border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-                    @zenatech.com
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-zinc-400">
-                    Password
-                  </Label>
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 h-12 rounded-xl bg-slate-50 dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 focus-visible:ring-blue-500/30 transition-all"
-                    required
-                  />
-                </div>
-              </div>
+            <Button 
+              onClick={handleLogin}
+              className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md hover:shadow-lg transition-all mb-3"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign in with Microsoft"
+              )}
+            </Button>
+            
+            {import.meta.env.DEV && (
               <Button 
-                type="submit" 
-                className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md hover:shadow-lg transition-all"
+                onClick={handleMockLogin}
+                variant="outline"
+                className="w-full h-12 rounded-xl font-semibold shadow-sm transition-all"
                 disabled={isLoading}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  "Sign in"
-                )}
+                Mock SSO Login (Local Dev)
               </Button>
-            </form>
+            )}
           </CardContent>
           <CardFooter className="flex justify-center pb-8 pt-4 border-t border-slate-100 dark:border-zinc-800/50 mt-2 bg-slate-50/50 dark:bg-zinc-950/30">
             <p className="text-sm text-slate-500 dark:text-zinc-400">
-              Don't have an account?{" "}
+              Having trouble?{" "}
               <a href="#" className="font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
                 Contact your administrator
               </a>

@@ -485,9 +485,9 @@ function ReconcilingTable({
                   {!isCollapsed &&
                     items.map((i, idx) => (
                       <TableRow key={`${company.company_id}-${idx}`}>
-                        <TableCell className="text-muted-foreground">{i.date ?? "-"}</TableCell>
-                        <TableCell>{i.description}</TableCell>
-                        <TableCell className="text-right font-medium">{money(i.amount)}</TableCell>
+                        <TableCell className="text-muted-foreground align-top">{i.date ?? "-"}</TableCell>
+                        <TableCell className="whitespace-normal break-words min-w-[200px] align-top">{i.description}</TableCell>
+                        <TableCell className="text-right font-medium align-top">{money(i.amount)}</TableCell>
                       </TableRow>
                     ))}
                 </Fragment>

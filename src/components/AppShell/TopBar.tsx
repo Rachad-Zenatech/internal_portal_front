@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, CheckCircle2 } from "lucide-react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, CheckCircle2, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
 import { useGlobalSearch } from "@/hooks/useSearch";
@@ -244,14 +245,53 @@ export default function TopBar() {
             {formattedDate}
           </span>
         </div>
-        <ThemeSwitch />
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div><ThemeSwitch /></div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Toggle Theme</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <div className="hidden sm:flex items-center gap-1.5 border-r pr-2 sm:pr-4 md:pr-5 mr-1">
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">
-            <CircleHelp className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">
-            <Bell className="h-5 w-5" />
-          </Button>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10" onClick={() => window.location.reload()}>
+                  <RefreshCw className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Refresh Page</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">
+                  <CircleHelp className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Help Center</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">
+                  <Bell className="h-5 w-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Notifications</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
