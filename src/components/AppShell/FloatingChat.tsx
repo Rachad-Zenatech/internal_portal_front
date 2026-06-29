@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles, X, Minimize2, Paperclip, FileText } from "lucide-react";
+import { Loader2, Send, Bot, X, Minimize2, Paperclip, FileText, Sparkles } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
@@ -40,7 +40,7 @@ export default function FloatingChat() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Hi! I’m your Zenatech AI Assistant. How can I help?",
+      content: "Hello, I’m ZenaBot 🤖. How can I assist you today?",
     },
   ]);  const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -228,8 +228,8 @@ export default function FloatingChat() {
 
           <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold">AI Assistant</h3>
+              <Bot className="h-5 w-5 text-blue-600" />
+              <h3 className="font-semibold">ZenaBot</h3>
             </div>
             <div className="flex items-center gap-1">
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsOpen(false)}>
@@ -363,7 +363,7 @@ export default function FloatingChat() {
         }}
         className="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 relative"
       >
-        {isOpen ? <X className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
+        {isOpen ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
         {!isOpen && hasUnread && (
           <span className="absolute -top-1 -right-1 flex h-5 w-5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>

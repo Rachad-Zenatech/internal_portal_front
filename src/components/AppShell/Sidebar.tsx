@@ -4,6 +4,7 @@ import { navigation } from "./Navigation";
 import { useState } from "react";
 import zenatechLogo from "@/assets/zenatech_logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "../../lib/AuthContext";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,21 +18,35 @@ export default function Sidebar({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const location = useLocation();
 
+  const { canAccessPage } = useAuth();
+
   const toggleExpand = (label: string) => {
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
   const groupedNavigation = navigation.reduce((acc, item) => {
+    if (item.pageCode && !canAccessPage(item.pageCode)) return acc;
+
+    const filteredSubItems = item.subItems 
+      ? item.subItems.filter(sub => !sub.pageCode || canAccessPage(sub.pageCode))
+      : undefined;
+
+    // If it had subItems but now they are all filtered out, don't show the parent if it relies on subItems
+    if (item.subItems && (!filteredSubItems || filteredSubItems.length === 0)) {
+      return acc;
+    }
+
     const section = item.section || "GENERAL";
     if (!acc[section]) acc[section] = [];
-    acc[section].push(item);
+    
+    acc[section].push({ ...item, subItems: filteredSubItems });
     return acc;
   }, {} as Record<string, typeof navigation>);
 
   return (
     <aside
       className={`
-        h-full flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-in-out overflow-hidden whitespace-nowrap
+        h-full flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground overflow-hidden whitespace-nowrap
         ${isOpen ? "w-72" : "w-20"}
       `}
     >
@@ -106,7 +121,7 @@ export default function Sidebar({
                 </Tooltip>
                 <div 
                   className={`ml-9 space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${
-                    isOpen && isExpanded ? "max-h-96 mt-1 opacity-100" : "max-h-0 opacity-0"
+                    isOpen && isExpanded ? "max-h-[1000px] mt-1 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
                   {item.subItems.map((sub) => {
