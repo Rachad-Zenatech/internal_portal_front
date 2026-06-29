@@ -1,11 +1,12 @@
 // src/pages/GeneralLedgerUpload.tsx
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import type {
   GLAccountSuggestion,
   GLAccountSuggestionsResponse,
   ImportPreview,
   ImportPreviewAccount,
+  ImportPreviewAccountReview,
   ImportPreviewAccountTransaction,
   ManualGlEntryRequest,
 } from "@/types/gl";
@@ -26,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, Move, Sparkles, X } from "lucide-react";
+import { FileSpreadsheet, Move, Sparkles, UploadCloud, X } from "lucide-react";
 
 type ParseSummary = {
   company_id: number;
@@ -59,6 +60,27 @@ type WorkbookPreviewRow = {
   suggestion: GLAccountSuggestion | null;
 };
 
+type AccountReviewProgress = {
+  current: number;
+  total: number;
+};
+
+type AccountReviewLogContext = {
+  filename: string;
+  companyName: string;
+  formatCode: string;
+  sourceFileId: number;
+  useGemini: boolean;
+};
+
+const GEMINI_ROWS_PER_REQUEST = 50;
+const GEMINI_CONCURRENCY_LIMIT = 3;
+// Temporary testing flag: set to null to let Gemini AI review all selected rows.
+const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = 10;
+const GEMINI_AI_TEST_REVIEW_MODEL = "gemini-3.1-flash-lite";
+const GEMINI_USE_GOOGLE_SEARCH = false;
+const GEMINI_ENABLE_ESCALATION = false;
+
 const emptyManualEntry: ManualEntryForm = {
   ledger_account_code: "",
   ledger_account_name: "",
@@ -76,6 +98,7 @@ const emptyManualEntry: ManualEntryForm = {
 export default function GeneralLedgerUpload() {
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [useGeminiReview, setUseGeminiReview] = useState(true);
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
   const [accountFilter, setAccountFilter] = useState("all");
@@ -84,8 +107,12 @@ export default function GeneralLedgerUpload() {
   const [showWorkbookPreview, setShowWorkbookPreview] = useState(false);
   const [accountSuggestions, setAccountSuggestions] =
     useState<GLAccountSuggestionsResponse | null>(null);
+  const [accountReviewProgress, setAccountReviewProgress] =
+    useState<AccountReviewProgress | null>(null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const parseRunIdRef = useRef(0);
+  const glFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
@@ -130,7 +157,10 @@ export default function GeneralLedgerUpload() {
   );
 
   const preview = localPreview;
-  const suggestions = accountSuggestions?.suggestions ?? [];
+  const suggestions = useMemo(
+    () => accountSuggestions?.suggestions ?? [],
+    [accountSuggestions]
+  );
   const suggestionByTransaction = useMemo(() => {
     const map = new Map<string, GLAccountSuggestion>();
     for (const suggestion of suggestions) {
@@ -157,6 +187,10 @@ export default function GeneralLedgerUpload() {
   const hasReconciliationMismatch = reconciliationChecks.some((check) => check.status !== "match");
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending;
+  const accountReviewProgressLabel = accountReviewProgress
+    ? formatAccountReviewProgress(accountReviewProgress)
+    : null;
+  const hasAccountReviewProgress = accountReviewProgress !== null;
   
   const previewAccounts = preview?.accounts ?? [];
   const visibleReviewAccounts = useMemo(() => {
@@ -165,9 +199,77 @@ export default function GeneralLedgerUpload() {
     return (preview.accounts ?? []).filter((account) => account.account_key === accountFilter);
   }, [accountFilter, preview]);
 
-  async function handleParse() {
-    if (!bookId || !file) return;
+  useEffect(() => {
+    if (!accountSuggestionsMutation.isPending || !hasAccountReviewProgress) return;
 
+    const interval = window.setInterval(() => {
+      setAccountReviewProgress((current) => {
+        if (!current || current.current >= current.total) return current;
+        return {
+          ...current,
+          current: Math.min(
+            current.total,
+            current.current + GEMINI_CONCURRENCY_LIMIT
+          ),
+        };
+      });
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [accountSuggestionsMutation.isPending, hasAccountReviewProgress]);
+
+  function resetUploadReviewState() {
+    setSummary(null);
+    setLocalPreview(null);
+    setAccountFilter("all");
+    setManualEntry(emptyManualEntry);
+    setShowManualEntry(false);
+    setShowWorkbookPreview(false);
+    setAccountSuggestions(null);
+    setAccountReviewProgress(null);
+    setSuggestionError(null);
+  }
+
+  function handleGlFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
+
+    parseRunIdRef.current += 1;
+    discardStaged(summary);
+    setFile(selectedFile);
+    resetUploadReviewState();
+  }
+
+  function openGlFilePicker() {
+    if (!glFileInputRef.current) return;
+    glFileInputRef.current.value = "";
+    glFileInputRef.current.click();
+  }
+
+  function clearGlFile() {
+    parseRunIdRef.current += 1;
+    discardStaged(summary);
+    setFile(null);
+    resetUploadReviewState();
+    if (glFileInputRef.current) {
+      glFileInputRef.current.value = "";
+    }
+  }
+
+  async function handleParse() {
+    if (!file) {
+      setError("Choose a GL file before parsing.");
+      return;
+    }
+    if (!selectedBook) {
+      setError("Choose a company/book before parsing.");
+      return;
+    }
+
+    const currentFile = file;
+    const currentBook = selectedBook;
+    const parseRunId = parseRunIdRef.current + 1;
+    parseRunIdRef.current = parseRunId;
     setError(null);
     setSummary(null);
     setLocalPreview(null);
@@ -176,29 +278,101 @@ export default function GeneralLedgerUpload() {
     setShowManualEntry(false);
     setShowWorkbookPreview(false);
     setAccountSuggestions(null);
+    setAccountReviewProgress(null);
     setSuggestionError(null);
 
     try {
-      const data = await parseImportMutation.mutateAsync({ companyBookId: bookId, file });
+      const data = await parseImportMutation.mutateAsync({
+        companyBookId: currentBook.book_id,
+        file: currentFile,
+      });
+      if (parseRunIdRef.current !== parseRunId) return;
+
       setSummary(data.summary);
-      if (selectedBook) {
-        try {
-          const review = await accountSuggestionsMutation.mutateAsync({
-            file,
-            formatCode: selectedBook.format_code,
-          });
-          setAccountSuggestions(review);
-        } catch (suggestionErr) {
-          setSuggestionError(
-            suggestionErr instanceof Error
-              ? suggestionErr.message
-              : "Failed to review account suggestions"
-          );
-        }
-      }
+      void reviewAccountSuggestions({
+        file: currentFile,
+        formatCode: currentBook.format_code,
+        parseRunId,
+        rowCount: data.summary.gl_entry_lines,
+        context: {
+          filename: currentFile.name,
+          companyName: currentBook.company_name,
+          formatCode: currentBook.format_code,
+          sourceFileId: data.summary.source_file_id,
+          useGemini: useGeminiReview,
+        },
+      });
       // useImportPreview will fetch preview automatically since sourceFileId is set
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
+      setAccountReviewProgress(null);
+    }
+  }
+
+  async function reviewAccountSuggestions({
+    file,
+    formatCode,
+    parseRunId,
+    rowCount,
+    context,
+  }: {
+    file: File;
+    formatCode: string;
+    parseRunId: number;
+    rowCount: number;
+    context: AccountReviewLogContext;
+  }) {
+    if (context.useGemini) {
+      const geminiReviewRowCount =
+        GEMINI_AI_TEST_REVIEW_MAX_ROWS == null
+          ? rowCount
+          : Math.min(rowCount, GEMINI_AI_TEST_REVIEW_MAX_ROWS);
+      const totalChunks = estimateGeminiChunkCount(
+        geminiReviewRowCount
+      );
+      setAccountReviewProgress({
+        current: Math.min(GEMINI_CONCURRENCY_LIMIT, totalChunks),
+        total: totalChunks,
+      });
+    }
+
+    try {
+      const review = await accountSuggestionsMutation.mutateAsync({
+        file,
+        formatCode,
+        includeAll: true,
+        useAi: context.useGemini,
+        aiProvider: "gemini",
+        aiModel: GEMINI_AI_TEST_REVIEW_MODEL,
+        aiRowsPerRequest: GEMINI_ROWS_PER_REQUEST,
+        aiConcurrencyLimit: GEMINI_CONCURRENCY_LIMIT,
+        aiUseGoogleSearch: GEMINI_USE_GOOGLE_SEARCH,
+        aiReviewAll: true,
+        aiMaxRows: GEMINI_AI_TEST_REVIEW_MAX_ROWS,
+        aiEnableEscalation: GEMINI_ENABLE_ESCALATION,
+        aiEscalationConfidence: 0.85,
+        applyAiSuggestions: true,
+      });
+
+      const geminiIssues = logGeminiReviewIssues(review, context);
+      if (parseRunIdRef.current !== parseRunId) return;
+      setAccountSuggestions(review);
+      if (geminiIssues.length > 0) {
+        setSuggestionError(formatGeminiReviewIssueNotice(geminiIssues));
+      }
+    } catch (suggestionErr) {
+      const message =
+        suggestionErr instanceof Error
+          ? suggestionErr.message
+          : "Failed to review account suggestions";
+      logGeminiReviewRequestFailure(suggestionErr, context);
+      if (parseRunIdRef.current === parseRunId) {
+        setSuggestionError(`Account review failed after the GL upload was staged: ${message}`);
+      }
+    } finally {
+      if (parseRunIdRef.current === parseRunId) {
+        setAccountReviewProgress(null);
+      }
     }
   }
 
@@ -213,6 +387,7 @@ export default function GeneralLedgerUpload() {
 
   async function handleCancel() {
     if (!summary) return;
+    parseRunIdRef.current += 1;
     setError(null);
 
     try {
@@ -329,9 +504,10 @@ export default function GeneralLedgerUpload() {
             <div className="space-y-2">
               <Label>Company / Book</Label>
               <Select
-                value={bookId ? String(bookId) : undefined}
+                value={bookId ? String(bookId) : ""}
                 disabled={isLoadingBooks}
                 onValueChange={(val) => {
+                  parseRunIdRef.current += 1;
                   discardStaged(summary);
                   setBookId(Number(val));
                   setSummary(null);
@@ -359,35 +535,74 @@ export default function GeneralLedgerUpload() {
             </div>
 
             <div className="space-y-2">
-              <Label>GL File</Label>
+              <Label htmlFor="gl-file-upload">GL File</Label>
               <Input
+                ref={glFileInputRef}
+                id="gl-file-upload"
                 type="file"
                 accept=".xlsx,.xls,.csv"
-                onChange={(e) => {
-                  discardStaged(summary);
-                  setFile(e.target.files?.[0] ?? null);
-                  setSummary(null);
-                  setLocalPreview(null);
-                  setAccountFilter("all");
-                  setManualEntry(emptyManualEntry);
-                  setShowManualEntry(false);
-                  setShowWorkbookPreview(false);
-                  setAccountSuggestions(null);
-                  setSuggestionError(null);
-                }}
+                className="sr-only"
+                onChange={handleGlFileChange}
               />
+              <div className="flex min-h-8 items-center gap-2 rounded-lg border border-input bg-background px-2 py-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={openGlFilePicker}
+                  disabled={parseImportMutation.isPending}
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  Choose file
+                </Button>
+                <div className="min-w-0 flex-1 text-sm">
+                  {file ? (
+                    <span className="block truncate" title={file.name}>
+                      {file.name}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">No file selected</span>
+                  )}
+                </div>
+                {file && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={clearGlFile}
+                    disabled={parseImportMutation.isPending}
+                    title="Remove selected file"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
+              <div>
+                <Label htmlFor="gemini-review">Gemini AI test review</Label>
+              </div>
+              <Button
+                id="gemini-review"
+                type="button"
+                variant={useGeminiReview ? "default" : "outline"}
+                size="sm"
+                onClick={() => setUseGeminiReview((enabled) => !enabled)}
+              >
+                {useGeminiReview ? "On" : "Off"}
+              </Button>
             </div>
           </div>
 
           <div className="mt-6 flex justify-end">
             <Button
-              disabled={!bookId || !file || parseImportMutation.isPending || isReviewingAccounts}
+              disabled={!selectedBook || !file || parseImportMutation.isPending || isReviewingAccounts}
               onClick={handleParse}
             >
               {parseImportMutation.isPending
                 ? "Parsing..."
                 : accountSuggestionsMutation.isPending
-                  ? "Reviewing..."
+                  ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with Gemini..." : "Reviewing...")
                   : "Parse & Preview"}
             </Button>
           </div>
@@ -453,6 +668,37 @@ export default function GeneralLedgerUpload() {
                 />
               </div>
 
+              {preview.account_review_summary && (
+                <div className="grid border-b bg-background md:grid-cols-6 md:divide-x">
+                  <ReviewStat
+                    label="Bank Txns"
+                    value={preview.account_review_summary.bank_transaction_count.toLocaleString("en-US")}
+                  />
+                  <ReviewStat
+                    label="QB Rules"
+                    value={preview.account_review_summary.quickbooks_rule_count.toLocaleString("en-US")}
+                  />
+                  <ReviewStat
+                    label="XGBoost"
+                    value={preview.account_review_summary.xgboost_count.toLocaleString("en-US")}
+                  />
+                  <ReviewStat
+                    label="AI Review"
+                    value={preview.account_review_summary.ai_review_count.toLocaleString("en-US")}
+                    tone={preview.account_review_summary.ai_review_count > 0 ? "warning" : "default"}
+                  />
+                  <ReviewStat
+                    label="Human"
+                    value={preview.account_review_summary.human_review_count.toLocaleString("en-US")}
+                    tone={preview.account_review_summary.human_review_count > 0 ? "warning" : "default"}
+                  />
+                  <ReviewStat
+                    label="N/A"
+                    value={preview.account_review_summary.not_applicable_count.toLocaleString("en-US")}
+                  />
+                </div>
+              )}
+
               {preview.reconciliation && (
                 <div className="border-b p-6">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -502,6 +748,7 @@ export default function GeneralLedgerUpload() {
                 suggestions={suggestions}
                 response={accountSuggestions}
                 isLoading={accountSuggestionsMutation.isPending}
+                progressLabel={accountReviewProgressLabel}
                 error={suggestionError}
               />
 
@@ -709,8 +956,7 @@ function ReviewAccountGroup({
       {transactions.length === 0 ? (
         <div className="p-6 text-sm text-center text-muted-foreground">No charges found.</div>
       ) : (
-        <div className="max-h-[420px] overflow-auto">
-          <Table>
+        <Table containerClassName="max-h-[420px]">
             <TableHeader className="sticky top-0 bg-muted/50 z-10 shadow-sm">
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -737,30 +983,45 @@ function ReviewAccountGroup({
                 const suggestion = suggestionByTransaction.get(
                   suggestionKeyFromPreview(account, txn)
                 );
+                const previewReview = txn.account_review;
+                const showPreviewReview =
+                  !suggestion &&
+                  previewReview &&
+                  previewReview.source !== "not_bank_transaction";
+                const currentTargetTitle = formatReviewCurrentTarget(txn, suggestion, previewReview);
+                const suggestedTargetTitle = formatReviewSuggestedTarget(suggestion, previewReview);
+                const rowTitle = formatAccountReviewTransactionTitle(txn, suggestion, previewReview);
 
                 return (
-                <TableRow key={txn.entry_id}>
-                  <TableCell className="whitespace-nowrap">{txn.entry_date || "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{txn.transaction_type || "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{txn.transaction_number || "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap">{txn.name || "-"}</TableCell>
+                <TableRow key={txn.entry_id} title={rowTitle}>
+                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.entry_date)}>{txn.entry_date || "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.transaction_type)}>{txn.transaction_type || "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.transaction_number)}>{txn.transaction_number || "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.name)}>{txn.name || "-"}</TableCell>
                   <TableCell className="max-w-[200px] truncate" title={txn.memo || ""}>{txn.memo || "-"}</TableCell>
-                  <TableCell className="min-w-[220px] max-w-[260px]">
+                  <TableCell className="min-w-[220px] max-w-[260px]" title={currentTargetTitle}>
                     <AccountValue
                       number={
                         suggestion?.current_target_account_number ??
+                        previewReview?.current_target_account_number ??
                         txn.split_account_number
                       }
                       name={
                         suggestion?.current_target_account_name ??
+                        previewReview?.current_target_account_name ??
                         txn.split_account_name
                       }
-                      muted={!suggestion}
+                      muted={!suggestion && !previewReview}
                     />
                   </TableCell>
-                  <TableCell className="min-w-[220px] max-w-[280px]">
+                  <TableCell className="min-w-[220px] max-w-[280px]" title={suggestedTargetTitle}>
                     {suggestion ? (
                       <SuggestedAccountValue suggestion={suggestion} />
+                    ) : previewReview?.suggested_account_number ? (
+                      <AccountValue
+                        number={previewReview.suggested_account_number}
+                        name={previewReview.suggested_account_name}
+                      />
                     ) : (
                       <span className="text-muted-foreground">No change</span>
                     )}
@@ -773,16 +1034,17 @@ function ReviewAccountGroup({
                     />
                     {txn.split_account_number ? `${txn.split_account_number} · ${txn.split_account_name || ""}` : "-"}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">{txn.balance_after == null ? "-" : formatMoney(txn.balance_after)}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.debit)}>{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.credit)}>{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.balance_after)}>{txn.balance_after == null ? "-" : formatMoney(txn.balance_after)}</TableCell>
+                  <TableCell className="text-right" title={formatReviewStatus(suggestion, previewReview, txn.is_bank_line)}>
                     <div className="flex justify-end gap-1">
                       {suggestion && <SuggestionBadge suggestion={suggestion} />}
+                      {showPreviewReview && <PreviewReviewBadge review={previewReview} />}
                       {txn.is_bank_line && (
                         <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">Bank</Badge>
                       )}
-                      {!suggestion && !txn.is_bank_line ? "-" : null}
+                      {!suggestion && !showPreviewReview && !txn.is_bank_line ? "-" : null}
                     </div>
                   </TableCell>
                 </TableRow>
@@ -795,8 +1057,7 @@ function ReviewAccountGroup({
                 <TableCell />
               </TableRow>
             </TableBody>
-          </Table>
-        </div>
+        </Table>
       )}
     </div>
   );
@@ -825,6 +1086,151 @@ function formatMoney(value: number) {
 
 function formatOptionalMoney(value: number | null | undefined) {
   return value == null ? "-" : formatMoney(value);
+}
+
+function estimateGeminiChunkCount(rowCount: number) {
+  return Math.max(1, Math.ceil(rowCount / GEMINI_ROWS_PER_REQUEST));
+}
+
+function formatAccountReviewProgress(progress: AccountReviewProgress) {
+  return `Gemini chunk ${progress.current.toLocaleString("en-US")} of ${progress.total.toLocaleString("en-US")}`;
+}
+
+function getGeminiReviewedRowNumbers(
+  aiReview: GLAccountSuggestionsResponse["ai_review"]
+) {
+  const rowNumbers =
+    aiReview?.reviewed_row_numbers?.length
+      ? aiReview.reviewed_row_numbers
+      : aiReview?.suggestions.map((suggestion) => suggestion.row_number) ?? [];
+
+  return Array.from(
+    new Set(
+      rowNumbers
+        .map((rowNumber) => Number(rowNumber))
+        .filter((rowNumber) => Number.isFinite(rowNumber) && rowNumber > 0)
+    )
+  ).sort((a, b) => a - b);
+}
+
+function formatRowNumberRanges(rowNumbers: number[]) {
+  if (rowNumbers.length === 0) return "";
+
+  const ranges: string[] = [];
+  let start = rowNumbers[0];
+  let end = rowNumbers[0];
+
+  for (const rowNumber of rowNumbers.slice(1)) {
+    if (rowNumber === end + 1) {
+      end = rowNumber;
+      continue;
+    }
+
+    ranges.push(start === end ? String(start) : `${start}-${end}`);
+    start = rowNumber;
+    end = rowNumber;
+  }
+
+  ranges.push(start === end ? String(start) : `${start}-${end}`);
+  return ranges.join(", ");
+}
+
+function logGeminiReviewIssues(
+  response: GLAccountSuggestionsResponse,
+  context: AccountReviewLogContext
+) {
+  if (!context.useGemini) return [];
+
+  const issues = getGeminiReviewIssueMessages(response);
+  if (issues.length === 0) return issues;
+
+  console.info("[GL Upload] Gemini AI review notice.", {
+    ...context,
+    tokenOrQuotaLimitLikely: issues.some(isTokenOrQuotaLimitMessage),
+    firstIssue: issues[0] ?? null,
+    issueCount: issues.length,
+    issues,
+    aiReview: response.ai_review ?? null,
+  });
+
+  return issues;
+}
+
+function logGeminiReviewRequestFailure(error: unknown, context: AccountReviewLogContext) {
+  if (!context.useGemini) return;
+
+  const message = getUnknownErrorMessage(error);
+  console.error("[GL Upload] Gemini AI review request failed.", {
+    ...context,
+    tokenOrQuotaLimitLikely: isTokenOrQuotaLimitMessage(message),
+    message,
+    error,
+  });
+}
+
+function getGeminiReviewIssueMessages(response: GLAccountSuggestionsResponse) {
+  const aiReview = response.ai_review;
+  if (!aiReview) return ["Gemini review metadata was missing from the response"];
+
+  const issues: string[] = [];
+  if (!aiReview.available) {
+    issues.push("Gemini review was unavailable");
+  }
+  if (aiReview.error) {
+    issues.push(aiReview.error);
+  }
+
+  for (const chunk of aiReview.chunks ?? []) {
+    if (chunk.error) {
+      issues.push(`Rows ${chunk.start_row}-${chunk.end_row}: ${chunk.error}`);
+    }
+  }
+
+  if (aiReview.escalation?.error) {
+    issues.push(`Escalation ${aiReview.escalation.model}: ${aiReview.escalation.error}`);
+  }
+
+  for (const chunk of aiReview.escalation?.chunks ?? []) {
+    if (chunk.error) {
+      issues.push(`Escalation rows ${chunk.start_row}-${chunk.end_row}: ${chunk.error}`);
+    }
+  }
+
+  return issues;
+}
+
+function formatGeminiReviewIssueNotice(issues: string[]) {
+  const firstIssue = issues[0] ?? "Unknown Gemini review failure";
+  const quotaHint = issues.some(isTokenOrQuotaLimitMessage)
+    ? " This looks like a token, quota, or rate-limit issue."
+    : "";
+  return `Gemini review did not finish: ${firstIssue}${quotaHint} The GL upload was still staged.`;
+}
+
+function isTokenOrQuotaLimitMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return [
+    "out of tokens",
+    "token",
+    "quota",
+    "rate limit",
+    "resource_exhausted",
+    "exhausted",
+    "too many requests",
+    "429",
+    "context length",
+    "maximum context",
+  ].some((needle) => normalized.includes(needle));
+}
+
+function getUnknownErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
 }
 
 function formatCheckValue(check: string, value: number | null | undefined) {
@@ -860,16 +1266,34 @@ function AccountSuggestionReview({
   suggestions,
   response,
   isLoading,
+  progressLabel,
   error,
 }: {
   suggestions: GLAccountSuggestion[];
   response: GLAccountSuggestionsResponse | null;
   isLoading: boolean;
+  progressLabel?: string | null;
   error: string | null;
 }) {
   const previewRows = suggestions;
   const modelLoaded = response?.xgboost_model_status?.model_loaded;
-
+  const aiReview = response?.ai_review;
+  const geminiReviewedRowNumbers = useMemo(
+    () => getGeminiReviewedRowNumbers(aiReview),
+    [aiReview]
+  );
+  const geminiReviewedRowSet = useMemo(
+    () => new Set(geminiReviewedRowNumbers),
+    [geminiReviewedRowNumbers]
+  );
+  const geminiReviewedRowsLabel = formatRowNumberRanges(geminiReviewedRowNumbers);
+  const aiReviewLabel = aiReview
+    ? `Gemini AI ${aiReview.model} ${aiReview.suggestion_count.toLocaleString("en-US")}/${aiReview.reviewed_row_count.toLocaleString("en-US")}${
+        aiReview.escalation
+          ? ` + ${aiReview.escalation.model} ${aiReview.escalation.reviewed_row_count.toLocaleString("en-US")}`
+          : ""
+      }`
+    : null;
   if (!response && !isLoading && !error) {
     return null;
   }
@@ -884,14 +1308,32 @@ function AccountSuggestionReview({
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {response
-              ? `${response.suggestion_count.toLocaleString("en-US")} flagged rows from ${response.transaction_count.toLocaleString("en-US")} parsed transactions`
+              ? `${response.suggestion_count.toLocaleString("en-US")} reviewed rows from ${response.transaction_count.toLocaleString("en-US")} parsed transactions`
               : "Reviewing imported rows against the shared chart of accounts"}
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <Badge variant={modelLoaded ? "outline" : "secondary"}>
-            {modelLoaded ? "XGBoost loaded" : "AI review fallback"}
+            {modelLoaded ? "XGBoost loaded" : "XGBoost not loaded"}
           </Badge>
+          {aiReview?.max_rows != null && (
+            <Badge variant="secondary">
+              Gemini AI test cap: {aiReview.max_rows.toLocaleString("en-US")} rows
+            </Badge>
+          )}
+          {aiReview?.model && aiReview?.max_rows != null && (
+            <Badge variant="outline">
+              Test model: {aiReview.model}
+            </Badge>
+          )}
+          {aiReview && aiReview.google_search_enabled === false && (
+            <Badge variant="secondary">Search grounding off</Badge>
+          )}
+          {aiReviewLabel && (
+            <Badge variant={aiReview?.error ? "destructive" : "outline"}>
+              {aiReviewLabel}
+            </Badge>
+          )}
           {response && (
             <Badge variant={response.manual_review_count > 0 ? "destructive" : "outline"}>
               {response.manual_review_count.toLocaleString("en-US")} manual
@@ -906,9 +1348,34 @@ function AccountSuggestionReview({
         </div>
       )}
 
+      {aiReview?.error && (
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Gemini review did not finish: {aiReview.error}
+        </div>
+      )}
+
+      {aiReview?.scope_note && (
+        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          {aiReview.scope_note}
+        </div>
+      )}
+
+      {geminiReviewedRowsLabel && (
+        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <div className="font-medium">Gemini AI test rows reviewed</div>
+          <div className="mt-1 font-mono text-xs">{geminiReviewedRowsLabel}</div>
+        </div>
+      )}
+
+      {aiReview && !aiReview.error && aiReview.reviewed_row_count === 0 && (
+        <div className="mb-3 rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
+          Gemini had no parsed rows to review.
+        </div>
+      )}
+
       {isLoading && (
         <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Reviewing account suggestions...
+          {progressLabel ?? "Reviewing account suggestions..."}
         </div>
       )}
 
@@ -919,12 +1386,13 @@ function AccountSuggestionReview({
       )}
 
       {!isLoading && previewRows.length > 0 && (
-        <div className="max-h-[520px] overflow-auto rounded-md border">
-          <Table>
-            <TableHeader className="bg-muted/50">
+        <Table containerClassName="max-h-[520px] rounded-md border">
+            <TableHeader className="sticky top-0 z-10 bg-muted/50 shadow-sm">
               <TableRow>
                 <TableHead>Row</TableHead>
                 <TableHead>Transaction</TableHead>
+                <TableHead>Description / Memo</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Current Target</TableHead>
                 <TableHead>Suggested Target</TableHead>
                 <TableHead className="text-right">Confidence</TableHead>
@@ -932,42 +1400,75 @@ function AccountSuggestionReview({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {previewRows.map((suggestion) => (
-                <TableRow key={`${suggestion.row_number}-${suggestion.target_field}`}>
-                  <TableCell className="whitespace-nowrap font-medium">
-                    {suggestion.row_number}
+              {previewRows.map((suggestion) => {
+                const transactionTitle = formatSuggestionTransactionTitle(suggestion);
+                const descriptionTitle = formatReviewText(suggestion.memo || suggestion.name);
+                const currentTargetTitle = formatSuggestionAccount(
+                  suggestion.current_target_account_number,
+                  suggestion.current_target_account_name
+                );
+                const suggestedTargetTitle = formatSuggestionLabel(suggestion);
+                const rowTitle = formatAccountSuggestionTitle(suggestion);
+                const wasGeminiReviewed = geminiReviewedRowSet.has(suggestion.row_number);
+
+                return (
+                <TableRow key={`${suggestion.row_number}-${suggestion.target_field}`} title={rowTitle}>
+                  <TableCell className="whitespace-nowrap font-medium" title={`Row ${suggestion.row_number}`}>
+                    <div>{suggestion.row_number}</div>
+                    {wasGeminiReviewed && (
+                      <Badge variant="outline" className="mt-1 border-blue-200 bg-blue-50 text-blue-700">
+                        Gemini AI test
+                      </Badge>
+                    )}
                   </TableCell>
-                  <TableCell className="max-w-[260px]">
-                    <div className="truncate" title={suggestion.name || suggestion.memo || ""}>
+                  <TableCell className="max-w-[260px]" title={transactionTitle}>
+                    <div className="truncate" title={transactionTitle}>
                       {suggestion.name || suggestion.memo || suggestion.transaction_type || "-"}
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {suggestion.date || "-"} · {formatMoney(suggestion.amount)}
+                    <div className="text-xs text-muted-foreground" title={transactionTitle}>
+                      {suggestion.date || "-"} · {suggestion.transaction_type || "-"}
                     </div>
                   </TableCell>
-                  <TableCell className="max-w-[240px] truncate">
-                    {formatSuggestionAccount(
-                      suggestion.current_target_account_number,
-                      suggestion.current_target_account_name
+                  <TableCell className="max-w-[360px]" title={descriptionTitle}>
+                    <div
+                      className="truncate text-sm"
+                      title={descriptionTitle}
+                    >
+                      {suggestion.memo || suggestion.name || "-"}
+                    </div>
+                    {suggestion.transaction_number && (
+                      <div className="mt-1 text-xs text-muted-foreground" title={formatReviewText(suggestion.transaction_number)}>
+                        Num {suggestion.transaction_number}
+                      </div>
                     )}
                   </TableCell>
-                  <TableCell className="max-w-[260px] truncate">
-                    {formatSuggestionAccount(
-                      suggestion.suggested_target_account_number,
-                      suggestion.suggested_target_account_name
+                  <TableCell className="text-right whitespace-nowrap font-medium" title={formatMoney(suggestion.amount)}>
+                    {formatMoney(suggestion.amount)}
+                  </TableCell>
+                  <TableCell className="max-w-[240px] truncate" title={currentTargetTitle}>
+                    {currentTargetTitle}
+                  </TableCell>
+                  <TableCell className="max-w-[260px]" title={suggestedTargetTitle}>
+                    <div className="truncate" title={suggestedTargetTitle}>
+                      {suggestedTargetTitle}
+                    </div>
+                    {suggestion.ai_provider && (
+                      <div className="mt-1 text-xs text-muted-foreground" title={formatAiReviewTitle(suggestion)}>
+                        {suggestion.ai_provider} {formatPercent(suggestion.ai_confidence ?? 0)}
+                      </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" title={formatPercent(suggestion.confidence)}>
                     {formatPercent(suggestion.confidence)}
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" title={formatSuggestionStatus(suggestion)}>
                     <SuggestionBadge suggestion={suggestion} />
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
-          </Table>
-        </div>
+        </Table>
       )}
     </div>
   );
@@ -1059,8 +1560,7 @@ function DraggableWorkbookPreview({
         </Button>
       </div>
 
-      <div className="overflow-auto">
-        <Table>
+      <Table containerClassName="overflow-auto">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
             <TableRow>
               <TableHead>Date</TableHead>
@@ -1117,8 +1617,7 @@ function DraggableWorkbookPreview({
               </TableRow>
             ))}
           </TableBody>
-        </Table>
-      </div>
+      </Table>
     </div>
   );
 }
@@ -1185,6 +1684,9 @@ function SuggestedAccountValue({
   if (suggestion.requires_manual_review && !suggestion.suggested_target_account_number) {
     return <span className="font-medium text-red-700">Manual review</span>;
   }
+  if (isNoChangeSuggestion(suggestion)) {
+    return <span className="text-muted-foreground">No change</span>;
+  }
 
   return (
     <span
@@ -1203,13 +1705,53 @@ function SuggestedAccountValue({
 }
 
 function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
+  const hasGeminiSuggestion =
+    suggestion.ai_provider === "gemini" && Boolean(suggestion.suggested_target_account_number);
+
+  if (suggestion.requires_manual_review && hasGeminiSuggestion) {
+    return <Badge className="bg-violet-600 hover:bg-violet-600">Gemini review</Badge>;
+  }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
+  }
+  if (suggestion.rule === "gemini_ai_fallback" || suggestion.ai_provider === "gemini") {
+    return <Badge className="bg-violet-600 hover:bg-violet-600">Gemini</Badge>;
   }
   if (suggestion.suggested_target_account_number) {
     return <Badge className="bg-blue-600 hover:bg-blue-600">Suggested</Badge>;
   }
   return <Badge variant="outline">Checked</Badge>;
+}
+
+function isNoChangeSuggestion(suggestion: GLAccountSuggestion) {
+  return (
+    suggestion.rule === "keep_current" ||
+    suggestion.rule === "gemini_ai_no_change" ||
+    Boolean(
+      suggestion.suggested_target_account_number &&
+        suggestion.current_target_account_number &&
+        suggestion.suggested_target_account_number === suggestion.current_target_account_number
+    )
+  );
+}
+
+function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
+  if (review.requires_human_review) {
+    return <Badge variant="destructive">Review</Badge>;
+  }
+  if (review.requires_ai_review) {
+    return <Badge className="bg-violet-600 hover:bg-violet-600">AI review</Badge>;
+  }
+  if (review.source === "quickbooks_rule") {
+    return <Badge className="bg-emerald-600 hover:bg-emerald-600">QB Rule</Badge>;
+  }
+  if (review.source === "xgboost") {
+    return <Badge className="bg-blue-600 hover:bg-blue-600">XGBoost</Badge>;
+  }
+  if (review.categorized) {
+    return <Badge variant="outline">Checked</Badge>;
+  }
+  return <Badge variant="secondary">Review</Badge>;
 }
 
 function suggestionKeyFromSuggestion(suggestion: GLAccountSuggestion) {
@@ -1268,6 +1810,161 @@ function transactionSuggestionKey(parts: {
 function formatSuggestionAccount(number: string | null, name: string | null) {
   if (number && name) return `${number} · ${name}`;
   return number || name || "-";
+}
+
+function formatSuggestionLabel(suggestion: GLAccountSuggestion) {
+  if (suggestion.requires_manual_review && !suggestion.suggested_target_account_number) {
+    return "Manual review";
+  }
+  if (isNoChangeSuggestion(suggestion)) return "No change";
+  return formatSuggestionAccount(
+    suggestion.suggested_target_account_number,
+    suggestion.suggested_target_account_name
+  );
+}
+
+function formatReviewText(value: string | number | null | undefined) {
+  if (value == null) return "-";
+  const text = String(value).trim();
+  return text || "-";
+}
+
+function formatReviewCurrentTarget(
+  txn: ImportPreviewAccountTransaction,
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+) {
+  return formatSuggestionAccount(
+    suggestion?.current_target_account_number ??
+      review?.current_target_account_number ??
+      txn.split_account_number,
+    suggestion?.current_target_account_name ??
+      review?.current_target_account_name ??
+      txn.split_account_name
+  );
+}
+
+function formatReviewSuggestedTarget(
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+) {
+  if (suggestion) return formatSuggestionLabel(suggestion);
+  if (review?.suggested_account_number || review?.suggested_account_name) {
+    return formatSuggestionAccount(review.suggested_account_number, review.suggested_account_name);
+  }
+  return "No change";
+}
+
+function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
+  const hasGeminiSuggestion =
+    suggestion.ai_provider === "gemini" && Boolean(suggestion.suggested_target_account_number);
+
+  if (suggestion.requires_manual_review && hasGeminiSuggestion) return "Gemini review";
+  if (suggestion.requires_manual_review) return "Manual review required";
+  if (suggestion.rule === "gemini_ai_fallback" || suggestion.ai_provider === "gemini") return "Gemini";
+  if (suggestion.suggested_target_account_number) return "Suggested";
+  return "Checked";
+}
+
+function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
+  if (review.requires_human_review) return "Human review required";
+  if (review.requires_ai_review) return "AI review required";
+  if (review.source === "quickbooks_rule") return "QuickBooks rule";
+  if (review.source === "xgboost") return "XGBoost";
+  if (review.categorized) return "Checked";
+  return "Review";
+}
+
+function formatReviewStatus(
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null,
+  isBankLine = false
+) {
+  const statuses: string[] = [];
+  if (suggestion) statuses.push(formatSuggestionStatus(suggestion));
+  if (review && review.source !== "not_bank_transaction") {
+    statuses.push(formatPreviewReviewStatus(review));
+  }
+  if (isBankLine) statuses.push("Bank transaction");
+  return statuses.length > 0 ? statuses.join("; ") : "-";
+}
+
+function formatSuggestionTransactionTitle(suggestion: GLAccountSuggestion) {
+  return [
+    `Date: ${formatReviewText(suggestion.date)}`,
+    `Type: ${formatReviewText(suggestion.transaction_type)}`,
+    `Num: ${formatReviewText(suggestion.transaction_number)}`,
+    `Name: ${formatReviewText(suggestion.name)}`,
+    `Memo: ${formatReviewText(suggestion.memo)}`,
+  ].join("\n");
+}
+
+function formatAiReviewTitle(suggestion: GLAccountSuggestion) {
+  return [
+    `AI provider: ${formatReviewText(suggestion.ai_provider)}`,
+    `AI model: ${formatReviewText(suggestion.ai_model)}`,
+    `AI confidence: ${formatPercent(suggestion.ai_confidence)}`,
+    `AI reason: ${formatReviewText(suggestion.ai_reason)}`,
+    `Fits when: ${formatReviewText(suggestion.ai_fits_when)}`,
+  ].join("\n");
+}
+
+function formatAccountSuggestionTitle(suggestion: GLAccountSuggestion) {
+  const lines = [
+    `Row: ${suggestion.row_number}`,
+    formatSuggestionTransactionTitle(suggestion),
+    `Amount: ${formatMoney(suggestion.amount)}`,
+    `Current target: ${formatSuggestionAccount(
+      suggestion.current_target_account_number,
+      suggestion.current_target_account_name
+    )}`,
+    `Suggested target: ${formatSuggestionLabel(suggestion)}`,
+    `Confidence: ${formatPercent(suggestion.confidence)}`,
+    `Status: ${formatSuggestionStatus(suggestion)}`,
+    `Rule: ${formatReviewText(suggestion.rule)}`,
+    `Reason: ${formatReviewText(suggestion.reason)}`,
+  ];
+
+  if (suggestion.ai_provider) lines.push(formatAiReviewTitle(suggestion));
+  if (suggestion.xgboost_reason) {
+    lines.push(`XGBoost confidence: ${formatPercent(suggestion.xgboost_confidence)}`);
+    lines.push(`XGBoost reason: ${formatReviewText(suggestion.xgboost_reason)}`);
+  }
+
+  return lines.join("\n");
+}
+
+function formatAccountReviewTransactionTitle(
+  txn: ImportPreviewAccountTransaction,
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+) {
+  const lines = [
+    `Date: ${formatReviewText(txn.entry_date)}`,
+    `Type: ${formatReviewText(txn.transaction_type)}`,
+    `Num: ${formatReviewText(txn.transaction_number)}`,
+    `Name: ${formatReviewText(txn.name)}`,
+    `Memo: ${formatReviewText(txn.memo)}`,
+    `Amount: ${formatMoney(txn.amount)}`,
+    `Debit: ${formatOptionalMoney(txn.debit)}`,
+    `Credit: ${formatOptionalMoney(txn.credit)}`,
+    `Balance: ${formatOptionalMoney(txn.balance_after)}`,
+    `Current target: ${formatReviewCurrentTarget(txn, suggestion, review)}`,
+    `Suggested target: ${formatReviewSuggestedTarget(suggestion, review)}`,
+    `Status: ${formatReviewStatus(suggestion, review, txn.is_bank_line)}`,
+  ];
+
+  if (suggestion) {
+    lines.push(`Suggestion confidence: ${formatPercent(suggestion.confidence)}`);
+    lines.push(`Suggestion reason: ${formatReviewText(suggestion.reason)}`);
+  }
+  if (review && review.source !== "not_bank_transaction") {
+    lines.push(`Review source: ${formatReviewText(review.source)}`);
+    lines.push(`Review confidence: ${formatPercent(review.confidence)}`);
+    lines.push(`Review reason: ${formatReviewText(review.reason)}`);
+  }
+
+  return lines.join("\n");
 }
 
 function formatPercent(value: number | null | undefined) {

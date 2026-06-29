@@ -8,6 +8,7 @@ import type {
   CompanyLedger,
   ConsolidatedMatrixResponse,
   ConsolidatedReconciliation,
+  GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLExtractionFormat,
   GLFormatsResponse,
@@ -52,13 +53,7 @@ export const GLService = {
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
   },
 
-  async getAccountSuggestions(params: {
-    file: File;
-    formatCode: string;
-    includeAll?: boolean;
-    useXgboost?: boolean;
-    xgboostMinConfidence?: number;
-  }): Promise<GLAccountSuggestionsResponse> {
+  async getAccountSuggestions(params: GLAccountSuggestionsRequest): Promise<GLAccountSuggestionsResponse> {
     const formData = new FormData();
     formData.append("file", params.file);
     formData.append("format_code", params.formatCode);
@@ -68,6 +63,27 @@ export const GLService = {
       "xgboost_min_confidence",
       String(params.xgboostMinConfidence ?? 0.85)
     );
+    formData.append("use_ai", String(params.useAi ?? false));
+    formData.append("ai_provider", params.aiProvider ?? "gemini");
+    formData.append("ai_rows_per_request", String(params.aiRowsPerRequest ?? 50));
+    formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 3));
+    formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
+    formData.append("ai_review_all", String(params.aiReviewAll ?? true));
+    if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
+      formData.append("ai_max_rows", String(params.aiMaxRows));
+    }
+    formData.append("ai_enable_escalation", String(params.aiEnableEscalation ?? true));
+    formData.append(
+      "ai_escalation_confidence",
+      String(params.aiEscalationConfidence ?? 0.85)
+    );
+    formData.append("apply_ai_suggestions", String(params.applyAiSuggestions ?? true));
+    if (params.aiModel) {
+      formData.append("ai_model", params.aiModel);
+    }
+    if (params.aiEscalationModel) {
+      formData.append("ai_escalation_model", params.aiEscalationModel);
+    }
 
     return apiClient.post<GLAccountSuggestionsResponse>(
       "/accounting/gl/exports/account-suggestions",

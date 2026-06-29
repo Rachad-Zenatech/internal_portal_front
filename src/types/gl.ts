@@ -38,6 +38,72 @@ export type ParseImportResponse = {
   summary: ParseSummary;
 };
 
+export type GLAccountSuggestionsRequest = {
+  file: File;
+  formatCode: string;
+  includeAll?: boolean;
+  useXgboost?: boolean;
+  xgboostMinConfidence?: number;
+  useAi?: boolean;
+  aiProvider?: "gemini" | string;
+  aiModel?: string | null;
+  aiRowsPerRequest?: number;
+  aiConcurrencyLimit?: number;
+  aiUseGoogleSearch?: boolean;
+  aiReviewAll?: boolean;
+  aiMaxRows?: number | null;
+  aiEnableEscalation?: boolean;
+  aiEscalationModel?: string | null;
+  aiEscalationConfidence?: number;
+  applyAiSuggestions?: boolean;
+};
+
+export type GLAccountReviewAiSuggestion = {
+  row_number: number;
+  target_field: string;
+  current_account_number: string | null;
+  suggested_account_number: string | null;
+  suggested_account_name: string | null;
+  confidence: number;
+  reason: string;
+  fits_when?: string | null;
+  requires_manual_review: boolean;
+};
+
+export type GLAccountReviewAiChunk = {
+  start_row: number;
+  end_row: number;
+  transaction_count: number;
+  suggestion_count: number;
+  error: string | null;
+};
+
+export type GLAccountReviewAi = {
+  provider: "gemini" | string;
+  model: string;
+  enabled: boolean;
+  available: boolean;
+  google_search_enabled?: boolean;
+  rows_per_request: number;
+  max_rows?: number | null;
+  scope_note?: string | null;
+  total_transaction_count?: number | null;
+  reviewed_row_numbers?: number[];
+  reviewed_row_count: number;
+  suggestion_count: number;
+  error: string | null;
+  chunks: GLAccountReviewAiChunk[];
+  suggestions: GLAccountReviewAiSuggestion[];
+  escalation?: {
+    provider: "gemini" | string;
+    model: string;
+    reviewed_row_count: number;
+    suggestion_count: number;
+    error: string | null;
+    chunks: GLAccountReviewAiChunk[];
+  } | null;
+};
+
 export type GLAccountSuggestion = {
   row_number: number;
   date: string | null;
@@ -68,6 +134,15 @@ export type GLAccountSuggestion = {
   xgboost_confidence: number | null;
   xgboost_model_loaded: boolean;
   xgboost_reason: string | null;
+  ai_provider?: string | null;
+  ai_model?: string | null;
+  ai_target_field?: "ledger_account" | "split_account" | string | null;
+  ai_suggested_account_number?: string | null;
+  ai_suggested_account_name?: string | null;
+  ai_confidence?: number | null;
+  ai_reason?: string | null;
+  ai_requires_manual_review?: boolean | null;
+  ai_fits_when?: string | null;
   training_vendor: string | null;
   training_amount: number;
   training_description: string | null;
@@ -91,11 +166,44 @@ export type GLAccountSuggestionsResponse = {
     model_path?: string;
     labels_path?: string;
   };
+  ai_review?: GLAccountReviewAi | null;
   suggestions: GLAccountSuggestion[];
+};
+
+export type ImportPreviewAccountReview = {
+  status: string;
+  source: string;
+  categorized: boolean;
+  target_field: "ledger_account" | "split_account" | string;
+  current_target_account_number: string | null;
+  current_target_account_name: string | null;
+  suggested_account_number: string | null;
+  suggested_account_name: string | null;
+  suggested_payee: string | null;
+  suggested_memo: string | null;
+  confidence: number;
+  requires_ai_review: boolean;
+  requires_human_review: boolean;
+  reason: string | null;
+  matched_rule: Record<string, unknown> | null;
+  applied_actions: Record<string, unknown>[];
+  xgboost_candidate: Record<string, unknown> | null;
+  ai_context: Record<string, unknown> | null;
+  is_bank_transaction: boolean;
+};
+
+export type ImportPreviewAccountReviewSummary = {
+  quickbooks_rule_count: number;
+  xgboost_count: number;
+  ai_review_count: number;
+  human_review_count: number;
+  bank_transaction_count: number;
+  not_applicable_count: number;
 };
 
 export type ImportPreviewRow = {
   gl_id: number;
+  line_id: number;
   date: string | null;
   transaction_number: string | null;
   account_number: string | null;
@@ -105,6 +213,7 @@ export type ImportPreviewRow = {
   memo: string | null;
   debit: number;
   credit: number;
+  account_review?: ImportPreviewAccountReview | null;
 };
 
 export type ImportReconciliationCheck = {
@@ -132,6 +241,7 @@ export type ImportReviewReconciliation = {
 
 export type ImportPreviewAccountTransaction = {
   entry_id: number;
+  line_id: number;
   entry_date: string | null;
   transaction_type: string | null;
   transaction_number: string | null;
@@ -144,6 +254,7 @@ export type ImportPreviewAccountTransaction = {
   credit: number;
   balance_after: number | null;
   is_bank_line: boolean;
+  account_review?: ImportPreviewAccountReview | null;
 };
 
 export type ImportPreviewAccount = {
@@ -171,6 +282,7 @@ export type ImportPreview = {
     line_count: number;
     unique_gl_ids: number;
   };
+  account_review_summary?: ImportPreviewAccountReviewSummary;
   reconciliation?: ImportReviewReconciliation;
   accounts: ImportPreviewAccount[];
   rows: ImportPreviewRow[];

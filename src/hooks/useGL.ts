@@ -3,6 +3,7 @@ import { GLService } from '../services/glService';
 import type {
   CompanyGLCard,
   ConsolidatedMatrixResponse,
+  GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   TrialBalance,
   GLExtractionFormat,
@@ -138,13 +139,7 @@ export const useGLAccountSuggestions = () => {
   return useMutation<
     GLAccountSuggestionsResponse,
     Error,
-    {
-      file: File;
-      formatCode: string;
-      includeAll?: boolean;
-      useXgboost?: boolean;
-      xgboostMinConfidence?: number;
-    }
+    GLAccountSuggestionsRequest
   >({
     mutationFn: (params) => GLService.getAccountSuggestions(params),
   });
