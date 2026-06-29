@@ -25,8 +25,8 @@ export default function RoleNavigationPermissions() {
   });
 
   const { data: pages, isLoading: loadingPages } = useQuery({
-    queryKey: ["pages"],
-    queryFn: () => apiClient.get<any[]>("/api/configuration/pages"),
+    queryKey: ["navigation-items"],
+    queryFn: () => apiClient.get<any[]>("/api/configuration/navigation-items"),
   });
 
   const { data: actions, isLoading: loadingActions } = useQuery({
@@ -35,8 +35,8 @@ export default function RoleNavigationPermissions() {
   });
 
   const { data: rolePermissions, isLoading: loadingRolePermissions } = useQuery({
-    queryKey: ["rolePagePermissions", selectedRoleId],
-    queryFn: () => apiClient.get<any[]>(`/api/configuration/roles/${selectedRoleId}/page-permissions`),
+    queryKey: ["roleNavigationPermissions", selectedRoleId],
+    queryFn: () => apiClient.get<any[]>(`/api/configuration/roles/${selectedRoleId}/navigation-permissions`),
     enabled: !!selectedRoleId,
   });
 
@@ -53,8 +53,8 @@ export default function RoleNavigationPermissions() {
 
       if (rolePermissions) {
         rolePermissions.forEach(rp => {
-          if (state[rp.page_id]) {
-            state[rp.page_id][rp.action_id] = rp.is_allowed;
+          if (state[rp.navigation_item_id]) {
+            state[rp.navigation_item_id][rp.action_id] = rp.is_allowed;
           }
         });
       }
@@ -102,19 +102,19 @@ export default function RoleNavigationPermissions() {
       Object.keys(permissions).forEach(pageId => {
         Object.keys(permissions[pageId]).forEach(actionId => {
           payload.push({
-            page_id: pageId,
+            navigation_item_id: pageId,
             action_id: actionId,
             is_allowed: permissions[pageId][actionId]
           });
         });
       });
-      return apiClient.put(`/api/configuration/roles/${selectedRoleId}/page-permissions`, payload);
+      return apiClient.put(`/api/configuration/roles/${selectedRoleId}/navigation-permissions`, payload);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["rolePagePermissions", selectedRoleId] });
-      toast.success("Page permissions saved successfully");
+      queryClient.invalidateQueries({ queryKey: ["roleNavigationPermissions", selectedRoleId] });
+      toast.success("Navigation permissions saved successfully");
     },
-    onError: () => toast.error("Failed to save page permissions"),
+    onError: () => toast.error("Failed to save navigation permissions"),
   });
 
   const togglePermission = (pageId: string, actionId: string) => {

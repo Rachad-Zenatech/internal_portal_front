@@ -4,10 +4,11 @@ import {
   Scale,
   Layers,
   Upload,
-  Bolt,
   Landmark,
   ScrollText,
-  FileClock
+  FileClock,
+  Building,
+  ShieldCheck
 } from "lucide-react";
 
 export const navigation = [
@@ -15,55 +16,55 @@ export const navigation = [
     label: "Dashboard",
     path: "/",
     icon: LayoutDashboard,
-    section: "GENERAL",
+    section: "MAIN",
     navigationCode: "DASHBOARD",
   },
   {
     label: "Upload Files",
     path: "/upload-files",
     icon: Upload,
-    section: "GENERAL",
+    section: "MAIN",
     navigationCode: "UPLOAD_FILES",
   },
   {
     label: "General Ledger",
     path: "/general-ledger",
     icon: FileSpreadsheet,
-    section: "ACCOUNTING",
+    section: "FINANCIALS",
     navigationCode: "GENERAL_LEDGER",
   },
   {
     label: "Bank Statements",
     path: "/bank-statements",
     icon: Layers,
-    section: "ACCOUNTING",
+    section: "FINANCIALS",
     navigationCode: "BANK_STATEMENTS",
   },
   {
     label: "Trial Balance",
     path: "/trial-balance",
     icon: Scale,
-    section: "ACCOUNTING",
+    section: "FINANCIALS",
     navigationCode: "TRIAL_BALANCE",
   },
   {
     label: "Consolidated Trial Balance",
     path: "/consolidated-trial-balance-matrix",
     icon: Landmark,
-    section: "ACCOUNTING",
+    section: "FINANCIALS",
     navigationCode: "CONSOLIDATED_TRIAL_BALANCE",
   },
   {
     label: "Reports",
     path: "/reports",
     icon: ScrollText,
-    section: "REPORTS",
+    section: "ANALYTICS",
     navigationCode: "REPORTS",
   },
   {
-    label: "Configurations",
-    icon: Bolt,
-    section: "Manage",
+    label: "Business Configuration",
+    icon: Building,
+    section: "ADMINISTRATION",
     navigationCode: "CONFIGURATION",
     subItems: [
       { label: "Company", path: "/configurations/company", navigationCode: "CONFIG_COMPANY" },
@@ -71,6 +72,14 @@ export const navigation = [
       { label: "Bank Account", path: "/configurations/bank-account", navigationCode: "CONFIG_BANK_ACCOUNT" },
       { label: "Bank Feed Rules", path: "/configurations/bank-feed-rules", navigationCode: "CONFIG_BANK_FEED_RULES" },
       { label: "Chart of Accounts", path: "/configurations/chart-of-accounts", navigationCode: "CONFIG_CHART_OF_ACCOUNTS" },
+    ]
+  },
+  {
+    label: "System & Security",
+    icon: ShieldCheck,
+    section: "ADMINISTRATION",
+    navigationCode: "CONFIGURATION",
+    subItems: [
       { label: "Users", path: "/configurations/users", navigationCode: "CONFIG_USERS" },
       { label: "Roles", path: "/configurations/roles", navigationCode: "CONFIG_ROLES" },
       { label: "Role Assignments", path: "/configurations/user-role-assignment", navigationCode: "CONFIG_USER_ROLE_ASSIGNMENT" },
@@ -82,7 +91,7 @@ export const navigation = [
     label: "Audit Log",
     path: "/log/audit-log",
     icon: FileClock,
-    section: "LOG",
+    section: "ADMINISTRATION",
     navigationCode: "AUDIT_LOG",
   },
 ];

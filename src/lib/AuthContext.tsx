@@ -17,6 +17,10 @@ export interface Role {
   description?: string;
   is_active?: boolean;
   is_system_role?: boolean;
+  parent_role_id?: string | null;
+  display_order?: number;
+  department?: string;
+  children?: Role[];
 }
 
 interface PermissionsData {

@@ -10,8 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ navigationCode, actionCode = 'VIEW', children }: ProtectedRouteProps) {
-  const { user, isLoading, canAccessNavigationItem } = useAuth();
-
+  const { user, roles, isLoading, canAccessNavigationItem } = useAuth();
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-zinc-950">
@@ -22,6 +21,16 @@ export default function ProtectedRoute({ navigationCode, actionCode = 'VIEW', ch
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Check if user is pending (has only PENDING_USER role or no roles)
+  const isPending = !user.is_super_admin && (
+    roles.length === 0 || 
+    roles.every(r => r.code === 'PENDING_USER')
+  );
+
+  if (isPending) {
+    return <Navigate to="/pending-access" replace />;
   }
 
   if (navigationCode && !canAccessNavigationItem(navigationCode, actionCode)) {
