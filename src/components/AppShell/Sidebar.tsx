@@ -18,17 +18,17 @@ export default function Sidebar({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const location = useLocation();
 
-  const { canAccessPage } = useAuth();
+  const { canAccessNavigationItem } = useAuth();
 
   const toggleExpand = (label: string) => {
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
   const groupedNavigation = navigation.reduce((acc, item) => {
-    if (item.pageCode && !canAccessPage(item.pageCode)) return acc;
+    if (item.navigationCode && !canAccessNavigationItem(item.navigationCode)) return acc;
 
     const filteredSubItems = item.subItems 
-      ? item.subItems.filter(sub => !sub.pageCode || canAccessPage(sub.pageCode))
+      ? item.subItems.filter(sub => !sub.navigationCode || canAccessNavigationItem(sub.navigationCode))
       : undefined;
 
     // If it had subItems but now they are all filtered out, don't show the parent if it relies on subItems
@@ -41,7 +41,7 @@ export default function Sidebar({
     
     acc[section].push({ ...item, subItems: filteredSubItems });
     return acc;
-  }, {} as Record<string, typeof navigation>);
+  }, {} as Record<string, any[]>);
 
   return (
     <aside
@@ -124,7 +124,7 @@ export default function Sidebar({
                     isOpen && isExpanded ? "max-h-[1000px] mt-1 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
-                  {item.subItems.map((sub) => {
+                  {item.subItems.map((sub: any) => {
                     const isSubActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + "/");
                     return (
                       <Link

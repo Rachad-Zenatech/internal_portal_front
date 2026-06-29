@@ -36,7 +36,7 @@ import { useAuth } from "@/lib/AuthContext";
 import type { Role } from "@/lib/AuthContext";
 
 export default function Roles() {
-  const { canAccessPage } = useAuth();
+  const { canAccessNavigationItem } = useAuth();
   const queryClient = useQueryClient();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -198,7 +198,7 @@ export default function Roles() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          {canAccessPage("CONFIG_ROLES", "CREATE") && (
+          {canAccessNavigationItem("CONFIG_ROLES", "CREATE") && (
             <Button onClick={openCreateDialog} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Add Role
             </Button>
@@ -258,12 +258,12 @@ export default function Roles() {
                     )}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
-                    {canAccessPage("CONFIG_ROLES", "EDIT") && (
+                    {canAccessNavigationItem("CONFIG_ROLES", "EDIT") && (
                       <Button variant="ghost" size="icon" onClick={() => openEditDialog(role)}>
                         <Edit className="h-4 w-4 text-blue-600" />
                       </Button>
                     )}
-                    {canAccessPage("CONFIG_ROLES", "EDIT") && (
+                    {canAccessNavigationItem("CONFIG_ROLES", "EDIT") && (
                       <Button variant="ghost" size="icon" onClick={() => {
                         setRoleToDeactivate(role);
                         setIsDeactivateDialogOpen(true);
@@ -271,7 +271,7 @@ export default function Roles() {
                         {role.is_active ? <Ban className="h-4 w-4 text-orange-600" /> : <Power className="h-4 w-4 text-green-600" />}
                       </Button>
                     )}
-                    {canAccessPage("CONFIG_ROLES", "DELETE") && !role.is_system_role && (
+                    {canAccessNavigationItem("CONFIG_ROLES", "DELETE") && !role.is_system_role && (
                       <Button variant="ghost" size="icon" onClick={() => {
                         setRoleToDelete(role);
                         setIsDeleteDialogOpen(true);

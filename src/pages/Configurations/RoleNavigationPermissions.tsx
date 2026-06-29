@@ -10,8 +10,8 @@ import type { Role } from "@/lib/AuthContext";
 import { useSearchParams } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-export default function RolePagePermissions() {
-  const { canAccessPage } = useAuth();
+export default function RoleNavigationPermissions() {
+  const { canAccessNavigationItem } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -142,13 +142,13 @@ export default function RolePagePermissions() {
     );
   }
 
-  const selectedRole = roles?.find(r => r.id === selectedRoleId);
+  // const selectedRole = roles?.find(r => r.id === selectedRoleId);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
       <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">Role Page Permissions</h2>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">Role Navigation Permissions</h2>
           <p className="text-sm text-slate-500 dark:text-zinc-400">Configure which pages and actions are accessible by each role.</p>
         </div>
         <div className="w-full max-w-full sm:max-w-2xl xl:max-w-3xl">
@@ -204,7 +204,7 @@ export default function RolePagePermissions() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedPages.map((page, index) => (
+                  {sortedPages.map((page, _index) => (
                     <TableRow key={page.id} className="hover:bg-slate-50/50 dark:hover:bg-zinc-900/50">
                       <TableCell className="font-medium text-slate-900 dark:text-zinc-200">
                         {page.name}
@@ -216,7 +216,7 @@ export default function RolePagePermissions() {
                             type="checkbox"
                             checked={permissions[page.id]?.[action.id] || false}
                             onChange={() => togglePermission(page.id, action.id)}
-                            disabled={!canAccessPage("CONFIG_ROLE_PAGE_PERMISSIONS", "EDIT")}
+                            disabled={!canAccessNavigationItem("CONFIG_ROLE_PAGE_PERMISSIONS", "EDIT")}
                             className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                         </TableCell>
@@ -227,7 +227,7 @@ export default function RolePagePermissions() {
               </Table>
             </div>
 
-            {canAccessPage("CONFIG_ROLE_PAGE_PERMISSIONS", "EDIT") && (
+            {canAccessNavigationItem("CONFIG_ROLE_PAGE_PERMISSIONS", "EDIT") && (
               <div className="pt-6 flex justify-end">
                 <Button 
                   onClick={() => saveMutation.mutate()} 
