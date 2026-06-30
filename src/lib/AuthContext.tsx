@@ -7,18 +7,26 @@ export interface User {
   full_name: string;
   is_super_admin: boolean;
   force_password_change?: boolean;
+  is_active?: boolean;
 }
 
 export interface Role {
   id: string;
   name: string;
   code: string;
+  description?: string;
+  is_active?: boolean;
+  is_system_role?: boolean;
+  parent_role_id?: string | null;
+  display_order?: number;
+  department?: string;
+  children?: Role[];
 }
 
 interface PermissionsData {
   user: User;
   roles: Role[];
-  page_permissions: Record<string, string[]>;
+  navigation_permissions: Record<string, string[]>;
   mcp_tool_permissions: string[];
 }
 
@@ -26,7 +34,7 @@ interface AuthContextType {
   user: User | null;
   roles: Role[];
   isLoading: boolean;
-  canAccessPage: (pageCode: string, actionCode?: string) => boolean;
+  canAccessNavigationItem: (navigationCode: string, actionCode?: string) => boolean;
   canUseMcpTool: (toolCode: string) => boolean;
   hasRole: (roleCode: string) => boolean;
   logout: () => void;
@@ -62,12 +70,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchPermissions();
   }, []);
 
-  const canAccessPage = (pageCode: string, actionCode = 'VIEW') => {
+  const canAccessNavigationItem = (navigationCode: string, actionCode = 'VIEW') => {
     if (!permissions) return false;
     if (permissions.user.is_super_admin) return true;
     if (permissions.roles.some((r) => r.code === 'SUPER_ADMIN')) return true;
     
-    const pageActions = permissions.page_permissions[pageCode];
+    const pageActions = permissions.navigation_permissions[navigationCode];
     if (!pageActions) return false;
     
     return pageActions.includes(actionCode);
@@ -99,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: permissions?.user || null,
         roles: permissions?.roles || [],
         isLoading,
-        canAccessPage,
+        canAccessNavigationItem,
         canUseMcpTool,
         hasRole,
         logout,

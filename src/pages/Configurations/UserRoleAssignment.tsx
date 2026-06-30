@@ -4,7 +4,7 @@ import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Check, ChevronsUpDown, Loader2, ArrowUpDown, Search } from "lucide-react";
+import { Check, Loader2, ArrowUpDown, Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,7 +19,7 @@ import type { User, Role } from "@/lib/AuthContext";
 import { useSearchParams } from "react-router-dom";
 
 export default function UserRoleAssignment() {
-  const { canAccessPage } = useAuth();
+  const { canAccessNavigationItem } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -217,7 +217,7 @@ export default function UserRoleAssignment() {
               </Table>
             </div>
 
-            {canAccessPage("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && (
+            {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && (
               <div className="pt-6 flex justify-end">
                 <Button 
                   onClick={() => saveMutation.mutate()} 

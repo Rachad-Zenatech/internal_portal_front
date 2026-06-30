@@ -18,7 +18,7 @@ import type { Role } from "@/lib/AuthContext";
 import { useSearchParams } from "react-router-dom";
 
 export default function RoleMcpToolPermissions() {
-  const { canAccessPage } = useAuth();
+  const { canAccessNavigationItem } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -133,7 +133,7 @@ export default function RoleMcpToolPermissions() {
     );
   }
 
-  const selectedRole = roles?.find(r => r.id === selectedRoleId);
+  // const selectedRole = roles?.find(r => r.id === selectedRoleId);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
@@ -207,7 +207,7 @@ export default function RoleMcpToolPermissions() {
                             type="checkbox"
                             checked={permissions[tool.id] || false}
                             onChange={() => togglePermission(tool.id)}
-                            disabled={!canAccessPage("CONFIG_ROLE_MCP_TOOL_PERMISSIONS", "EDIT")}
+                            disabled={!canAccessNavigationItem("CONFIG_ROLE_MCP_TOOL_PERMISSIONS", "EDIT")}
                             className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer disabled:opacity-50"
                           />
                         </TableCell>
@@ -232,7 +232,7 @@ export default function RoleMcpToolPermissions() {
               </Table>
             </div>
 
-            {canAccessPage("CONFIG_ROLE_MCP_TOOL_PERMISSIONS", "EDIT") && (
+            {canAccessNavigationItem("CONFIG_ROLE_MCP_TOOL_PERMISSIONS", "EDIT") && (
               <div className="pt-6 flex justify-end">
                 <Button 
                   onClick={() => saveMutation.mutate()} 

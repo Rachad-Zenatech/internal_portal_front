@@ -128,7 +128,6 @@ export default function TrialBalance() {
                   <SelectItem value="q4">Q4</SelectItem>
                 </SelectGroup>
                 <SelectItem value="year">Year</SelectItem>
-                <SelectItem value="custom">Custom</SelectItem>
               </SelectContent>
             </Select>
           </div>

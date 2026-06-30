@@ -67,7 +67,7 @@ export default function AppShell({ children }: Props) {
   const showForcePasswordDialog = user?.force_password_change === true;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground">
+    <div className="flex h-screen min-w-[375px] min-h-[400px] overflow-hidden bg-background text-foreground">
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
