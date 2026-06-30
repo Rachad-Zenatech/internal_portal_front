@@ -92,7 +92,7 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
       </CardHeader>
       <CardContent className="flex-1 pb-6 flex flex-col min-h-0">
         <div className="flex-1 w-full relative min-h-[250px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <PieChart>
               <Pie
                 data={data}

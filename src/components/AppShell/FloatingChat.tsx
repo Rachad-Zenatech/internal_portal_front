@@ -1,8 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send, Bot, X, Minimize2, Paperclip, FileText, Sparkles } from "lucide-react";
+import { Send, Bot, X, Minimize2, Paperclip, FileText, Sparkles } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
+import { Message, MessageAvatar, MessageContent, MessageGroup } from "@/components/ui/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { motion } from "framer-motion";
+import { 
+  MessageScrollerProvider, 
+  MessageScroller, 
+  MessageScrollerViewport, 
+  MessageScrollerContent, 
+  MessageScrollerItem,
+  MessageScrollerButton
+} from "@/components/ui/message-scroller";
+import { useAuth } from "@/lib/AuthContext";
+
+const MotionMessageScrollerItem = motion.create(MessageScrollerItem);
 
 type Message = {
   role: "user" | "assistant";
@@ -30,6 +44,7 @@ const SUGGESTIONS = [
 ];
 
 export default function FloatingChat() {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   
@@ -42,7 +57,8 @@ export default function FloatingChat() {
       role: "assistant",
       content: "Hello, I’m ZenaBot 🤖. How can I assist you today?",
     },
-  ]);  const [input, setInput] = useState("");
+  ]);
+  const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
 
   const endRef = useRef<HTMLDivElement>(null);
@@ -113,9 +129,13 @@ export default function FloatingChat() {
 
   useEffect(() => {
     if (isOpen) {
-      endRef.current?.scrollIntoView({ behavior: "smooth" });
+      setTimeout(() => {
+        endRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 50);
     }
   }, [messages, loading, isOpen]);
+
+
 
   useEffect(() => {
     const handleAskAi = (e: Event) => {
@@ -238,50 +258,93 @@ export default function FloatingChat() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex flex-col gap-2 ${
-                  message.role === "user" ? "items-end" : "items-start"
-                }`}
-              >
-                {message.file && (
-                  <div className="flex items-center gap-3 p-3 rounded-2xl border border-border max-w-[85%] bg-card text-card-foreground shadow-sm">
-                    <div className="h-10 w-10 shrink-0 bg-red-500 rounded-[10px] flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex flex-col overflow-hidden min-w-[120px] pr-4">
-                      <span className="text-sm font-bold truncate text-foreground leading-tight">{message.file.name}</span>
-                      <span className="text-xs text-muted-foreground uppercase mt-0.5">
-                        {message.file.name.split('.').pop() || "FILE"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-                {message.content && (
-                  <div
-                    className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap ${
-                      message.role === "user"
-                        ? "bg-blue-600 text-white rounded-br-sm"
-                        : "bg-muted text-foreground rounded-bl-sm"
-                    }`}
+          <MessageScrollerProvider>
+            <MessageScroller className="flex-1">
+              <MessageScrollerViewport className="custom-scrollbar">
+                <MessageScrollerContent className="p-4">
+                  <MessageGroup>
+              {messages.map((message, index) => (
+                <MotionMessageScrollerItem 
+                  key={index}
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  scrollAnchor={index === messages.length - 1 && !loading}
+                >
+                  <Message
+                    align={message.role === "user" ? "end" : "start"}
                   >
-                    {message.content}
-                  </div>
-                )}
-              </div>
-            ))}
+                    <MessageAvatar className={message.role === "user" ? "h-8 w-8 min-w-8 shrink-0 overflow-hidden rounded-full border border-border/50 shadow-sm" : "h-8 w-8 min-w-8 shrink-0 bg-blue-100 text-blue-600 overflow-hidden rounded-full shadow-sm"}>
+                    {message.role === "user" ? (
+                      <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || user?.email || "User")}&background=eff6ff&color=2563eb&rounded=true&bold=true`} alt="User avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <Bot size={18} />
+                    )}
+                  </MessageAvatar>
+                  <MessageContent>
+                    {message.file && (
+                      <Bubble variant={message.role === "user" ? "default" : "outline"} className="mb-1">
+                        <BubbleContent>
+                          <div className="flex items-center gap-3 w-fit">
+                            <div className="h-10 w-10 shrink-0 bg-red-500 rounded-[10px] flex items-center justify-center">
+                              <FileText className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="flex flex-col overflow-hidden min-w-[120px] pr-4">
+                              <span className="text-sm font-bold truncate leading-tight">{message.file.name}</span>
+                              <span className="text-xs uppercase mt-0.5 opacity-80">
+                                {message.file.name.split('.').pop() || "FILE"}
+                              </span>
+                            </div>
+                          </div>
+                        </BubbleContent>
+                      </Bubble>
+                    )}
+                    {message.content && (
+                      <Bubble variant={message.role === "user" ? "default" : "muted"}>
+                        <BubbleContent>
+                          {message.content}
+                        </BubbleContent>
+                      </Bubble>
+                    )}
+                    </MessageContent>
+                  </Message>
+                </MotionMessageScrollerItem>
+              ))}
 
-            {loading && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground pl-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Thinking...
-              </div>
-            )}
-
-            <div ref={endRef} />
-          </div>
+              {loading && (
+                <MotionMessageScrollerItem
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  scrollAnchor={true}
+                >
+                  <Message align="start">
+                    <MessageAvatar className="h-8 w-8 min-w-8 shrink-0 bg-blue-100 text-blue-600 overflow-hidden rounded-full shadow-sm">
+                    <Bot size={18} />
+                  </MessageAvatar>
+                  <MessageContent>
+                    <Bubble variant="muted">
+                      <BubbleContent>
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                          </span>
+                          Thinking...
+                        </div>
+                      </BubbleContent>
+                    </Bubble>
+                  </MessageContent>
+                </Message>
+                </MotionMessageScrollerItem>
+              )}
+              <div ref={endRef} />
+            </MessageGroup>
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
 
           {messages.length === 1 && (
             <div className="px-4 pb-3 flex flex-wrap gap-2">

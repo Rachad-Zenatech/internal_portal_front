@@ -99,7 +99,7 @@ export default function RevenueExpenseChart({
       </CardHeader>
       <CardContent>
         <div className="h-[350px] w-full mt-4">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <AreaChart
               data={data}
               margin={{ top: 10, right: 30, left: 10, bottom: 0 }}

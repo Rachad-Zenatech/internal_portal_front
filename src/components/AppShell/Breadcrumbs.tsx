@@ -1,9 +1,23 @@
 import { useLocation, Link } from "react-router-dom";
 import { ChevronRight, Home } from "lucide-react";
+import { useEffect, useState } from "react";
 
 export default function Breadcrumbs() {
   const location = useLocation();
   const pathnames = location.pathname.split("/").filter((x) => x);
+  const [customTitles, setCustomTitles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const handleSetTitle = (e: Event) => {
+      const customEvent = e as CustomEvent<{ path: string; title: string }>;
+      setCustomTitles((prev) => ({
+        ...prev,
+        [customEvent.detail.path]: customEvent.detail.title,
+      }));
+    };
+    document.addEventListener("set-breadcrumb-title", handleSetTitle);
+    return () => document.removeEventListener("set-breadcrumb-title", handleSetTitle);
+  }, []);
 
   // Define custom mapping for breadcrumb names to ensure they look pretty
   const formatName = (name: string) => {
@@ -38,14 +52,14 @@ export default function Breadcrumbs() {
             <ChevronRight className="h-4 w-4 mx-1 opacity-50 shrink-0" />
             {isLast ? (
               <span className="font-semibold text-foreground" aria-current="page">
-                {formatName(value)}
+                {customTitles[to] || formatName(value)}
               </span>
             ) : (
               <Link 
                 to={to} 
                 className="hover:text-foreground hover:underline underline-offset-4 transition-colors"
               >
-                {formatName(value)}
+                {customTitles[to] || formatName(value)}
               </Link>
             )}
           </div>

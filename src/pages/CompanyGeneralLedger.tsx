@@ -62,6 +62,19 @@ export default function CompanyGeneralLedger() {
     window.history.replaceState(null, "", `${window.location.pathname}?${newParams.toString()}`);
   }, [period, year]);
 
+  useEffect(() => {
+    if (data?.company_name) {
+      document.dispatchEvent(
+        new CustomEvent("set-breadcrumb-title", {
+          detail: {
+            path: `/general-ledger/company/${companyId}`,
+            title: data.company_name,
+          },
+        })
+      );
+    }
+  }, [data?.company_name, companyId]);
+
   const imports = useMemo(() => data?.imports ?? [], [data?.imports]);
 
   const filteredImports = useMemo(() => {

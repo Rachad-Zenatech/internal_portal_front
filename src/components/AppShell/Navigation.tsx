@@ -94,4 +94,4 @@ export const navigation = [
     section: "ADMINISTRATION",
     navigationCode: "AUDIT_LOG",
   },
-];
+]

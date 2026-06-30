@@ -95,10 +95,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
+    const userEmail = permissions?.user?.email;
+    const msIdToken = localStorage.getItem('ms_id_token');
+    
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('ms_id_token');
     setPermissions(null);
-    window.location.href = '/login';
+    
+    // Redirect to Microsoft SSO logout to clear the Azure AD session
+    const postLogoutUri = encodeURIComponent(window.location.origin + '/login');
+    // We use the specific tenant ID for better logout routing
+    let logoutUrl = `https://login.microsoftonline.com/793faa36-870a-465b-93be-d8d07da8a680/oauth2/v2.0/logout?post_logout_redirect_uri=${postLogoutUri}`;
+    
+    // Use id_token_hint if available (completely bypasses picker), fallback to logout_hint
+    if (msIdToken) {
+      logoutUrl += `&id_token_hint=${msIdToken}`;
+    } else if (userEmail) {
+      logoutUrl += `&logout_hint=${encodeURIComponent(userEmail)}`;
+    }
+    
+    window.location.href = logoutUrl;
   };
 
   return (

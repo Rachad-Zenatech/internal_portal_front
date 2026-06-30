@@ -152,7 +152,7 @@ export default function Roles() {
       ...data,
       parent_role_id: data.parent_role_id || null
     }),
-    onSuccess: (newRole) => {
+    onSuccess: (newRole: any) => {
       queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
       queryClient.invalidateQueries({ queryKey: ["roles"] });
       toast.success("Role created successfully");
@@ -168,7 +168,7 @@ export default function Roles() {
         ...data.payload,
         parent_role_id: data.payload.parent_role_id || null
       }),
-    onSuccess: (updatedRole) => {
+    onSuccess: (updatedRole: any) => {
       queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
       queryClient.invalidateQueries({ queryKey: ["roles"] });
       toast.success("Role updated successfully");

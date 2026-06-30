@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,18 +11,26 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const { refreshPermissions } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const hasProcessedLogin = useRef(false);
 
   useEffect(() => {
     const handleSsoCallback = async () => {
+      if (hasProcessedLogin.current) return;
+
       const token = searchParams.get("token");
       const userId = searchParams.get("user_id");
       const email = searchParams.get("email");
+      const idToken = searchParams.get("id_token");
 
       if (token && userId && email) {
+        hasProcessedLogin.current = true;
         setIsLoading(true);
         try {
           localStorage.setItem("token", token);
           localStorage.setItem("user", JSON.stringify({ id: userId, email }));
+          if (idToken) {
+            localStorage.setItem("ms_id_token", idToken);
+          }
           
           await refreshPermissions();
           

@@ -132,7 +132,7 @@ export default function BankBalancesChart({ companyId }: BankBalancesChartProps)
         <div className="flex-1 w-full min-h-0 flex relative">
           {/* Sticky Left Y-Axis */}
           <div className="w-[55px] shrink-0 h-full bg-card z-10">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 20 }}>
                 {/* Dummy XAxis to match bottom margin height perfectly */}
                 <XAxis dataKey="account" tick={false} axisLine={false} tickLine={false} height={80} />
@@ -154,7 +154,7 @@ export default function BankBalancesChart({ companyId }: BankBalancesChartProps)
           {/* Scrollable Chart Area */}
           <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar">
             <div style={{ minWidth: Math.max(800, data.length * 80), height: "100%" }}>
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis 
