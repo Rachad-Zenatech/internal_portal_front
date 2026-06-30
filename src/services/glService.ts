@@ -8,6 +8,10 @@ import type {
   CompanyLedger,
   ConsolidatedMatrixResponse,
   ConsolidatedReconciliation,
+  ApplySuggestedTargetRequest,
+  ApplySuggestedTargetResponse,
+  UnapplySuggestedTargetRequest,
+  UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLExtractionFormat,
@@ -130,6 +134,30 @@ export const GLService = {
     return apiClient.post<ManualGlEntryResponse>(
       `/accounting/gl/imports/${params.sourceFileId}/manual-entry?preview_limit=${previewLimit}`,
       params.entry
+    );
+  },
+
+  async applySuggestedTarget(params: {
+    sourceFileId: number;
+    change: ApplySuggestedTargetRequest;
+    previewLimit?: number;
+  }): Promise<ApplySuggestedTargetResponse> {
+    const previewLimit = params.previewLimit ?? 100;
+    return apiClient.post<ApplySuggestedTargetResponse>(
+      `/accounting/gl/imports/${params.sourceFileId}/apply-suggested-target?preview_limit=${previewLimit}`,
+      params.change
+    );
+  },
+
+  async unapplySuggestedTarget(params: {
+    sourceFileId: number;
+    change: UnapplySuggestedTargetRequest;
+    previewLimit?: number;
+  }): Promise<UnapplySuggestedTargetResponse> {
+    const previewLimit = params.previewLimit ?? 100;
+    return apiClient.post<UnapplySuggestedTargetResponse>(
+      `/accounting/gl/imports/${params.sourceFileId}/unapply-suggested-target?preview_limit=${previewLimit}`,
+      params.change
     );
   },
 

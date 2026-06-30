@@ -89,6 +89,13 @@ export type GLAccountReviewAi = {
   scope_note?: string | null;
   total_transaction_count?: number | null;
   reviewed_row_numbers?: number[];
+  test_forced_manual_review_enabled?: boolean;
+  test_forced_manual_review_row_number?: number | null;
+  test_empty_current_target_suggestion_enabled?: boolean;
+  test_empty_current_target_row_number?: number | null;
+  test_empty_current_target_suggested_account_number?: string | null;
+  test_empty_current_target_suggested_account_name?: string | null;
+  test_empty_current_target_memo?: string | null;
   reviewed_row_count: number;
   suggestion_count: number;
   error: string | null;
@@ -316,6 +323,54 @@ export type ManualGlEntryResponse = {
     line_id: number;
     amount: number;
     is_bank_line: boolean;
+  };
+  preview: ImportPreview;
+};
+
+export type ApplySuggestedTargetRequest = {
+  company_id: number;
+  row_number: number;
+  target_field: "ledger_account" | "split_account" | string;
+  suggested_account_number: string;
+};
+
+export type ApplySuggestedTargetResponse = {
+  status: "applied";
+  applied_change: {
+    source_file_id: number;
+    company_id: number;
+    row_number: number;
+    entry_id: number;
+    line_id: number;
+    target_field: "ledger_account" | "split_account" | string;
+    previous_account_number: string | null;
+    previous_account_name: string | null;
+    applied_account_number: string;
+    applied_account_name: string | null;
+  };
+  preview: ImportPreview;
+};
+
+export type UnapplySuggestedTargetRequest = {
+  company_id: number;
+  row_number: number;
+  target_field: "ledger_account" | "split_account" | string;
+  previous_account_number?: string | null;
+};
+
+export type UnapplySuggestedTargetResponse = {
+  status: "unapplied";
+  unapplied_change: {
+    source_file_id: number;
+    company_id: number;
+    row_number: number;
+    entry_id: number;
+    line_id: number;
+    target_field: "ledger_account" | "split_account" | string;
+    removed_account_number: string | null;
+    removed_account_name: string | null;
+    restored_account_number: string | null;
+    restored_account_name: string | null;
   };
   preview: ImportPreview;
 };
