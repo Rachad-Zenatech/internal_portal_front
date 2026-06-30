@@ -3,6 +3,10 @@ import { GLService } from '../services/glService';
 import type {
   CompanyGLCard,
   ConsolidatedMatrixResponse,
+  ApplySuggestedTargetRequest,
+  ApplySuggestedTargetResponse,
+  UnapplySuggestedTargetRequest,
+  UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   TrialBalance,
@@ -176,6 +180,36 @@ export const useAddManualEntry = () => {
     { sourceFileId: number; entry: ManualGlEntryRequest }
   >({
     mutationFn: ({ sourceFileId, entry }) => GLService.addManualEntry({ sourceFileId, entry }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['import-preview', variables.sourceFileId] });
+    },
+  });
+};
+
+export const useApplySuggestedTarget = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ApplySuggestedTargetResponse,
+    Error,
+    { sourceFileId: number; change: ApplySuggestedTargetRequest }
+  >({
+    mutationFn: ({ sourceFileId, change }) =>
+      GLService.applySuggestedTarget({ sourceFileId, change }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['import-preview', variables.sourceFileId] });
+    },
+  });
+};
+
+export const useUnapplySuggestedTarget = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    UnapplySuggestedTargetResponse,
+    Error,
+    { sourceFileId: number; change: UnapplySuggestedTargetRequest }
+  >({
+    mutationFn: ({ sourceFileId, change }) =>
+      GLService.unapplySuggestedTarget({ sourceFileId, change }),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['import-preview', variables.sourceFileId] });
     },

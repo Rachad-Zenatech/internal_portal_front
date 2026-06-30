@@ -2,6 +2,7 @@
 
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  ApplySuggestedTargetResponse,
   GLAccountSuggestion,
   GLAccountSuggestionsResponse,
   ImportPreview,
@@ -17,6 +18,8 @@ import {
   useGLAccountSuggestions,
   useDeleteImport,
   useAddManualEntry,
+  useApplySuggestedTarget,
+  useUnapplySuggestedTarget,
   useSaveImport,
 } from "@/hooks/useGL";
 
@@ -27,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileSpreadsheet, Move, Sparkles, UploadCloud, X } from "lucide-react";
+import { Check, FileSpreadsheet, Move, RotateCcw, Sparkles, UploadCloud, X } from "lucide-react";
 
 type ParseSummary = {
   company_id: number;
@@ -76,7 +79,7 @@ type AccountReviewLogContext = {
 const GEMINI_ROWS_PER_REQUEST = 50;
 const GEMINI_CONCURRENCY_LIMIT = 3;
 // Temporary testing flag: set to null to let Gemini AI review all selected rows.
-const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = 10;
+const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = 25;
 const GEMINI_AI_TEST_REVIEW_MODEL = "gemini-3.1-flash-lite";
 const GEMINI_USE_GOOGLE_SEARCH = false;
 const GEMINI_ENABLE_ESCALATION = false;
@@ -109,6 +112,13 @@ export default function GeneralLedgerUpload() {
     useState<GLAccountSuggestionsResponse | null>(null);
   const [accountReviewProgress, setAccountReviewProgress] =
     useState<AccountReviewProgress | null>(null);
+  const [applyingSuggestionKey, setApplyingSuggestionKey] = useState<string | null>(null);
+  const [appliedSuggestionRows, setAppliedSuggestionRows] = useState<Set<number>>(
+    () => new Set()
+  );
+  const [appliedSuggestionChanges, setAppliedSuggestionChanges] = useState<
+    Map<string, ApplySuggestedTargetResponse["applied_change"]>
+  >(() => new Map());
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const parseRunIdRef = useRef(0);
@@ -126,6 +136,8 @@ export default function GeneralLedgerUpload() {
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const deleteImportMutation = useDeleteImport();
   const addManualEntryMutation = useAddManualEntry();
+  const applySuggestedTargetMutation = useApplySuggestedTarget();
+  const unapplySuggestedTargetMutation = useUnapplySuggestedTarget();
   const saveImportMutation = useSaveImport();
 
   const [localPreview, setLocalPreview] = useState<ImportPreview | null>(null);
@@ -227,6 +239,9 @@ export default function GeneralLedgerUpload() {
     setShowWorkbookPreview(false);
     setAccountSuggestions(null);
     setAccountReviewProgress(null);
+    setApplyingSuggestionKey(null);
+    setAppliedSuggestionRows(new Set());
+    setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
   }
 
@@ -279,6 +294,9 @@ export default function GeneralLedgerUpload() {
     setShowWorkbookPreview(false);
     setAccountSuggestions(null);
     setAccountReviewProgress(null);
+    setApplyingSuggestionKey(null);
+    setAppliedSuggestionRows(new Set());
+    setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
 
     try {
@@ -405,6 +423,9 @@ export default function GeneralLedgerUpload() {
       setShowManualEntry(false);
       setShowWorkbookPreview(false);
       setAccountSuggestions(null);
+      setApplyingSuggestionKey(null);
+      setAppliedSuggestionRows(new Set());
+      setAppliedSuggestionChanges(new Map());
       setSuggestionError(null);
     }
   }
@@ -458,6 +479,176 @@ export default function GeneralLedgerUpload() {
       setShowManualEntry(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add manual GL entry");
+    }
+  }
+
+  async function handleApplySuggestedTarget(suggestion: GLAccountSuggestion) {
+    if (!summary) return;
+    const suggestedAccountNumber = suggestion.suggested_target_account_number?.trim();
+    if (!suggestedAccountNumber || suggestedAccountNumber === "MANUAL_REVIEW") {
+      setError("Choose a valid suggested target before applying.");
+      return;
+    }
+
+    const suggestionKey = applySuggestionKey(suggestion);
+    setError(null);
+    setApplyingSuggestionKey(suggestionKey);
+
+    try {
+      const response = await applySuggestedTargetMutation.mutateAsync({
+        sourceFileId: summary.source_file_id,
+        change: {
+          company_id: summary.company_id,
+          row_number: suggestion.row_number,
+          target_field: suggestion.target_field,
+          suggested_account_number: suggestedAccountNumber,
+        },
+      });
+
+      setLocalPreview(response.preview);
+      setAppliedSuggestionRows((current) => {
+        const next = new Set(current);
+        next.add(suggestion.row_number);
+        return next;
+      });
+      setAppliedSuggestionChanges((current) => {
+        const next = new Map(current);
+        next.set(suggestionKey, response.applied_change);
+        return next;
+      });
+      setAccountSuggestions((current) => {
+        if (!current) return current;
+
+        const updatedSuggestions = current.suggestions.map((row) => {
+          if (applySuggestionKey(row) !== suggestionKey) return row;
+
+          const updatedRow = {
+            ...row,
+            current_target_account_number: response.applied_change.applied_account_number,
+            current_target_account_name: response.applied_change.applied_account_name,
+            suggested_target_account_number: response.applied_change.applied_account_number,
+            suggested_target_account_name: response.applied_change.applied_account_name,
+            suggested_account_number: response.applied_change.applied_account_number,
+            suggested_account_name: response.applied_change.applied_account_name,
+            confidence: 1,
+            reason: "Suggested target was applied to the staged import.",
+            rule: "applied_suggested_target",
+            requires_manual_review: false,
+          };
+
+          if (response.applied_change.target_field === "split_account") {
+            return {
+              ...updatedRow,
+              current_split_account_number: response.applied_change.applied_account_number,
+              current_split_account_name: response.applied_change.applied_account_name,
+              suggested_split_account_number: response.applied_change.applied_account_number,
+              suggested_split_account_name: response.applied_change.applied_account_name,
+            };
+          }
+
+          return {
+            ...updatedRow,
+            ledger_account_number: response.applied_change.applied_account_number,
+            ledger_account_name: response.applied_change.applied_account_name,
+          };
+        });
+
+        return {
+          ...current,
+          suggestions: updatedSuggestions,
+          changed_suggestion_count: countChangedSuggestions(updatedSuggestions),
+          manual_review_count: updatedSuggestions.filter((row) => row.requires_manual_review).length,
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to apply suggested target");
+    } finally {
+      setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
+    }
+  }
+
+  async function handleUnapplySuggestedTarget(suggestion: GLAccountSuggestion) {
+    if (!summary) return;
+    const suggestionKey = applySuggestionKey(suggestion);
+    const appliedChange = appliedSuggestionChanges.get(suggestionKey);
+    if (!appliedChange) {
+      setError("This suggested target is not available to undo in the current review session.");
+      return;
+    }
+
+    setError(null);
+    setApplyingSuggestionKey(suggestionKey);
+
+    try {
+      const response = await unapplySuggestedTargetMutation.mutateAsync({
+        sourceFileId: summary.source_file_id,
+        change: {
+          company_id: summary.company_id,
+          row_number: appliedChange.row_number,
+          target_field: appliedChange.target_field,
+          previous_account_number: appliedChange.previous_account_number,
+        },
+      });
+
+      setLocalPreview(response.preview);
+      setAppliedSuggestionRows((current) => {
+        const next = new Set(current);
+        next.delete(suggestion.row_number);
+        return next;
+      });
+      setAppliedSuggestionChanges((current) => {
+        const next = new Map(current);
+        next.delete(suggestionKey);
+        return next;
+      });
+      setAccountSuggestions((current) => {
+        if (!current) return current;
+
+        const updatedSuggestions = current.suggestions.map((row) => {
+          if (applySuggestionKey(row) !== suggestionKey) return row;
+
+          const updatedRow = {
+            ...row,
+            current_target_account_number: response.unapplied_change.restored_account_number,
+            current_target_account_name: response.unapplied_change.restored_account_name,
+            suggested_target_account_number: response.unapplied_change.removed_account_number,
+            suggested_target_account_name: response.unapplied_change.removed_account_name,
+            suggested_account_number: response.unapplied_change.removed_account_number,
+            suggested_account_name: response.unapplied_change.removed_account_name,
+            confidence: row.ai_confidence ?? row.confidence,
+            reason: "Suggested target was unapplied from the staged import.",
+            rule: "unapplied_suggested_target",
+            requires_manual_review: false,
+          };
+
+          if (response.unapplied_change.target_field === "split_account") {
+            return {
+              ...updatedRow,
+              current_split_account_number: response.unapplied_change.restored_account_number,
+              current_split_account_name: response.unapplied_change.restored_account_name,
+              suggested_split_account_number: response.unapplied_change.removed_account_number,
+              suggested_split_account_name: response.unapplied_change.removed_account_name,
+            };
+          }
+
+          return {
+            ...updatedRow,
+            ledger_account_number: response.unapplied_change.restored_account_number,
+            ledger_account_name: response.unapplied_change.restored_account_name,
+          };
+        });
+
+        return {
+          ...current,
+          suggestions: updatedSuggestions,
+          changed_suggestion_count: countChangedSuggestions(updatedSuggestions),
+          manual_review_count: updatedSuggestions.filter((row) => row.requires_manual_review).length,
+        };
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to undo suggested target");
+    } finally {
+      setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
     }
   }
 
@@ -517,6 +708,9 @@ export default function GeneralLedgerUpload() {
                   setShowManualEntry(false);
                   setShowWorkbookPreview(false);
                   setAccountSuggestions(null);
+                  setApplyingSuggestionKey(null);
+                  setAppliedSuggestionRows(new Set());
+                  setAppliedSuggestionChanges(new Map());
                   setSuggestionError(null);
                 }}
               >
@@ -750,6 +944,10 @@ export default function GeneralLedgerUpload() {
                 isLoading={accountSuggestionsMutation.isPending}
                 progressLabel={accountReviewProgressLabel}
                 error={suggestionError}
+                onApplySuggestedTarget={summary ? handleApplySuggestedTarget : undefined}
+                onUnapplySuggestedTarget={summary ? handleUnapplySuggestedTarget : undefined}
+                applyingSuggestionKey={applyingSuggestionKey}
+                appliedSuggestionRows={appliedSuggestionRows}
               />
 
               <div className="border-b p-6">
@@ -848,13 +1046,24 @@ export default function GeneralLedgerUpload() {
               <div className="mt-6 flex justify-end gap-3">
                 <Button
                   variant="outline"
-                  disabled={deleteImportMutation.isPending || saveImportMutation.isPending}
+                  disabled={
+                    deleteImportMutation.isPending ||
+                    saveImportMutation.isPending ||
+                    applySuggestedTargetMutation.isPending ||
+                    unapplySuggestedTargetMutation.isPending
+                  }
                   onClick={handleCancel}
                 >
                   {deleteImportMutation.isPending ? "Discarding..." : "Cancel"}
                 </Button>
                 <Button
-                  disabled={saveImportMutation.isPending || isReviewingAccounts || !reviewReady}
+                  disabled={
+                    saveImportMutation.isPending ||
+                    isReviewingAccounts ||
+                    applySuggestedTargetMutation.isPending ||
+                    unapplySuggestedTargetMutation.isPending ||
+                    !reviewReady
+                  }
                   onClick={handleSave}
                 >
                   {saveImportMutation.isPending ? "Saving..." : "Save Import"}
@@ -1096,6 +1305,18 @@ function formatAccountReviewProgress(progress: AccountReviewProgress) {
   return `Gemini chunk ${progress.current.toLocaleString("en-US")} of ${progress.total.toLocaleString("en-US")}`;
 }
 
+function applySuggestionKey(suggestion: Pick<GLAccountSuggestion, "row_number" | "target_field">) {
+  return `${suggestion.row_number}-${suggestion.target_field || "split_account"}`;
+}
+
+function countChangedSuggestions(suggestions: GLAccountSuggestion[]) {
+  return suggestions.filter((suggestion) => {
+    const suggestedCode = suggestion.suggested_target_account_number;
+    const currentCode = suggestion.current_target_account_number;
+    return Boolean(suggestedCode && suggestedCode !== currentCode);
+  }).length;
+}
+
 function getGeminiReviewedRowNumbers(
   aiReview: GLAccountSuggestionsResponse["ai_review"]
 ) {
@@ -1268,12 +1489,20 @@ function AccountSuggestionReview({
   isLoading,
   progressLabel,
   error,
+  onApplySuggestedTarget,
+  onUnapplySuggestedTarget,
+  applyingSuggestionKey,
+  appliedSuggestionRows,
 }: {
   suggestions: GLAccountSuggestion[];
   response: GLAccountSuggestionsResponse | null;
   isLoading: boolean;
   progressLabel?: string | null;
   error: string | null;
+  onApplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
+  onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
+  applyingSuggestionKey?: string | null;
+  appliedSuggestionRows?: Set<number>;
 }) {
   const previewRows = suggestions;
   const modelLoaded = response?.xgboost_model_status?.model_loaded;
@@ -1287,6 +1516,15 @@ function AccountSuggestionReview({
     [geminiReviewedRowNumbers]
   );
   const geminiReviewedRowsLabel = formatRowNumberRanges(geminiReviewedRowNumbers);
+  const forcedManualReviewRowNumber =
+    aiReview?.test_forced_manual_review_row_number ?? null;
+  const emptyCurrentTargetRowNumber =
+    aiReview?.test_empty_current_target_row_number ?? null;
+  const emptyCurrentTargetSuggestionLabel = formatSuggestionAccount(
+    aiReview?.test_empty_current_target_suggested_account_number ?? null,
+    aiReview?.test_empty_current_target_suggested_account_name ?? null
+  );
+  const emptyCurrentTargetMemo = aiReview?.test_empty_current_target_memo ?? null;
   const aiReviewLabel = aiReview
     ? `Gemini AI ${aiReview.model} ${aiReview.suggestion_count.toLocaleString("en-US")}/${aiReview.reviewed_row_count.toLocaleString("en-US")}${
         aiReview.escalation
@@ -1367,6 +1605,29 @@ function AccountSuggestionReview({
         </div>
       )}
 
+      {aiReview?.test_forced_manual_review_enabled && forcedManualReviewRowNumber && (
+        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <div className="font-medium">Gemini AI suggested manual review</div>
+          <div className="mt-1">
+            Test row {forcedManualReviewRowNumber} was forced to Manual review so this path can be tested.
+          </div>
+        </div>
+      )}
+
+      {aiReview?.test_empty_current_target_suggestion_enabled && emptyCurrentTargetRowNumber && (
+        <div className="mb-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
+          <div className="font-medium">Gemini AI suggested an account from memo with blank transaction Name</div>
+          <div className="mt-1">
+            Test row {emptyCurrentTargetRowNumber} has a blank transaction Name/payee and an empty current target. Gemini AI suggests {emptyCurrentTargetSuggestionLabel} from the memo/account context, but still requires manual review.
+          </div>
+          {emptyCurrentTargetMemo && (
+            <div className="mt-1 truncate font-mono text-xs" title={emptyCurrentTargetMemo}>
+              Memo: {emptyCurrentTargetMemo}
+            </div>
+          )}
+        </div>
+      )}
+
       {aiReview && !aiReview.error && aiReview.reviewed_row_count === 0 && (
         <div className="mb-3 rounded-md border border-muted bg-muted/30 p-3 text-sm text-muted-foreground">
           Gemini had no parsed rows to review.
@@ -1397,6 +1658,7 @@ function AccountSuggestionReview({
                 <TableHead>Suggested Target</TableHead>
                 <TableHead className="text-right">Confidence</TableHead>
                 <TableHead className="text-right">Status</TableHead>
+                <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1410,6 +1672,32 @@ function AccountSuggestionReview({
                 const suggestedTargetTitle = formatSuggestionLabel(suggestion);
                 const rowTitle = formatAccountSuggestionTitle(suggestion);
                 const wasGeminiReviewed = geminiReviewedRowSet.has(suggestion.row_number);
+                const wasAiSuggestedManualReview = Boolean(
+                  suggestion.row_number === forcedManualReviewRowNumber ||
+                    (suggestion.rule === "gemini_ai_review_manual" &&
+                      suggestion.ai_provider === "gemini")
+                );
+                const wasEmptyTargetManualSuggestion = Boolean(
+                  suggestion.row_number === emptyCurrentTargetRowNumber ||
+                    (suggestion.rule === "gemini_ai_review_needs_manual" &&
+                      suggestion.ai_provider === "gemini" &&
+                      !suggestion.current_target_account_number)
+                );
+                const isApplied = Boolean(appliedSuggestionRows?.has(suggestion.row_number));
+                const canApplySuggestedTarget = Boolean(
+                  onApplySuggestedTarget &&
+                    suggestion.suggested_target_account_number &&
+                    suggestion.suggested_target_account_number !== "MANUAL_REVIEW" &&
+                    !isNoChangeSuggestion(suggestion) &&
+                    !isApplied
+                );
+                const canUnapplySuggestedTarget = Boolean(
+                  onUnapplySuggestedTarget && isApplied
+                );
+                const suggestionKey = applySuggestionKey(suggestion);
+                const isApplying = applyingSuggestionKey === suggestionKey;
+                const actionLabel = isApplied ? "Unapply" : "Apply";
+                const busyActionLabel = isApplied ? "Unapplying" : "Applying";
 
                 return (
                 <TableRow key={`${suggestion.row_number}-${suggestion.target_field}`} title={rowTitle}>
@@ -1418,6 +1706,16 @@ function AccountSuggestionReview({
                     {wasGeminiReviewed && (
                       <Badge variant="outline" className="mt-1 border-blue-200 bg-blue-50 text-blue-700">
                         Gemini AI test
+                      </Badge>
+                    )}
+                    {wasAiSuggestedManualReview && (
+                      <Badge variant="outline" className="mt-1 border-red-200 bg-red-50 text-red-700">
+                        AI manual review
+                      </Badge>
+                    )}
+                    {wasEmptyTargetManualSuggestion && (
+                      <Badge variant="outline" className="mt-1 border-violet-200 bg-violet-50 text-violet-700">
+                        Blank Name + memo
                       </Badge>
                     )}
                   </TableCell>
@@ -1452,6 +1750,16 @@ function AccountSuggestionReview({
                     <div className="truncate" title={suggestedTargetTitle}>
                       {suggestedTargetTitle}
                     </div>
+                    {wasAiSuggestedManualReview && (
+                      <div className="mt-1 text-xs font-medium text-red-700">
+                        Gemini AI suggested manual review
+                      </div>
+                    )}
+                    {wasEmptyTargetManualSuggestion && (
+                      <div className="mt-1 text-xs font-medium text-violet-700">
+                        Gemini AI used memo/account context; manual review required
+                      </div>
+                    )}
                     {suggestion.ai_provider && (
                       <div className="mt-1 text-xs text-muted-foreground" title={formatAiReviewTitle(suggestion)}>
                         {suggestion.ai_provider} {formatPercent(suggestion.ai_confidence ?? 0)}
@@ -1463,6 +1771,41 @@ function AccountSuggestionReview({
                   </TableCell>
                   <TableCell className="text-right" title={formatSuggestionStatus(suggestion)}>
                     <SuggestionBadge suggestion={suggestion} />
+                    {isApplied && (
+                      <Badge variant="outline" className="mt-1 border-green-600 bg-green-50 text-green-700">
+                        Applied
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={
+                        isApplying ||
+                        (!canApplySuggestedTarget && !canUnapplySuggestedTarget)
+                      }
+                      onClick={() =>
+                        isApplied
+                          ? onUnapplySuggestedTarget?.(suggestion)
+                          : onApplySuggestedTarget?.(suggestion)
+                      }
+                      title={
+                        canUnapplySuggestedTarget
+                          ? "Undo applied target on staged import"
+                          : canApplySuggestedTarget
+                            ? "Apply suggested target to staged import"
+                            : suggestedTargetTitle
+                      }
+                    >
+                      {isApplied ? (
+                        <RotateCcw className="h-4 w-4" />
+                      ) : (
+                        <Check className="h-4 w-4" />
+                      )}
+                      {isApplying ? busyActionLabel : actionLabel}
+                    </Button>
                   </TableCell>
                 </TableRow>
                 );
@@ -1708,8 +2051,15 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   const hasGeminiSuggestion =
     suggestion.ai_provider === "gemini" && Boolean(suggestion.suggested_target_account_number);
 
+  if (
+    suggestion.requires_manual_review &&
+    suggestion.ai_provider === "gemini" &&
+    suggestion.rule === "gemini_ai_review_manual"
+  ) {
+    return <Badge variant="destructive">Gemini manual review</Badge>;
+  }
   if (suggestion.requires_manual_review && hasGeminiSuggestion) {
-    return <Badge className="bg-violet-600 hover:bg-violet-600">Gemini review</Badge>;
+    return <Badge className="bg-violet-600 hover:bg-violet-600">Gemini manual suggestion</Badge>;
   }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
@@ -1859,7 +2209,16 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
   const hasGeminiSuggestion =
     suggestion.ai_provider === "gemini" && Boolean(suggestion.suggested_target_account_number);
 
-  if (suggestion.requires_manual_review && hasGeminiSuggestion) return "Gemini review";
+  if (
+    suggestion.requires_manual_review &&
+    suggestion.ai_provider === "gemini" &&
+    suggestion.rule === "gemini_ai_review_manual"
+  ) {
+    return "Gemini AI suggested manual review";
+  }
+  if (suggestion.requires_manual_review && hasGeminiSuggestion) {
+    return "Gemini AI suggested an account; manual review required";
+  }
   if (suggestion.requires_manual_review) return "Manual review required";
   if (suggestion.rule === "gemini_ai_fallback" || suggestion.ai_provider === "gemini") return "Gemini";
   if (suggestion.suggested_target_account_number) return "Suggested";
