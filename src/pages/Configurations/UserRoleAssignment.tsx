@@ -126,6 +126,9 @@ export default function UserRoleAssignment() {
     );
   }
 
+  const selectedUser = users?.find(u => u.id === selectedUserId);
+  const isSuperAdmin = selectedUser?.is_super_admin === true;
+
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
       <div className="flex flex-col gap-4">
@@ -168,7 +171,14 @@ export default function UserRoleAssignment() {
                 </div>
               )}
             </div>
-            <div className={`flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden transition-opacity duration-200 bg-white dark:bg-zinc-900 shadow-sm ${loadingUserRoles || saveMutation.isPending ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+            
+            {isSuperAdmin && (
+              <div className="p-4 rounded-lg bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 text-sm flex items-center">
+                <span className="font-semibold mr-2">Note:</span> This user is a Super Admin and inherently has all permissions. Role assignments are disabled.
+              </div>
+            )}
+
+            <div className={`flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden transition-opacity duration-200 bg-white dark:bg-zinc-900 shadow-sm ${loadingUserRoles || saveMutation.isPending || isSuperAdmin ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
               <Table>
                 <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50">
                   <TableRow>
@@ -217,7 +227,7 @@ export default function UserRoleAssignment() {
               </Table>
             </div>
 
-            {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && (
+            {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && !isSuperAdmin && (
               <div className="pt-6 flex justify-end">
                 <Button 
                   onClick={() => saveMutation.mutate()} 

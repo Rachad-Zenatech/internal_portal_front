@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Upload, BarChart3 } from "lucide-react";
 import StatementList   from "@/components/Bank/StatementList";
 import StatementDetail from "@/components/Bank/StatementDetail";
 import SummaryPage     from "@/components/Bank/Summary";
@@ -34,15 +33,12 @@ export default function BankStatements() {
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList variant="line" className="mb-8">
           <TabsTrigger value="statements" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
             Statements
           </TabsTrigger>
           <TabsTrigger value="upload" className="flex items-center gap-2">
-            <Upload className="h-4 w-4" />
             Upload
           </TabsTrigger>
           <TabsTrigger value="summary" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
             Summary
           </TabsTrigger>
         </TabsList>
