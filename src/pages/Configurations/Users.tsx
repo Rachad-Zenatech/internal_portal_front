@@ -300,14 +300,14 @@ export default function Users() {
                         {user.is_active ? <Ban className="h-4 w-4 text-orange-600" /> : <Power className="h-4 w-4 text-green-600" />}
                       </Button>
                     )}
-                    {canAccessNavigationItem("CONFIG_USERS", "DELETE") && (
+                    {/* {canAccessNavigationItem("CONFIG_USERS", "DELETE") && (
                       <Button variant="ghost" size="icon" onClick={() => {
                         setUserToDelete(user);
                         setIsDeleteDialogOpen(true);
                       }}>
                         <Trash2 className="h-4 w-4 text-red-600" />
                       </Button>
-                    )}
+                    )} */}
                   </TableCell>
                 </TableRow>
               ))

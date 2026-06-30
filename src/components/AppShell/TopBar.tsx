@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, CheckCircle2, RefreshCw } from "lucide-react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,7 +22,7 @@ import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
 import { useGlobalSearch } from "@/hooks/useSearch";
 import { useAuth } from "@/lib/AuthContext";
-import { apiClient } from "@/services/apiClient";
+
 
 export default function TopBar() {
   const [inputValue, setInputValue] = useState("");
@@ -34,57 +34,6 @@ export default function TopBar() {
   const navigate = useNavigate();
   const { user, roles, logout } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
-
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [isSavingPassword, setIsSavingPassword] = useState(false);
-  const [passwordSuccess, setPasswordSuccess] = useState(false);
-
-  // Reset profile dialog state when opened
-  useEffect(() => {
-    if (isProfileOpen) {
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordError("");
-      setPasswordSuccess(false);
-    }
-  }, [isProfileOpen]);
-
-  const handleSaveProfile = async () => {
-    if (newPassword || confirmPassword) {
-      if (newPassword !== confirmPassword) {
-        setPasswordError("Passwords do not match");
-        return;
-      }
-      if (newPassword.length < 10) {
-        setPasswordError("Password must be at least 10 characters long");
-        return;
-      }
-      if (!/[!@#$%^&*(),.?":{}|<>]/.test(newPassword)) {
-        setPasswordError("Password must contain at least 1 symbol");
-        return;
-      }
-      
-      try {
-        setIsSavingPassword(true);
-        setPasswordError("");
-        await apiClient.put("/api/me/password", { new_password: newPassword });
-        setPasswordSuccess(true);
-        setNewPassword("");
-        setConfirmPassword("");
-        // Optional: dismiss success message after a few seconds
-        setTimeout(() => setPasswordSuccess(false), 3000);
-      } catch (err: any) {
-        setPasswordError(err.response?.data?.detail || "Failed to change password");
-      } finally {
-        setIsSavingPassword(false);
-      }
-    } else {
-      // Just close if nothing to save
-      setIsProfileOpen(false);
-    }
-  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -377,58 +326,11 @@ export default function TopBar() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-border mt-6">
-                <h4 className="text-sm font-semibold mb-4">Change Password</h4>
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="newPassword" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      New Password
-                    </Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => { setNewPassword(e.target.value); setPasswordError(""); }}
-                      placeholder="Enter new password"
-                      className="border-border focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="confirmPassword" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                      Confirm New Password
-                    </Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
-                      placeholder="Confirm new password"
-                      className="border-border focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
-                    />
-                  </div>
-                  {passwordError && (
-                    <p className="text-sm text-red-500 font-medium">{passwordError}</p>
-                  )}
-                  {passwordSuccess && (
-                    <p className="text-sm text-emerald-500 font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4" /> Password changed successfully
-                    </p>
-                  )}
-                </div>
-              </div>
             </div>
 
             <DialogFooter className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
               <Button variant="outline" onClick={() => setIsProfileOpen(false)} className="rounded-xl w-full sm:w-auto font-semibold">
-                Cancel
-              </Button>
-              <Button 
-                type="button" 
-                onClick={handleSaveProfile} 
-                disabled={isSavingPassword}
-                className="rounded-xl w-full sm:w-auto bg-primary hover:bg-primary/90 text-primary-foreground shadow-md hover:shadow-lg transition-all font-semibold min-w-[120px]"
-              >
-                {isSavingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save changes"}
+                Close
               </Button>
             </DialogFooter>
           </div>

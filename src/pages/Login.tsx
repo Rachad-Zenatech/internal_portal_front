@@ -17,10 +17,29 @@ export default function Login() {
     const handleSsoCallback = async () => {
       if (hasProcessedLogin.current) return;
 
+      const error = searchParams.get("error");
       const token = searchParams.get("token");
       const userId = searchParams.get("user_id");
       const email = searchParams.get("email");
       const idToken = searchParams.get("id_token");
+
+      if (error === "account_not_found") {
+        hasProcessedLogin.current = true;
+        setTimeout(() => {
+          toast.error("Account does not exist. Please contact your administrator to be added.");
+        }, 100);
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      if (error === "account_deactivated") {
+        hasProcessedLogin.current = true;
+        setTimeout(() => {
+          toast.error("Your account is deactivated");
+        }, 100);
+        navigate("/login", { replace: true });
+        return;
+      }
 
       if (token && userId && email) {
         hasProcessedLogin.current = true;
