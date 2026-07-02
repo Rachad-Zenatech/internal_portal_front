@@ -1,48 +1,33 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { FormEvent, ChangeEvent } from "react";
 import {
-  usePreviewStatement, useCommitStatement, useCompanies, useBankAccounts,
+  useCompanies, useBankAccounts,
 } from "@/hooks/useBank";
-import type { BankStatement, StatementPreview } from "@/types/bank";
+import { apiClient } from "@/services/apiClient";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Input }  from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label }  from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge }  from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { AlertCircle, Upload, Building2, CreditCard, FileUp, Terminal } from "lucide-react";
-import { toast } from "sonner";
-import StatementPreviewReview from "./StatementPreviewReview";
-import { cn } from "@/lib/utils";
+import { Upload, Building2, CreditCard, FileUp, Terminal, Loader2 } from "lucide-react";
 
-interface Props { onUploaded?: (stmt: BankStatement) => void; }
+interface Props { 
+  onUploadStart: (file: File, promise: Promise<any>) => void; 
+  isUploading?: boolean;
+}
 
-export default function UploadStatement({ onUploaded }: Props) {
+export default function UploadStatement({ onUploadStart, isUploading = false }: Props) {
   const [companyId,    setCompanyId]    = useState<string>("");
   const [accountId,    setAccountId]    = useState<string>("");
   const [file,         setFile]         = useState<File | null>(null);
   const [tesseractCmd, setTesseractCmd] = useState<string>("");
-  const [previews,     setPreviews]     = useState<StatementPreview[] | null>(null);
-  const [fileUrl,      setFileUrl]      = useState<string | null>(null);
-
-  useEffect(() => {
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setFileUrl(url);
-      return () => URL.revokeObjectURL(url);
-    } else {
-      setFileUrl(null);
-    }
-  }, [file]);
+  // ── Form State ───────────────────────────────────────────────────────────
 
   const { data: companies = [] } = useCompanies();
   const { data: accounts  = [] } = useBankAccounts(companyId ? Number(companyId) : null);
-  const previewMut = usePreviewStatement();
-  const commitMut  = useCommitStatement();
 
   // Derive bank_type from the selected account — no manual selection needed
   const selectedAccount = accounts.find((a) => String(a.id) === accountId);
@@ -55,98 +40,50 @@ export default function UploadStatement({ onUploaded }: Props) {
     setFile(null); // Clear active file block on corporate pipeline context shift
   }
 
-  // Step 1 — parse the PDF and show the preview (nothing persisted yet).
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  // Submit file and pass promise to parent
+  function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!file || !accountId || !bankType) return;
-    const parsed = await previewMut.mutateAsync({
-      accountId:    Number(accountId),
-      bankType,
-      file,
-      tesseractCmd: tesseractCmd || null,
-    });
-    setPreviews(parsed);
-  }
-
-  // Step 2 — persist the reviewed preview.
-  async function handleConfirm(editedPreviews?: StatementPreview[]) {
-    const finalPreviews = editedPreviews || previews;
-    if (!finalPreviews) return;
-    try {
-      const stmts = await commitMut.mutateAsync(finalPreviews);
-      toast.success("Statements added to the database", {
-        description: `Successfully added ${stmts.length} statements.`,
-      });
-      setPreviews(null);
-      setFile(null);
-      if (stmts.length > 0) {
-        onUploaded?.(stmts[0]);
-      }
-    } catch (err) {
-      toast.error("Failed to add statements to the database", {
-        description: (err as Error).message,
-      });
+    
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("account_id", accountId);
+    formData.append("bank_type", bankType);
+    if (tesseractCmd) {
+      formData.append("tesseract_cmd", tesseractCmd);
     }
-  }
+    
+    const promise = apiClient.post<any>("/api/bank-statements/upload", formData).then(async (res) => {
+      const statementId = res?.bankStatementId;
+      if (!statementId) return res;
 
-  // Discard the preview and return to the form.
-  function handleCancel() {
-    setPreviews(null);
-    commitMut.reset();
+      // Poll until processing_status is 'completed' or 'failed'
+      while (true) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const stmt = await apiClient.get<any>(`/api/bank-statements/${statementId}`);
+        if (stmt.processing_status === "ready" || stmt.processing_status === "completed") {
+          return stmt;
+        }
+        if (stmt.processing_status === "failed") {
+          throw new Error(stmt.error_message || "Processing failed");
+        }
+      }
+    });
+    
+    onUploadStart(file, promise);
   }
 
   const toggleItemStyles = 
     "px-4 text-xs font-bold tracking-wide transition-all duration-200 active:scale-[0.97] data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary/90";
 
-  // ── Preview / confirm screen ─────────────────────────────────────────────
-  if (previews) {
-    return (
-      <div className="animate-in fade-in zoom-in-95 duration-300 h-[calc(100vh-64px)] flex flex-col">
-        <StatementPreviewReview
-          previews={previews}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
-          isCommitting={commitMut.isPending}
-          error={commitMut.isError ? (commitMut.error as Error).message : null}
-        >
-          <div className="h-full bg-muted/20 rounded-xl overflow-hidden border shadow-sm flex flex-col">
-            <div className="bg-muted px-4 py-3 border-b text-sm font-semibold flex items-center gap-2">
-              <FileUp className="h-4 w-4 text-muted-foreground" />
-              Original Document Preview
-            </div>
-            {fileUrl ? (
-              <div className="flex-1 relative overflow-hidden bg-muted/10 flex items-center justify-center">
-                <iframe 
-                  src={fileUrl}
-                  title="Statement PDF Preview"
-                  className="w-full h-full border-0"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center justify-center flex-1 text-muted-foreground text-sm">
-                No PDF preview available
-              </div>
-            )}
-          </div>
-        </StatementPreviewReview>
-      </div>
-    );
-  }
-
   // ── Upload form ──────────────────────────────────────────────────────────
   return (
-    <Card className="border-muted-foreground/15 shadow-sm w-full animate-in fade-in duration-200">
-      <CardContent className="space-y-6 p-6">
-        <div className="border-b pb-4">
-          <h2 className="text-xl font-bold tracking-tight mb-1">Upload Bank Statement</h2>
-          <p className="text-sm text-muted-foreground">
-            Select a target company and statement account, then deploy the document pipeline tracker.
-          </p>
-        </div>
+    <div className="w-full animate-in fade-in duration-200">
+      <div className="space-y-6">
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-8">
           {/* Company Selection Dropdown Wrapper */}
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5" />
               Company
@@ -170,7 +107,7 @@ export default function UploadStatement({ onUploaded }: Props) {
 
           {/* Bank Account Toggle Group (Visible once corporate entity is defined) */}
           {companyId && (
-            <div className="space-y-2 border-t pt-4 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
+            <div className="space-y-3 border-t pt-6 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
               <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" />
                 Linked Account Vector
@@ -213,7 +150,7 @@ export default function UploadStatement({ onUploaded }: Props) {
 
           {/* Interactive Drag Drop-Zone Style File Input Container */}
           {accountId && (
-            <div className="space-y-2 border-t pt-4 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
+            <div className="space-y-3 border-t pt-6 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
               <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <FileUp className="h-3.5 w-3.5" />
                 Target Ledger Document (PDF)
@@ -246,7 +183,7 @@ export default function UploadStatement({ onUploaded }: Props) {
 
           {/* Advanced OCR Parsing Environment Path Override Fields */}
           {isFirstbank && (
-            <div className="space-y-2 border-t pt-4 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
+            <div className="space-y-3 border-t pt-6 transition-all duration-300 animate-in fade-in-40 slide-in-from-top-2">
               <Label htmlFor="tesseract" className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Terminal className="h-3.5 w-3.5" />
                 OCR Engine Binary Path
@@ -263,55 +200,27 @@ export default function UploadStatement({ onUploaded }: Props) {
             </div>
           )}
 
-          {/* Form Action Infrastructure Button Container Row */}
-          <div className="pt-3 border-t flex flex-col gap-3">
+          <div className="pt-6 border-t flex flex-col gap-4">
             <Button
               type="submit"
-              disabled={previewMut.isPending || !file || !accountId}
-              className="w-max gap-2 px-5 font-bold text-sm shadow-sm transition-transform active:scale-95 self-end"
+              disabled={!file || !accountId || isUploading}
+              className="w-full gap-2 px-5 font-bold text-sm shadow-sm transition-transform active:scale-95"
             >
-              <Upload className={cn("h-4 w-4", previewMut.isPending && "animate-bounce")} />
-              {previewMut.isPending ? "Parsing Ledger Pipeline..." : "Execute Upload & Preview"}
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4" />
+                  Upload & Process
+                </>
+              )}
             </Button>
-
-            {previewMut.isPending && (
-              <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-1">
-                <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  <span>Extracting Document</span>
-                  <span className="animate-pulse">Parsing Data...</span>
-                </div>
-                <div className="w-full bg-muted/50 rounded-full h-2 overflow-hidden relative shadow-inner">
-                  <div 
-                    className="bg-primary h-full absolute left-0 top-0 w-1/3 animate-[progress_1s_ease-in-out_infinite]"
-                    style={{
-                      animationName: "indeterminate",
-                      animationDuration: "1.5s",
-                      animationIterationCount: "infinite",
-                      animationTimingFunction: "ease-in-out",
-                    }}
-                  />
-                  <style>{`
-                    @keyframes indeterminate {
-                      0% { left: -33%; width: 33%; }
-                      50% { width: 50%; }
-                      100% { left: 100%; width: 33%; }
-                    }
-                  `}</style>
-                </div>
-              </div>
-            )}
-
-            {previewMut.isError && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/20 bg-destructive/5 text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription className="font-semibold text-xs tracking-wide">
-                  {(previewMut.error as Error).message}
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

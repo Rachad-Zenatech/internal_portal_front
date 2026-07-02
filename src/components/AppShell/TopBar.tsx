@@ -22,6 +22,7 @@ import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
 import { useGlobalSearch } from "@/hooks/useSearch";
 import { useAuth } from "@/lib/AuthContext";
+import { useNotifications, useUnreadNotificationCount, useMarkNotificationAsRead, useClearReadNotifications } from "@/hooks/useNotifications";
 
 
 export default function TopBar() {
@@ -63,6 +64,12 @@ export default function TopBar() {
   }, [inputValue]);
 
   const { data: results = [], isLoading, isFetching } = useGlobalSearch(debouncedValue);
+  const { data: notifications = [] } = useNotifications();
+  const { data: unreadCountData } = useUnreadNotificationCount();
+  const { mutate: markAsRead } = useMarkNotificationAsRead();
+  const { mutate: clearRead } = useClearReadNotifications();
+  const unreadCount = unreadCountData?.count || 0;
+  const hasReadNotifications = notifications.some(n => n.is_read);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -229,18 +236,72 @@ export default function TopBar() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10">
-                  <Bell className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Notifications</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10 outline-none focus-visible:ring-0">
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80 p-0 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Notifications</span>
+                  {unreadCount > 0 && (
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">{unreadCount} new</span>
+                  )}
+                </div>
+                {hasReadNotifications && (
+                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground hover:bg-muted" onClick={(e) => { e.preventDefault(); e.stopPropagation(); clearRead(); }}>
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-[300px] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-muted-foreground">
+                    You have no notifications.
+                  </div>
+                ) : (
+                  notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      onClick={() => {
+                        if (!notification.is_read) {
+                          markAsRead(notification.id);
+                        }
+                        if (notification.link_url) {
+                          navigate(notification.link_url);
+                        }
+                      }}
+                      className={`p-4 border-b last:border-0 cursor-pointer transition-colors ${
+                        !notification.is_read ? "bg-blue-50/50 hover:bg-blue-50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20" : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        <div className="flex-1 space-y-1">
+                          <p className={`text-sm leading-snug ${!notification.is_read ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>
+                            {notification.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">
+                            {notification.message}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-1.5 font-medium uppercase tracking-wider">
+                            {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        {!notification.is_read && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 shrink-0 shadow-sm" />
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

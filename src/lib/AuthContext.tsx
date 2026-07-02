@@ -37,7 +37,7 @@ interface AuthContextType {
   canAccessNavigationItem: (navigationCode: string, actionCode?: string) => boolean;
   canUseMcpTool: (toolCode: string) => boolean;
   hasRole: (roleCode: string) => boolean;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshPermissions: () => Promise<void>;
 }
 
@@ -94,9 +94,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return permissions.roles.some((r) => r.code === roleCode);
   };
 
-  const logout = () => {
+  const logout = async () => {
     const userEmail = permissions?.user?.email;
     const msIdToken = localStorage.getItem('ms_id_token');
+    
+    try {
+      await apiClient.post('/api/auth/logout', {});
+    } catch (e) {
+      console.error('Failed to logout on backend', e);
+    }
     
     localStorage.removeItem('token');
     localStorage.removeItem('user');

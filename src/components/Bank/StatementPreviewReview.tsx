@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus, Trash2, FileText } from "lucide-react";
 import type {
   StatementPreview,
   PreviewCheckTransaction,
@@ -60,9 +60,7 @@ function DateSortHead({ dir, onToggle }: { dir: SortDir; onToggle: () => void })
 
 const TABS = [
   "cleared_checks",
-  "outstanding_checks",
   "cleared_deposits",
-  "outstanding_deposits",
 ] as const;
 type Tab = (typeof TABS)[number];
 
@@ -104,6 +102,7 @@ interface Props {
   onCancel: () => void;
   isCommitting?: boolean;
   error?: string | null;
+  pdfUrl?: string;
 }
 
 export default function StatementPreviewReview({
@@ -112,8 +111,8 @@ export default function StatementPreviewReview({
   onCancel,
   isCommitting,
   error,
-  children,
-}: Props & { children?: React.ReactNode }) {
+  pdfUrl,
+}: Props) {
   const [activePreviewIndex, setActivePreviewIndex] = useState(0);
 
   // Initialize editable local state with UUIDs to avoid input focus loss on sort
@@ -337,6 +336,13 @@ export default function StatementPreviewReview({
         return next;
       });
     }
+
+    setTimeout(() => {
+      const activeContainer = document.querySelector('[data-state="active"] [data-slot="table-container"]');
+      if (activeContainer) {
+        activeContainer.scrollTop = activeContainer.scrollHeight;
+      }
+    }, 50);
   };
 
   const handleConfirm = () => {
@@ -358,10 +364,24 @@ export default function StatementPreviewReview({
             Confirm and edit the parsed statement before saving. All fields are editable.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleCancelClick} className="shrink-0">
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to upload
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {pdfUrl && (
+            <Button variant="outline" size="sm" onClick={() => window.open(pdfUrl, '_blank', 'width=800,height=900,resizable=yes')} className="shrink-0 text-blue-600 hover:text-blue-700">
+              <FileText className="h-4 w-4 mr-2" />
+              Preview PDF
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={handleCancelClick} className="shrink-0">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to upload
+          </Button>
+          {!accountMismatch && (
+            <Button onClick={handleConfirm} disabled={isCommitting} size="sm" className="gap-2 font-bold shrink-0">
+              <CheckCircle2 className="h-4 w-4" />
+              {isCommitting ? "Saving…" : `Save (${localPreviews.length} month${localPreviews.length !== 1 ? 's' : ''})`}
+            </Button>
+          )}
+        </div>
       </div>
 
       {accountMismatch ? (
@@ -429,11 +449,10 @@ export default function StatementPreviewReview({
         </Tabs>
       )}
 
-      <div className="grid lg:grid-cols-10 gap-8 flex-1 min-h-0">
-        <div className="lg:col-span-6 flex flex-col min-h-0 overflow-hidden pr-2">
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as Tab)}
+      <div className="flex flex-col flex-1 min-h-0">
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as Tab)}
             className="flex-1 flex flex-col min-h-0 mb-1"
           >
             <div className="flex items-center justify-between shrink-0 border-b border-slate-100 pb-1 mb-1">
@@ -527,23 +546,6 @@ export default function StatementPreviewReview({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-        </div>
-
-        <div className="lg:col-span-4 flex flex-col min-h-0">
-          {children}
-        </div>
-      </div>
-
-      <div className="mt-4 flex items-center justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
-        <Button variant="outline" onClick={handleCancelClick} disabled={isCommitting} className="h-10 px-6 font-semibold">
-          Cancel
-        </Button>
-        {!accountMismatch && (
-          <Button onClick={handleConfirm} disabled={isCommitting} className="gap-2 h-10 px-8 font-bold">
-            <CheckCircle2 className="h-4 w-4" />
-            {isCommitting ? "Saving…" : `Save (${localPreviews.length} months)`}
-          </Button>
-        )}
       </div>
 
       <AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -729,7 +731,7 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
             )}
             {cols.includes("Paid To") && (
               <TableCell className="min-w-[200px] whitespace-normal break-words">
-                <textarea rows={3} value={r.paid_to ?? ""} onChange={e => onUpdate(r._id, "paid_to", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+                <textarea rows={1} value={r.paid_to ?? ""} onChange={e => onUpdate(r._id, "paid_to", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
               </TableCell>
             )}
             {cols.includes("Reference") && (
@@ -796,7 +798,7 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
             )}
             {cols.includes("Received From") && (
               <TableCell className="min-w-[200px] whitespace-normal break-words">
-                <textarea rows={3} value={r.received_from ?? ""} onChange={e => onUpdate(r._id, "received_from", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+                <textarea rows={1} value={r.received_from ?? ""} onChange={e => onUpdate(r._id, "received_from", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
               </TableCell>
             )}
             {cols.includes("Reference") && (
