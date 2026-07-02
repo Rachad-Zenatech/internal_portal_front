@@ -268,10 +268,17 @@ export default function AuditLog() {
                       </TableCell>
                       <TableCell>
                         {log.success ? (
-                          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 gap-1.5">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Success
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 gap-1.5 w-fit">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Success
+                            </Badge>
+                            {log.logout_at && (
+                              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                                Logged out: {new Date(log.logout_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <div className="flex flex-col gap-1">
                             <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-400 gap-1.5 w-fit">

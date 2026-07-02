@@ -12,6 +12,7 @@ import CompanySettings from "./pages/Configurations/CompanySettings";
 import BankSettings from "./pages/Configurations/BankSettings";
 import BankAccountSettings from "./pages/Configurations/BankAccountSettings";
 import BankFeedRules from "./pages/Configurations/BankFeedRules";
+import BankStatementPreview from "./pages/BankStatementPreview";
 import Users from "./pages/Configurations/Users";
 import Roles from "./pages/Configurations/Roles";
 import UserRoleAssignment from "./pages/Configurations/UserRoleAssignment";
@@ -43,6 +44,7 @@ function App() {
             <Route path="/general-ledger/upload" element={<ProtectedRoute navigationCode="GENERAL_LEDGER" actionCode="IMPORT"><GeneralLedgerUpload /></ProtectedRoute>} />
             <Route path="/trial-balance" element={<ProtectedRoute navigationCode="TRIAL_BALANCE"><TrialBalance /></ProtectedRoute>} />
             <Route path="/bank-statements" element={<ProtectedRoute navigationCode="BANK_STATEMENTS"><BankStatements /></ProtectedRoute>} />
+            <Route path="/bank-statements/:bankStatementId/preview" element={<ProtectedRoute navigationCode="BANK_STATEMENTS"><BankStatementPreview /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
 
@@ -63,6 +65,7 @@ function App() {
             <Route path="/configurations/role-mcp-tool-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_MCP_TOOL_PERMISSIONS"><RoleMcpToolPermissions /></ProtectedRoute>} />
 
             {/* Logs */}
+            <Route path="/log" element={<Navigate to="/log/audit-log" replace />} />
             <Route path="/log/audit-log" element={<ProtectedRoute navigationCode="AUDIT_LOG"><AuditLog /></ProtectedRoute>} />
 
             <Route path="/reports" element={<ProtectedRoute navigationCode="REPORTS"><Reports /></ProtectedRoute>} />

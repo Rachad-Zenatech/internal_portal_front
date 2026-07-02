@@ -51,9 +51,7 @@ function DateSortHead({ dir, onToggle }: { dir: SortDir; onToggle: () => void })
 
 const TABS = [
   "cleared_checks",
-  "outstanding_checks",
   "cleared_deposits",
-  "outstanding_deposits",
 ] as const;
 
 interface Props {
