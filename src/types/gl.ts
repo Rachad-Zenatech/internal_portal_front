@@ -63,6 +63,7 @@ export type GLAccountSuggestionsRequest = {
 export type GLXgboostTestTrainingRequest = {
   file: File;
   formatCode: string;
+  companyName?: string | null;
   targetField?: "split_account" | "ledger_account" | "business_account" | "auto";
   excludeBlankTargets?: boolean;
   excludeTransfers?: boolean;
@@ -78,15 +79,20 @@ export type GLXgboostTestTrainingResponse = {
   training?: {
     test_only: boolean;
     label_source: string;
+    feature_text_source?: string;
     training_csv_path: string;
     target_field: string;
     training_rows: number;
+    memo_rows?: number;
+    description_rows?: number;
+    current_account_rows?: number;
     class_count: number;
     top_accounts: Array<{ account: string; rows: number }>;
     skipped_blank_target_rows: number;
     skipped_transfer_rows: number;
     skipped_zero_amount_rows: number;
     skipped_untrainable_target_rows?: number;
+    skipped_missing_transaction_text_rows?: number;
     cleanup_files: string[];
   };
   result?: {

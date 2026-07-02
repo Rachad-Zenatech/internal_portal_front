@@ -116,7 +116,10 @@ export const GLService = {
     const formData = new FormData();
     formData.append("file", params.file);
     formData.append("format_code", params.formatCode);
-    formData.append("target_field", params.targetField ?? "business_account");
+    if (params.companyName) {
+      formData.append("company_name", params.companyName);
+    }
+    formData.append("target_field", params.targetField ?? "split_account");
     formData.append("exclude_blank_targets", String(params.excludeBlankTargets ?? true));
     formData.append("exclude_transfers", String(params.excludeTransfers ?? true));
     formData.append("include_zero_amounts", String(params.includeZeroAmounts ?? false));

@@ -367,7 +367,8 @@ export default function GeneralLedgerUpload() {
         const training = await xgboostTrainingMutation.mutateAsync({
           file: currentFile,
           formatCode: currentBook.format_code,
-          targetField: "business_account",
+          companyName: currentBook.company_name,
+          targetField: "split_account",
           excludeBlankTargets: true,
           excludeTransfers: true,
           includeZeroAmounts: false,
@@ -907,7 +908,9 @@ export default function GeneralLedgerUpload() {
               </div>
               {xgboostTrainingResult.training && (
                 <div className="mt-1 text-xs">
-                  Business-account labels; skipped{" "}
+                  Trusted current split-account labels from company/name/memo/current bank input;{" "}
+                  {(xgboostTrainingResult.training.memo_rows ?? 0).toLocaleString("en-US")} memo rows,{" "}
+                  {(xgboostTrainingResult.training.current_account_rows ?? 0).toLocaleString("en-US")} current-account rows; skipped{" "}
                   {xgboostTrainingResult.training.skipped_transfer_rows.toLocaleString("en-US")} transfers,{" "}
                   {(xgboostTrainingResult.training.skipped_untrainable_target_rows ?? 0).toLocaleString("en-US")} clearing/bank targets.
                 </div>

@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, KeyRound, ArrowUpDown, Power, Ban, Search } from "lucide-react";
+import { Plus, Edit, KeyRound, ArrowUpDown, Power, Ban, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/AuthContext";
 import type { User } from "@/lib/AuthContext";
