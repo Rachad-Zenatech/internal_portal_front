@@ -15,6 +15,7 @@ import type {
   GLExtractionFormat,
   CompanyBook,
   ParseImportResponse,
+  SaveImportFromUploadResponse,
   ImportPreview,
   ManualGlEntryRequest,
   MissingInBooksExportRow,
@@ -136,8 +137,8 @@ export const useImportPreview = (sourceFileId: number | null, companyId: number 
 };
 
 export const useParseImport = () => {
-  return useMutation<ParseImportResponse, Error, { companyBookId: number; file: File }>({
-    mutationFn: ({ companyBookId, file }) => GLService.parseImport({ companyBookId, file }),
+  return useMutation<ParseImportResponse, Error, { companyBookId: number; file: File; dryRun?: boolean }>({
+    mutationFn: ({ companyBookId, file, dryRun }) => GLService.parseImport({ companyBookId, file, dryRun }),
   });
 };
 
@@ -165,6 +166,23 @@ export const useSaveImport = () => {
   const queryClient = useQueryClient();
   return useMutation<void, Error, { companyId: number; sourceFileId: number }>({
     mutationFn: ({ companyId, sourceFileId }) => GLService.saveImport({ companyId, sourceFileId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['company-ledger'] });
+    },
+  });
+};
+
+export const useSaveImportFromUpload = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    SaveImportFromUploadResponse,
+    Error,
+    { companyBookId: number; file: File }
+  >({
+    mutationFn: ({ companyBookId, file }) =>
+      GLService.saveImportFromUpload({ companyBookId, file }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-cards'] });
       queryClient.invalidateQueries({ queryKey: ['trial-balance'] });

@@ -23,6 +23,7 @@ import {
   useApplySuggestedTarget,
   useUnapplySuggestedTarget,
   useSaveImport,
+  useSaveImportFromUpload,
 } from "@/hooks/useGL";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,11 +39,14 @@ type ParseSummary = {
   company_id: number;
   company_book_id: number;
   company_name: string;
-  source_file_id: number;
+  source_file_id: number | null;
   accounts_resolved: number;
+  accounts_unresolved?: number;
   gl_entries: number;
   gl_entry_lines: number;
   bank_lines: number;
+  status?: string;
+  dry_run?: boolean;
 };
 
 type ManualEntryForm = {
@@ -77,7 +81,7 @@ type AccountReviewLogContext = {
   companyId: number;
   companyName: string;
   formatCode: string;
-  sourceFileId: number;
+  sourceFileId: number | null;
   useGemini: boolean;
 };
 
@@ -106,7 +110,8 @@ const emptyManualEntry: ManualEntryForm = {
 export default function GeneralLedgerUpload() {
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [useGeminiReview, setUseGeminiReview] = useState(true);
+  const [dryRunPreview, setDryRunPreview] = useState(true);
+  const [useGeminiReview, setUseGeminiReview] = useState(false);
   const [trainXgboostTestModel, setTrainXgboostTestModel] = useState(false);
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
@@ -137,12 +142,15 @@ export default function GeneralLedgerUpload() {
 
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
-  
+
   const sourceFileId = summary?.source_file_id ?? null;
   const companyIdForPreview = summary?.company_id ?? null;
-  
+  const isDryRun = Boolean(
+    summary?.dry_run || summary?.status === "dry_run" || (summary && sourceFileId === null)
+  );
+
   const { data: previewData, isLoading: isPreviewLoading } = useImportPreview(sourceFileId, companyIdForPreview);
-  
+
   const parseImportMutation = useParseImport();
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
@@ -151,6 +159,7 @@ export default function GeneralLedgerUpload() {
   const applySuggestedTargetMutation = useApplySuggestedTarget();
   const unapplySuggestedTargetMutation = useUnapplySuggestedTarget();
   const saveImportMutation = useSaveImport();
+  const saveImportFromUploadMutation = useSaveImportFromUpload();
 
   const [localPreview, setLocalPreview] = useState<ImportPreview | null>(null);
 
@@ -235,12 +244,14 @@ export default function GeneralLedgerUpload() {
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending;
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
-  const isUploadBusy = parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts;
+  const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending;
+  const isUploadBusy = parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts || isSavingImport;
+  const canRunAccountReview = Boolean(summary && file && selectedBook && !isReviewingAccounts);
   const accountReviewProgressLabel = accountReviewProgress
     ? formatAccountReviewProgress(accountReviewProgress)
     : null;
   const hasAccountReviewProgress = accountReviewProgress !== null;
-  
+
   const previewAccounts = preview?.accounts ?? [];
   const visibleReviewAccounts = useMemo(() => {
     if (!preview) return [];
@@ -385,29 +396,45 @@ export default function GeneralLedgerUpload() {
       const data = await parseImportMutation.mutateAsync({
         companyBookId: currentBook.book_id,
         file: currentFile,
+        dryRun: dryRunPreview,
       });
       if (parseRunIdRef.current !== parseRunId) return;
 
       setSummary(data.summary);
-      void reviewAccountSuggestions({
-        file: currentFile,
-        formatCode: currentBook.format_code,
-        parseRunId,
-        rowCount: data.summary.gl_entry_lines,
-        context: {
-          filename: currentFile.name,
-          companyId: currentBook.company_id,
-          companyName: currentBook.company_name,
-          formatCode: currentBook.format_code,
-          sourceFileId: data.summary.source_file_id,
-          useGemini: useGeminiReview,
-        },
-      });
-      // useImportPreview will fetch preview automatically since sourceFileId is set
+      if (data.preview) {
+        setLocalPreview(data.preview);
+        setShowWorkbookPreview(true);
+      }
+      // Staged imports fetch preview automatically since sourceFileId is set.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
     }
+  }
+
+  async function handleReviewAccountSuggestions() {
+    if (!file || !selectedBook || !summary) return;
+
+    setSuggestionError(null);
+    setAccountSuggestions(null);
+    setApplyingSuggestionKey(null);
+    setAppliedSuggestionRows(new Set());
+    setAppliedSuggestionChanges(new Map());
+
+    await reviewAccountSuggestions({
+      file,
+      formatCode: selectedBook.format_code,
+      parseRunId: parseRunIdRef.current,
+      rowCount: summary.gl_entry_lines,
+      context: {
+        filename: file.name,
+        companyId: selectedBook.company_id,
+        companyName: selectedBook.company_name,
+        formatCode: selectedBook.format_code,
+        sourceFileId: summary.source_file_id,
+        useGemini: useGeminiReview,
+      },
+    });
   }
 
   async function reviewAccountSuggestions({
@@ -481,7 +508,7 @@ export default function GeneralLedgerUpload() {
   }
 
   function discardStaged(staged: ParseSummary | null) {
-    if (staged) {
+    if (staged && !staged.dry_run && staged.source_file_id !== null) {
       deleteImportMutation.mutateAsync({
         companyId: staged.company_id,
         sourceFileId: staged.source_file_id,
@@ -493,6 +520,11 @@ export default function GeneralLedgerUpload() {
     if (!summary) return;
     parseRunIdRef.current += 1;
     setError(null);
+
+    if (isDryRun || summary.source_file_id === null) {
+      resetUploadReviewState();
+      return;
+    }
 
     try {
       await deleteImportMutation.mutateAsync({
@@ -528,7 +560,7 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleManualAdd() {
-    if (!summary) return;
+    if (!summary || isDryRun || summary.source_file_id === null) return;
     setError(null);
 
     try {
@@ -571,7 +603,7 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleApplySuggestedTarget(suggestion: GLAccountSuggestion) {
-    if (!summary) return;
+    if (!summary || isDryRun || summary.source_file_id === null) return;
     const suggestedAccountNumber = suggestion.suggested_target_account_number?.trim();
     if (!suggestedAccountNumber || suggestedAccountNumber === "MANUAL_REVIEW") {
       setError("Choose a valid suggested target before applying.");
@@ -656,7 +688,7 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleUnapplySuggestedTarget(suggestion: GLAccountSuggestion) {
-    if (!summary) return;
+    if (!summary || isDryRun || summary.source_file_id === null) return;
     const suggestionKey = applySuggestionKey(suggestion);
     const appliedChange = appliedSuggestionChanges.get(suggestionKey);
     if (!appliedChange) {
@@ -745,6 +777,20 @@ export default function GeneralLedgerUpload() {
     setError(null);
 
     try {
+      if (isDryRun || summary.source_file_id === null) {
+        if (!file) {
+          setError("Choose a GL file before saving.");
+          return;
+        }
+
+        await saveImportFromUploadMutation.mutateAsync({
+          companyBookId: selectedBook.book_id,
+          file,
+        });
+        window.location.assign(`/general-ledger/company/${selectedBook.company_id}?period=q1&year=2026`);
+        return;
+      }
+
       await saveImportMutation.mutateAsync({
         companyId: selectedBook.company_id,
         sourceFileId: summary.source_file_id,
@@ -864,6 +910,29 @@ export default function GeneralLedgerUpload() {
             </div>
             <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
               <div>
+                <Label htmlFor="dry-run-preview">Dry-run preview</Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  On means parse and preview only; no pending import rows are written.
+                </p>
+              </div>
+              <Button
+                id="dry-run-preview"
+                type="button"
+                variant={dryRunPreview ? "default" : "outline"}
+                size="sm"
+                onClick={() => setDryRunPreview((enabled) => !enabled)}
+                disabled={isUploadBusy}
+                title={
+                  dryRunPreview
+                    ? "Dry-run is on; the upload will not write database rows until Save"
+                    : "Dry-run is off; the upload will create a pending import that can be saved"
+                }
+              >
+                {dryRunPreview ? "On" : "Off"}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
+              <div>
                 <Label htmlFor="gemini-review">Gemini AI test review</Label>
               </div>
               <Button
@@ -931,10 +1000,14 @@ export default function GeneralLedgerUpload() {
               {isTrainingXgboost
                 ? "Training XGBoost..."
                 : parseImportMutation.isPending
-                ? "Parsing..."
+                ? dryRunPreview
+                  ? "Building dry-run..."
+                  : "Parsing..."
                 : accountSuggestionsMutation.isPending
                   ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with Gemini..." : "Reviewing...")
-                  : "Parse & Preview"}
+                  : dryRunPreview
+                    ? "Dry-run Preview"
+                    : "Parse & Stage"}
             </Button>
           </div>
         </CardContent>
@@ -970,9 +1043,15 @@ export default function GeneralLedgerUpload() {
                   <h2 className="text-lg font-medium">Import Review</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {preview.rows.length} of {preview.totals.line_count} rows shown
+                    {isDryRun ? " from a dry-run preview" : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {isDryRun && (
+                    <Badge className="border-blue-500/60 bg-blue-50 text-blue-700 hover:bg-blue-50 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
+                      No DB writes until Save
+                    </Badge>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -982,7 +1061,7 @@ export default function GeneralLedgerUpload() {
                     Workbook
                   </Button>
                   <Badge variant={reviewReady ? "default" : "destructive"} className={reviewReady ? "bg-green-600 text-white hover:bg-green-600 dark:bg-green-500 dark:text-green-950 dark:hover:bg-green-500" : ""}>
-                    {reviewReady ? "Ready for save" : "Needs review"}
+                    {isDryRun ? "Preview only" : reviewReady ? "Ready for save" : "Needs review"}
                   </Badge>
                 </div>
               </div>
@@ -1105,14 +1184,36 @@ export default function GeneralLedgerUpload() {
                 </div>
               )}
 
+              <div className="border-b bg-muted/10 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-medium">Account Suggestions</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Run this after the preview loads when you want XGBoost and optional Gemini review.
+                    </p>
+                  </div>
+                  <Button
+                    variant={accountSuggestions ? "outline" : "default"}
+                    disabled={!canRunAccountReview}
+                    onClick={handleReviewAccountSuggestions}
+                  >
+                    {accountSuggestionsMutation.isPending
+                      ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with Gemini..." : "Reviewing...")
+                      : accountSuggestions
+                        ? "Run Review Again"
+                        : "Run Account Review"}
+                  </Button>
+                </div>
+              </div>
+
               <AccountSuggestionReview
                 suggestions={suggestions}
                 response={accountSuggestions}
                 isLoading={accountSuggestionsMutation.isPending}
                 progressLabel={accountReviewProgressLabel}
                 error={suggestionError}
-                onApplySuggestedTarget={summary ? handleApplySuggestedTarget : undefined}
-                onUnapplySuggestedTarget={summary ? handleUnapplySuggestedTarget : undefined}
+                onApplySuggestedTarget={!isDryRun && summary ? handleApplySuggestedTarget : undefined}
+                onUnapplySuggestedTarget={!isDryRun && summary ? handleUnapplySuggestedTarget : undefined}
                 applyingSuggestionKey={applyingSuggestionKey}
                 appliedSuggestionRows={appliedSuggestionRows}
               />
@@ -1168,12 +1269,16 @@ export default function GeneralLedgerUpload() {
                       Stage a missed debit or credit before save.
                     </p>
                   </div>
-                  <Button variant="outline" onClick={() => setShowManualEntry(!showManualEntry)}>
-                    {showManualEntry ? "Hide" : "Manual Add"}
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowManualEntry(!showManualEntry)}
+                    disabled={isDryRun}
+                  >
+                    {isDryRun ? "Dry-run only" : showManualEntry ? "Hide" : "Manual Add"}
                   </Button>
                 </div>
 
-                {showManualEntry && (
+                {showManualEntry && !isDryRun && (
                   <div className="mt-6 grid gap-4 md:grid-cols-4">
                     <ManualField label="Account #" value={manualEntry.ledger_account_code} onChange={(val) => updateManualEntry("ledger_account_code", val)} />
                     <ManualField label="Account Name" value={manualEntry.ledger_account_name} onChange={(val) => updateManualEntry("ledger_account_name", val)} />
@@ -1209,32 +1314,35 @@ export default function GeneralLedgerUpload() {
             <CardContent className="p-6">
               <h2 className="text-lg font-medium">Save Import</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Review the account groups above, then save to make this import available on the company GL dashboard.
+                {isDryRun
+                  ? "This preview is not staged. Saving will parse this file again and write the saved GL import to the database."
+                  : "Review the account groups above, then save to make this import available on the company GL dashboard."}
               </p>
               <div className="mt-6 flex justify-end gap-3">
                 <Button
                   variant="outline"
                   disabled={
                     deleteImportMutation.isPending ||
-                    saveImportMutation.isPending ||
+                    isSavingImport ||
                     applySuggestedTargetMutation.isPending ||
                     unapplySuggestedTargetMutation.isPending
                   }
                   onClick={handleCancel}
                 >
-                  {deleteImportMutation.isPending ? "Discarding..." : "Cancel"}
+                  {isDryRun ? "Close Preview" : deleteImportMutation.isPending ? "Discarding..." : "Cancel"}
                 </Button>
                 <Button
                   disabled={
-                    saveImportMutation.isPending ||
+                    isSavingImport ||
                     isReviewingAccounts ||
                     applySuggestedTargetMutation.isPending ||
                     unapplySuggestedTargetMutation.isPending ||
-                    !reviewReady
+                    !reviewReady ||
+                    (isDryRun && (!selectedBook || !file))
                   }
                   onClick={handleSave}
                 >
-                  {saveImportMutation.isPending ? "Saving..." : "Save Import"}
+                  {isSavingImport ? "Saving..." : "Save Import"}
                 </Button>
               </div>
             </CardContent>
@@ -1324,6 +1432,10 @@ function ReviewFinderPanel({
               row.suggestion ?? undefined,
               row.txn.account_review
             );
+            const confidence = formatReviewConfidence(
+              row.suggestion ?? undefined,
+              row.txn.account_review
+            );
 
             return (
               <button
@@ -1353,6 +1465,9 @@ function ReviewFinderPanel({
                 </div>
                 <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground" : "text-blue-700 group-hover:text-accent-foreground dark:text-blue-300"}`}>
                   Suggested: {suggested}
+                </div>
+                <div className={`mt-1 text-xs font-medium ${isFocused ? "text-accent-foreground" : "text-foreground group-hover:text-accent-foreground"}`}>
+                  Confidence: {confidence}
                 </div>
               </button>
             );
@@ -1495,6 +1610,7 @@ function ReviewAccountGroup({
                 <TableHead>Memo</TableHead>
                 <TableHead>Current Target</TableHead>
                 <TableHead>Suggested Target</TableHead>
+                <TableHead className="text-right">Confidence</TableHead>
                 <TableHead className="text-right">Debit</TableHead>
                 <TableHead className="text-right">Credit</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
@@ -1503,7 +1619,7 @@ function ReviewAccountGroup({
             </TableHeader>
             <TableBody>
               <TableRow className="bg-muted/30 font-medium">
-                <TableCell colSpan={9} className="text-right text-muted-foreground">Beginning Balance</TableCell>
+                <TableCell colSpan={10} className="text-right text-muted-foreground">Beginning Balance</TableCell>
                 <TableCell className="text-right">{formatOptionalMoney(account.beginning_balance)}</TableCell>
                 <TableCell />
               </TableRow>
@@ -1550,13 +1666,28 @@ function ReviewAccountGroup({
                     {suggestion ? (
                       <SuggestedAccountValue suggestion={suggestion} />
                     ) : previewReview?.suggested_account_number ? (
-                      <AccountValue
-                        number={previewReview.suggested_account_number}
-                        name={previewReview.suggested_account_name}
-                      />
+                      <div className="min-w-0">
+                        <AccountValue
+                          number={previewReview.suggested_account_number}
+                          name={previewReview.suggested_account_name}
+                        />
+                        <ConfidenceValue review={previewReview} className="mt-1" />
+                      </div>
+                    ) : previewReview ? (
+                      <div className="min-w-0">
+                        <span className="text-muted-foreground">No change</span>
+                        <ConfidenceValue review={previewReview} className="mt-1" />
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">No change</span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
+                    <ConfidenceValue
+                      suggestion={suggestion}
+                      review={previewReview}
+                      compact
+                    />
                   </TableCell>
                   <TableCell className="hidden" aria-hidden="true">
                     <AccountComparison
@@ -1578,9 +1709,9 @@ function ReviewAccountGroup({
                 </TableRow>
                 );
               })}
-              
+
               <TableRow className="border-t-2 bg-muted/40 font-semibold">
-                <TableCell colSpan={9} className="text-right text-muted-foreground">Closing Balance</TableCell>
+                <TableCell colSpan={10} className="text-right text-muted-foreground">Closing Balance</TableCell>
                 <TableCell className="text-right">{formatMoney(closingBalance)}</TableCell>
                 <TableCell />
               </TableRow>
@@ -2101,8 +2232,8 @@ function AccountSuggestionReview({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-right" title={formatPercent(suggestion.confidence)}>
-                    {formatPercent(suggestion.confidence)}
+                  <TableCell className="text-right">
+                    <ConfidenceValue suggestion={suggestion} compact />
                   </TableCell>
                   <TableCell className="text-right" title={formatReviewMarker(suggestion)}>
                     <ReviewStatusStack suggestion={suggestion} />
@@ -2249,6 +2380,7 @@ function DraggableWorkbookPreview({
               <TableHead>Current Target</TableHead>
               <TableHead>Suggested Target</TableHead>
               <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="text-right">Confidence</TableHead>
               <TableHead className="text-right">Review</TableHead>
             </TableRow>
           </TableHeader>
@@ -2277,24 +2409,46 @@ function DraggableWorkbookPreview({
                   <AccountValue
                     number={
                       row.suggestion?.current_target_account_number ??
+                      row.txn.account_review?.current_target_account_number ??
                       row.txn.split_account_number
                     }
                     name={
                       row.suggestion?.current_target_account_name ??
+                      row.txn.account_review?.current_target_account_name ??
                       row.txn.split_account_name
                     }
-                    muted={!row.suggestion}
+                    muted={!row.suggestion && !row.txn.account_review}
                   />
                 </TableCell>
                 <TableCell className="min-w-[220px] max-w-[280px]">
                   {row.suggestion ? (
                     <SuggestedAccountValue suggestion={row.suggestion} />
+                  ) : row.txn.account_review?.suggested_account_number ? (
+                    <div className="min-w-0">
+                      <AccountValue
+                        number={row.txn.account_review.suggested_account_number}
+                        name={row.txn.account_review.suggested_account_name}
+                      />
+                      <ConfidenceValue review={row.txn.account_review} className="mt-1" />
+                    </div>
+                  ) : row.txn.account_review ? (
+                    <div className="min-w-0">
+                      <span className="text-muted-foreground">No change</span>
+                      <ConfidenceValue review={row.txn.account_review} className="mt-1" />
+                    </div>
                   ) : (
                     <span className="text-muted-foreground">No change</span>
                   )}
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   {formatMoney(row.txn.amount)}
+                </TableCell>
+                <TableCell className="text-right whitespace-nowrap">
+                  <ConfidenceValue
+                    suggestion={row.suggestion ?? undefined}
+                    review={row.txn.account_review}
+                    compact
+                  />
                 </TableCell>
                 <TableCell
                   className="text-right"
@@ -2376,24 +2530,67 @@ function SuggestedAccountValue({
   suggestion: GLAccountSuggestion;
 }) {
   if (suggestion.requires_manual_review && !suggestion.suggested_target_account_number) {
-    return <span className="font-medium text-red-700 dark:text-red-300">Manual review</span>;
+    return (
+      <div className="min-w-0">
+        <span className="font-medium text-red-700 dark:text-red-300">Manual review</span>
+        <ConfidenceValue suggestion={suggestion} className="mt-1" />
+      </div>
+    );
   }
   if (isNoChangeSuggestion(suggestion)) {
-    return <span className="text-muted-foreground">No change</span>;
+    return (
+      <div className="min-w-0">
+        <span className="text-muted-foreground">No change</span>
+        <ConfidenceValue suggestion={suggestion} className="mt-1" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-w-0">
+      <span
+        className="block min-w-0 truncate font-medium text-blue-700 dark:text-blue-300"
+        title={formatSuggestionAccount(
+          suggestion.suggested_target_account_number,
+          suggestion.suggested_target_account_name
+        )}
+      >
+        {formatSuggestionAccount(
+          suggestion.suggested_target_account_number,
+          suggestion.suggested_target_account_name
+        )}
+      </span>
+      <ConfidenceValue suggestion={suggestion} className="mt-1" />
+    </div>
+  );
+}
+
+function ConfidenceValue({
+  suggestion,
+  review,
+  compact = false,
+  className = "",
+}: {
+  suggestion?: GLAccountSuggestion | null;
+  review?: ImportPreviewAccountReview | null;
+  compact?: boolean;
+  className?: string;
+}) {
+  const confidence = formatReviewConfidence(suggestion ?? undefined, review ?? undefined);
+  if (confidence === "-") {
+    return (
+      <span className={`text-muted-foreground ${className}`} title="No confidence score available">
+        -
+      </span>
+    );
   }
 
   return (
     <span
-      className="min-w-0 truncate font-medium text-blue-700 dark:text-blue-300"
-      title={formatSuggestionAccount(
-        suggestion.suggested_target_account_number,
-        suggestion.suggested_target_account_name
-      )}
+      className={`inline-flex items-center rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-foreground ${className}`}
+      title={formatReviewConfidenceTitle(suggestion ?? undefined, review ?? undefined)}
     >
-      {formatSuggestionAccount(
-        suggestion.suggested_target_account_number,
-        suggestion.suggested_target_account_name
-      )}
+      {compact ? confidence : `Confidence ${confidence}`}
     </span>
   );
 }
@@ -2425,6 +2622,7 @@ function ReviewStatusStack({
           {status}
         </div>
       )}
+      <ConfidenceValue suggestion={suggestion} review={visibleReview} />
     </div>
   );
 }
@@ -2838,6 +3036,41 @@ function formatAccountReviewTransactionTitle(
     lines.push(`Review source: ${formatReviewText(review.source)}`);
     lines.push(`Review confidence: ${formatPercent(review.confidence)}`);
     lines.push(`Review reason: ${formatReviewText(review.reason)}`);
+  }
+
+  return lines.join("\n");
+}
+
+function formatReviewConfidence(
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+) {
+  if (suggestion?.confidence != null) return formatPercent(suggestion.confidence);
+  if (review && review.source !== "not_bank_transaction" && review.confidence != null) {
+    return formatPercent(review.confidence);
+  }
+  return "-";
+}
+
+function formatReviewConfidenceTitle(
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+) {
+  const lines: string[] = [];
+  const visibleConfidence = formatReviewConfidence(suggestion, review);
+  lines.push(`Visible confidence: ${visibleConfidence}`);
+
+  if (suggestion) {
+    lines.push(`Suggestion confidence: ${formatPercent(suggestion.confidence)}`);
+    if (suggestion.ai_confidence != null) {
+      lines.push(`AI confidence: ${formatPercent(suggestion.ai_confidence)}`);
+    }
+    if (suggestion.xgboost_confidence != null) {
+      lines.push(`XGBoost confidence: ${formatPercent(suggestion.xgboost_confidence)}`);
+    }
+  }
+  if (review && review.source !== "not_bank_transaction") {
+    lines.push(`Preview review confidence: ${formatPercent(review.confidence)}`);
   }
 
   return lines.join("\n");

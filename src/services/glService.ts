@@ -24,6 +24,7 @@ import type {
   ManualGlEntryRequest,
   ManualGlEntryResponse,
   ParseImportResponse,
+  SaveImportFromUploadResponse,
   TrialBalance,
 } from "@/types/gl";
 
@@ -51,9 +52,11 @@ export const GLService = {
   async parseImport(params: {
     companyBookId: number;
     file: File;
+    dryRun?: boolean;
   }): Promise<ParseImportResponse> {
     const formData = new FormData();
     formData.append("company_book_id", String(params.companyBookId));
+    formData.append("dry_run", String(params.dryRun ?? false));
     formData.append("file", params.file);
 
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
@@ -139,6 +142,20 @@ export const GLService = {
       company_id: params.companyId,
       source_file_id: params.sourceFileId,
     });
+  },
+
+  async saveImportFromUpload(params: {
+    companyBookId: number;
+    file: File;
+  }): Promise<SaveImportFromUploadResponse> {
+    const formData = new FormData();
+    formData.append("company_book_id", String(params.companyBookId));
+    formData.append("file", params.file);
+
+    return apiClient.post<SaveImportFromUploadResponse>(
+      "/accounting/gl/imports/save-from-upload",
+      formData
+    );
   },
 
   async deleteImport(params: {
