@@ -27,14 +27,24 @@ export type ParseSummary = {
   company_id: number;
   company_book_id: number;
   company_name: string;
-  source_file_id: number;
+  source_file_id: number | null;
   accounts_resolved: number;
+  accounts_unresolved?: number;
   gl_entries: number;
   gl_entry_lines: number;
   bank_lines: number;
+  status?: string;
+  dry_run?: boolean;
 };
 
 export type ParseImportResponse = {
+  summary: ParseSummary;
+  preview?: ImportPreview | null;
+  dry_run?: boolean;
+};
+
+export type SaveImportFromUploadResponse = {
+  status: "saved" | string;
   summary: ParseSummary;
 };
 
@@ -355,7 +365,9 @@ export type ImportPreviewAccount = {
 };
 
 export type ImportPreview = {
-  source_file_id: number;
+  source_file_id: number | null;
+  dry_run?: boolean;
+  company_id?: number | null;
   totals: {
     debits: number;
     credits: number;
