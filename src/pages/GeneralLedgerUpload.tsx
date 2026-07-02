@@ -5,6 +5,7 @@ import type {
   ApplySuggestedTargetResponse,
   GLAccountSuggestion,
   GLAccountSuggestionsResponse,
+  GLXgboostTestTrainingResponse,
   ImportPreview,
   ImportPreviewAccount,
   ImportPreviewAccountReview,
@@ -16,6 +17,7 @@ import {
   useParseImport,
   useImportPreview,
   useGLAccountSuggestions,
+  useTrainXgboostTestModelFromGlExport,
   useDeleteImport,
   useAddManualEntry,
   useApplySuggestedTarget,
@@ -63,6 +65,8 @@ type WorkbookPreviewRow = {
   suggestion: GLAccountSuggestion | null;
 };
 
+type ReviewFinderKind = "quickbooks_rule" | "xgboost" | "ai";
+
 type AccountReviewProgress = {
   current: number;
   total: number;
@@ -70,6 +74,7 @@ type AccountReviewProgress = {
 
 type AccountReviewLogContext = {
   filename: string;
+  companyId: number;
   companyName: string;
   formatCode: string;
   sourceFileId: number;
@@ -79,7 +84,7 @@ type AccountReviewLogContext = {
 const GEMINI_ROWS_PER_REQUEST = 50;
 const GEMINI_CONCURRENCY_LIMIT = 3;
 // Temporary testing flag: set to null to let Gemini AI review all selected rows.
-const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = 25;
+const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = 100;
 const GEMINI_AI_TEST_REVIEW_MODEL = "gemini-3.1-flash-lite";
 const GEMINI_USE_GOOGLE_SEARCH = false;
 const GEMINI_ENABLE_ESCALATION = false;
@@ -102,6 +107,7 @@ export default function GeneralLedgerUpload() {
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [useGeminiReview, setUseGeminiReview] = useState(true);
+  const [trainXgboostTestModel, setTrainXgboostTestModel] = useState(false);
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
   const [accountFilter, setAccountFilter] = useState("all");
@@ -116,10 +122,15 @@ export default function GeneralLedgerUpload() {
   const [appliedSuggestionRows, setAppliedSuggestionRows] = useState<Set<number>>(
     () => new Set()
   );
+  const [focusedReviewRowId, setFocusedReviewRowId] = useState<string | null>(null);
+  const [activeReviewFinder, setActiveReviewFinder] =
+    useState<ReviewFinderKind | null>(null);
   const [appliedSuggestionChanges, setAppliedSuggestionChanges] = useState<
     Map<string, ApplySuggestedTargetResponse["applied_change"]>
   >(() => new Map());
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [xgboostTrainingResult, setXgboostTrainingResult] =
+    useState<GLXgboostTestTrainingResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const parseRunIdRef = useRef(0);
   const glFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -134,6 +145,7 @@ export default function GeneralLedgerUpload() {
   
   const parseImportMutation = useParseImport();
   const accountSuggestionsMutation = useGLAccountSuggestions();
+  const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
   const deleteImportMutation = useDeleteImport();
   const addManualEntryMutation = useAddManualEntry();
   const applySuggestedTargetMutation = useApplySuggestedTarget();
@@ -193,12 +205,37 @@ export default function GeneralLedgerUpload() {
       }))
     );
   }, [preview, suggestionByTransaction]);
+  const xgboostWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookXgboostReviewRow),
+    [workbookRows]
+  );
+  const qbRuleWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookQuickBooksRuleReviewRow),
+    [workbookRows]
+  );
+  const aiReviewWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookAiReviewRow),
+    [workbookRows]
+  );
+  const activeReviewFinderRows = useMemo(() => {
+    if (activeReviewFinder === "quickbooks_rule") return qbRuleWorkbookRows;
+    if (activeReviewFinder === "ai") return aiReviewWorkbookRows;
+    if (activeReviewFinder === "xgboost") return xgboostWorkbookRows;
+    return [];
+  }, [
+    activeReviewFinder,
+    aiReviewWorkbookRows,
+    qbRuleWorkbookRows,
+    xgboostWorkbookRows,
+  ]);
 
   const reviewDifference = preview ? preview.totals.debits - preview.totals.credits : 0;
   const reconciliationChecks = preview?.reconciliation?.checks ?? [];
   const hasReconciliationMismatch = reconciliationChecks.some((check) => check.status !== "match");
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending;
+  const isTrainingXgboost = xgboostTrainingMutation.isPending;
+  const isUploadBusy = parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts;
   const accountReviewProgressLabel = accountReviewProgress
     ? formatAccountReviewProgress(accountReviewProgress)
     : null;
@@ -241,8 +278,31 @@ export default function GeneralLedgerUpload() {
     setAccountReviewProgress(null);
     setApplyingSuggestionKey(null);
     setAppliedSuggestionRows(new Set());
+    setFocusedReviewRowId(null);
+    setActiveReviewFinder(null);
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
+    setXgboostTrainingResult(null);
+  }
+
+  function toggleReviewFinder(kind: ReviewFinderKind, rows: WorkbookPreviewRow[]) {
+    if (rows.length === 0) return;
+    setActiveReviewFinder((current) => (current === kind ? null : kind));
+  }
+
+  function goToReviewFinderRow(row: WorkbookPreviewRow) {
+    const targetId = previewRowDomId(row.account, row.txn);
+
+    setAccountFilter(row.account.account_key);
+    setFocusedReviewRowId(targetId);
+    setShowWorkbookPreview(false);
+
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 100);
   }
 
   function handleGlFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -296,10 +356,32 @@ export default function GeneralLedgerUpload() {
     setAccountReviewProgress(null);
     setApplyingSuggestionKey(null);
     setAppliedSuggestionRows(new Set());
+    setFocusedReviewRowId(null);
+    setActiveReviewFinder(null);
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
+    setXgboostTrainingResult(null);
 
     try {
+      if (trainXgboostTestModel) {
+        const training = await xgboostTrainingMutation.mutateAsync({
+          file: currentFile,
+          formatCode: currentBook.format_code,
+          companyName: currentBook.company_name,
+          targetField: "split_account",
+          excludeBlankTargets: true,
+          excludeTransfers: true,
+          includeZeroAmounts: false,
+          numRounds: 50,
+        });
+        if (parseRunIdRef.current !== parseRunId) return;
+        setXgboostTrainingResult(training);
+        if (training.status !== "success") {
+          setError(`XGBoost test training failed: ${training.message}`);
+          return;
+        }
+      }
+
       const data = await parseImportMutation.mutateAsync({
         companyBookId: currentBook.book_id,
         file: currentFile,
@@ -314,6 +396,7 @@ export default function GeneralLedgerUpload() {
         rowCount: data.summary.gl_entry_lines,
         context: {
           filename: currentFile.name,
+          companyId: currentBook.company_id,
           companyName: currentBook.company_name,
           formatCode: currentBook.format_code,
           sourceFileId: data.summary.source_file_id,
@@ -355,21 +438,24 @@ export default function GeneralLedgerUpload() {
     }
 
     try {
+      const useGemini = context.useGemini;
       const review = await accountSuggestionsMutation.mutateAsync({
         file,
+        companyId: context.companyId,
+        companyName: context.companyName,
         formatCode,
         includeAll: true,
-        useAi: context.useGemini,
-        aiProvider: "gemini",
-        aiModel: GEMINI_AI_TEST_REVIEW_MODEL,
-        aiRowsPerRequest: GEMINI_ROWS_PER_REQUEST,
-        aiConcurrencyLimit: GEMINI_CONCURRENCY_LIMIT,
-        aiUseGoogleSearch: GEMINI_USE_GOOGLE_SEARCH,
-        aiReviewAll: true,
-        aiMaxRows: GEMINI_AI_TEST_REVIEW_MAX_ROWS,
-        aiEnableEscalation: GEMINI_ENABLE_ESCALATION,
-        aiEscalationConfidence: 0.85,
-        applyAiSuggestions: true,
+        useAi: useGemini,
+        aiProvider: useGemini ? "gemini" : undefined,
+        aiModel: useGemini ? GEMINI_AI_TEST_REVIEW_MODEL : undefined,
+        aiRowsPerRequest: useGemini ? GEMINI_ROWS_PER_REQUEST : undefined,
+        aiConcurrencyLimit: useGemini ? GEMINI_CONCURRENCY_LIMIT : undefined,
+        aiUseGoogleSearch: useGemini ? GEMINI_USE_GOOGLE_SEARCH : undefined,
+        aiReviewAll: useGemini,
+        aiMaxRows: useGemini ? GEMINI_AI_TEST_REVIEW_MAX_ROWS : null,
+        aiEnableEscalation: useGemini ? GEMINI_ENABLE_ESCALATION : false,
+        aiEscalationConfidence: useGemini ? 0.85 : undefined,
+        applyAiSuggestions: useGemini,
       });
 
       const geminiIssues = logGeminiReviewIssues(review, context);
@@ -425,6 +511,8 @@ export default function GeneralLedgerUpload() {
       setAccountSuggestions(null);
       setApplyingSuggestionKey(null);
       setAppliedSuggestionRows(new Set());
+      setFocusedReviewRowId(null);
+      setActiveReviewFinder(null);
       setAppliedSuggestionChanges(new Map());
       setSuggestionError(null);
     }
@@ -684,7 +772,7 @@ export default function GeneralLedgerUpload() {
       </header>
 
       {(error || booksError) && (
-        <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-950/40 dark:text-red-200">
           {error || booksError?.message}
         </section>
       )}
@@ -710,6 +798,8 @@ export default function GeneralLedgerUpload() {
                   setAccountSuggestions(null);
                   setApplyingSuggestionKey(null);
                   setAppliedSuggestionRows(new Set());
+                  setFocusedReviewRowId(null);
+                  setActiveReviewFinder(null);
                   setAppliedSuggestionChanges(new Map());
                   setSuggestionError(null);
                 }}
@@ -782,18 +872,65 @@ export default function GeneralLedgerUpload() {
                 variant={useGeminiReview ? "default" : "outline"}
                 size="sm"
                 onClick={() => setUseGeminiReview((enabled) => !enabled)}
+                disabled={isUploadBusy}
+                title={
+                  isUploadBusy
+                    ? "Gemini review setting is locked while this upload is running"
+                    : "Toggle Gemini AI test review"
+                }
               >
                 {useGeminiReview ? "On" : "Off"}
               </Button>
             </div>
+            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
+              <div>
+                <Label htmlFor="xgboost-test-training">XGBoost test training</Label>
+              </div>
+              <Button
+                id="xgboost-test-training"
+                type="button"
+                variant={trainXgboostTestModel ? "default" : "outline"}
+                size="sm"
+                onClick={() => setTrainXgboostTestModel((enabled) => !enabled)}
+                disabled={isUploadBusy}
+              >
+                {trainXgboostTestModel ? "On" : "Off"}
+              </Button>
+            </div>
           </div>
+
+          {xgboostTrainingResult?.status === "success" && (
+            <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
+              <div className="font-medium">
+                XGBoost test trained:{" "}
+                {xgboostTrainingResult.result?.trained_rows.toLocaleString("en-US") ?? "0"} rows /{" "}
+                {xgboostTrainingResult.result?.class_count.toLocaleString("en-US") ?? "0"} accounts
+              </div>
+              {xgboostTrainingResult.training && (
+                <div className="mt-1 text-xs">
+                  Trusted current split-account labels from company/name/memo/current bank input;{" "}
+                  {(xgboostTrainingResult.training.memo_rows ?? 0).toLocaleString("en-US")} memo rows,{" "}
+                  {(xgboostTrainingResult.training.current_account_rows ?? 0).toLocaleString("en-US")} current-account rows; skipped{" "}
+                  {xgboostTrainingResult.training.skipped_transfer_rows.toLocaleString("en-US")} transfers,{" "}
+                  {(xgboostTrainingResult.training.skipped_untrainable_target_rows ?? 0).toLocaleString("en-US")} clearing/bank targets.
+                </div>
+              )}
+              {xgboostTrainingResult.training?.cleanup_files?.length ? (
+                <div className="mt-1 truncate font-mono text-xs" title={xgboostTrainingResult.training.cleanup_files.join(" | ")}>
+                  Cleanup: {xgboostTrainingResult.training.cleanup_files.join(" | ")}
+                </div>
+              ) : null}
+            </div>
+          )}
 
           <div className="mt-6 flex justify-end">
             <Button
-              disabled={!selectedBook || !file || parseImportMutation.isPending || isReviewingAccounts}
+              disabled={!selectedBook || !file || isUploadBusy}
               onClick={handleParse}
             >
-              {parseImportMutation.isPending
+              {isTrainingXgboost
+                ? "Training XGBoost..."
+                : parseImportMutation.isPending
                 ? "Parsing..."
                 : accountSuggestionsMutation.isPending
                   ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with Gemini..." : "Reviewing...")
@@ -844,7 +981,7 @@ export default function GeneralLedgerUpload() {
                     <FileSpreadsheet className="h-4 w-4" />
                     Workbook
                   </Button>
-                  <Badge variant={reviewReady ? "default" : "destructive"} className={reviewReady ? "bg-green-600" : ""}>
+                  <Badge variant={reviewReady ? "default" : "destructive"} className={reviewReady ? "bg-green-600 text-white hover:bg-green-600 dark:bg-green-500 dark:text-green-950 dark:hover:bg-green-500" : ""}>
                     {reviewReady ? "Ready for save" : "Needs review"}
                   </Badge>
                 </div>
@@ -871,15 +1008,45 @@ export default function GeneralLedgerUpload() {
                   <ReviewStat
                     label="QB Rules"
                     value={preview.account_review_summary.quickbooks_rule_count.toLocaleString("en-US")}
+                    onClick={
+                      qbRuleWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("quickbooks_rule", qbRuleWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      qbRuleWorkbookRows.length > 0
+                        ? "Open QuickBooks rule reviewed transaction finder"
+                        : "No QuickBooks rule-reviewed transactions in this preview"
+                    }
                   />
                   <ReviewStat
                     label="XGBoost"
                     value={preview.account_review_summary.xgboost_count.toLocaleString("en-US")}
+                    onClick={
+                      xgboostWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("xgboost", xgboostWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      xgboostWorkbookRows.length > 0
+                        ? "Open XGBoost reviewed transaction finder"
+                        : "No XGBoost-reviewed transactions in this preview"
+                    }
                   />
                   <ReviewStat
                     label="AI Review"
                     value={preview.account_review_summary.ai_review_count.toLocaleString("en-US")}
                     tone={preview.account_review_summary.ai_review_count > 0 ? "warning" : "default"}
+                    onClick={
+                      aiReviewWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("ai", aiReviewWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      aiReviewWorkbookRows.length > 0
+                        ? "Open AI reviewed transaction finder"
+                        : "No AI-reviewed transactions in this preview"
+                    }
                   />
                   <ReviewStat
                     label="Human"
@@ -902,7 +1069,7 @@ export default function GeneralLedgerUpload() {
                         {preview.reconciliation.explanation}
                       </p>
                     </div>
-                    <Badge variant={preview.reconciliation.is_balanced ? "default" : "destructive"} className={preview.reconciliation.is_balanced ? "bg-green-600" : ""}>
+                    <Badge variant={preview.reconciliation.is_balanced ? "default" : "destructive"} className={preview.reconciliation.is_balanced ? "bg-green-600 text-white hover:bg-green-600 dark:bg-green-500 dark:text-green-950 dark:hover:bg-green-500" : ""}>
                       {preview.reconciliation.is_balanced ? "Balanced" : "Review"}
                     </Badge>
                   </div>
@@ -926,7 +1093,7 @@ export default function GeneralLedgerUpload() {
                             <TableCell className="text-right">{formatCheckValue(check.check, check.export)}</TableCell>
                             <TableCell className="text-right">{formatCheckValue(check.check, check.difference)}</TableCell>
                             <TableCell className="text-right">
-                              <Badge variant={check.status === "match" ? "outline" : "destructive"} className={check.status === "match" ? "border-green-600 text-green-700 bg-green-50" : ""}>
+                              <Badge variant={check.status === "match" ? "outline" : "destructive"} className={check.status === "match" ? "border-green-600 bg-green-50 text-green-700 dark:border-green-400/40 dark:bg-green-950/40 dark:text-green-200" : ""}>
                                 {check.status}
                               </Badge>
                             </TableCell>
@@ -986,6 +1153,7 @@ export default function GeneralLedgerUpload() {
                         isFiltered={accountFilter === account.account_key}
                         onFilter={() => setAccountFilter(account.account_key)}
                         suggestionByTransaction={suggestionByTransaction}
+                        focusedReviewRowId={focusedReviewRowId}
                       />
                     ))}
                   </div>
@@ -1082,6 +1250,15 @@ export default function GeneralLedgerUpload() {
           onClose={() => setShowWorkbookPreview(false)}
         />
       )}
+      {activeReviewFinder && (
+        <ReviewFinderPanel
+          kind={activeReviewFinder}
+          rows={activeReviewFinderRows}
+          focusedReviewRowId={focusedReviewRowId}
+          onGoTo={goToReviewFinderRow}
+          onClose={() => setActiveReviewFinder(null)}
+        />
+      )}
     </main>
   );
 }
@@ -1095,6 +1272,113 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ReviewFinderPanel({
+  kind,
+  rows,
+  focusedReviewRowId,
+  onGoTo,
+  onClose,
+}: {
+  kind: ReviewFinderKind;
+  rows: WorkbookPreviewRow[];
+  focusedReviewRowId: string | null;
+  onGoTo: (row: WorkbookPreviewRow) => void;
+  onClose: () => void;
+}) {
+  const title = reviewFinderTitle(kind);
+  const emptyText = reviewFinderEmptyText(kind);
+
+  return (
+    <div className="fixed right-4 top-20 z-50 flex max-h-[min(620px,calc(100vh-6rem))] w-[min(460px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border bg-background shadow-2xl">
+      <div className="flex items-start justify-between gap-3 border-b bg-muted/60 px-4 py-3">
+        <div>
+          <div className="text-sm font-medium">{title}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {rows.length.toLocaleString("en-US")} reviewed transactions
+          </div>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0"
+          onClick={onClose}
+          title={`Close ${title}`}
+        >
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="p-4 text-sm text-muted-foreground">
+          {emptyText}
+        </div>
+      ) : (
+        <div className="overflow-auto p-2">
+          {rows.map((row, index) => {
+            const rowId = previewRowDomId(row.account, row.txn);
+            const isFocused = focusedReviewRowId === rowId;
+            const label = row.txn.name || row.txn.memo || row.txn.transaction_type || "Transaction";
+            const marker = formatReviewFinderMarker(kind, row);
+            const suggested = formatReviewSuggestedTarget(
+              row.suggestion ?? undefined,
+              row.txn.account_review
+            );
+
+            return (
+              <button
+                key={rowId}
+                type="button"
+                className={`group mb-2 w-full rounded-md border p-3 text-left text-foreground transition-colors hover:border-primary/40 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  isFocused ? "border-primary bg-accent text-accent-foreground" : "bg-background"
+                }`}
+                onClick={() => onGoTo(row)}
+                title={marker}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">
+                      {index + 1}. {label}
+                    </div>
+                    <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
+                      {row.txn.entry_date || "-"} · {row.txn.transaction_type || "-"} · {formatAccountLabel(row.account)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right text-xs font-medium">
+                    {formatMoney(row.txn.amount)}
+                  </div>
+                </div>
+                <div className={`mt-2 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
+                  {marker}
+                </div>
+                <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground" : "text-blue-700 group-hover:text-accent-foreground dark:text-blue-300"}`}>
+                  Suggested: {suggested}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function reviewFinderTitle(kind: ReviewFinderKind) {
+  if (kind === "quickbooks_rule") return "QB Rules finder";
+  if (kind === "ai") return "AI Review finder";
+  return "XGBoost finder";
+}
+
+function reviewFinderEmptyText(kind: ReviewFinderKind) {
+  if (kind === "quickbooks_rule") {
+    return "No QuickBooks rule-reviewed transactions are available in this preview.";
+  }
+  if (kind === "ai") {
+    return "No AI-reviewed transactions are available in this preview.";
+  }
+  return "No XGBoost-reviewed transactions are available in this preview.";
+}
+
 function MetricCard({ label, value }: { label: string; value: number }) {
   return (
     <Card>
@@ -1106,12 +1390,46 @@ function MetricCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function ReviewStat({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "ok" | "warning" }) {
-  const toneClass = tone === "ok" ? "text-green-600" : tone === "warning" ? "text-red-600" : "";
+function ReviewStat({
+  label,
+  value,
+  tone = "default",
+  onClick,
+  title,
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "ok" | "warning";
+  onClick?: () => void;
+  title?: string;
+}) {
+  const toneClass =
+    tone === "ok"
+      ? "text-green-600 dark:text-green-400"
+      : tone === "warning"
+      ? "text-red-600 dark:text-red-400"
+      : "";
+  const content = (
+    <>
+      <p className={`text-xs uppercase ${onClick ? "text-muted-foreground group-hover:text-accent-foreground/80" : "text-muted-foreground"}`}>{label}</p>
+      <p className={`mt-1 text-lg font-semibold ${toneClass || (onClick ? "group-hover:text-accent-foreground" : "")}`}>{value}</p>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        className="group p-4 text-left transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={onClick}
+        title={title}
+      >
+        {content}
+      </button>
+    );
+  }
   return (
-    <div className="p-4">
-      <p className="text-xs uppercase text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-lg font-semibold ${toneClass}`}>{value}</p>
+    <div className="p-4" title={title}>
+      {content}
     </div>
   );
 }
@@ -1121,18 +1439,20 @@ function ReviewAccountGroup({
   isFiltered,
   onFilter,
   suggestionByTransaction,
+  focusedReviewRowId,
 }: {
   account: ImportPreviewAccount;
   isFiltered: boolean;
   onFilter: () => void;
   suggestionByTransaction: Map<string, GLAccountSuggestion>;
+  focusedReviewRowId?: string | null;
 }) {
   const transactions = account.transactions ?? [];
   const closingBalance = getPreviewAccountClosingBalance(account);
 
   return (
     <div className="overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm">
-      <div className={`flex flex-col gap-3 border-b p-4 md:flex-row md:items-start md:justify-between ${isFiltered ? "bg-blue-50/50" : "bg-muted/40"}`}>
+      <div className={`flex flex-col gap-3 border-b p-4 md:flex-row md:items-start md:justify-between ${isFiltered ? "bg-accent/60" : "bg-muted/40"}`}>
         <div>
           <h4 className="font-medium">{formatAccountLabel(account)}</h4>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -1145,13 +1465,13 @@ function ReviewAccountGroup({
             {account.line_count.toLocaleString("en-US")} lines
           </Badge>
           {account.bank_lines > 0 && (
-            <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">
+            <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-200 dark:hover:bg-green-950/40">
               {account.bank_lines.toLocaleString("en-US")} bank
             </Badge>
           )}
           <span className="font-semibold text-muted-foreground">Debit {formatMoney(account.debits)}</span>
           <span className="font-semibold text-muted-foreground">Credit {formatMoney(account.credits)}</span>
-          <span className={`font-semibold ${Math.abs(account.net_amount) < 0.005 ? "text-muted-foreground" : account.net_amount > 0 ? "text-green-600" : "text-red-600"}`}>
+          <span className={`font-semibold ${Math.abs(account.net_amount) < 0.005 ? "text-muted-foreground" : account.net_amount > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
             Net {formatMoney(account.net_amount)}
           </span>
           <ReviewBalanceStat label="Beginning" value={account.beginning_balance} />
@@ -1182,7 +1502,7 @@ function ReviewAccountGroup({
               </TableRow>
             </TableHeader>
             <TableBody>
-              <TableRow className="bg-blue-50/40 font-medium">
+              <TableRow className="bg-muted/30 font-medium">
                 <TableCell colSpan={9} className="text-right text-muted-foreground">Beginning Balance</TableCell>
                 <TableCell className="text-right">{formatOptionalMoney(account.beginning_balance)}</TableCell>
                 <TableCell />
@@ -1193,16 +1513,19 @@ function ReviewAccountGroup({
                   suggestionKeyFromPreview(account, txn)
                 );
                 const previewReview = txn.account_review;
-                const showPreviewReview =
-                  !suggestion &&
-                  previewReview &&
-                  previewReview.source !== "not_bank_transaction";
                 const currentTargetTitle = formatReviewCurrentTarget(txn, suggestion, previewReview);
                 const suggestedTargetTitle = formatReviewSuggestedTarget(suggestion, previewReview);
                 const rowTitle = formatAccountReviewTransactionTitle(txn, suggestion, previewReview);
+                const rowDomId = previewRowDomId(account, txn);
+                const rowIsFocused = focusedReviewRowId === rowDomId;
 
                 return (
-                <TableRow key={txn.entry_id} title={rowTitle}>
+                <TableRow
+                  id={rowDomId}
+                  key={txn.entry_id}
+                  className={rowIsFocused ? "bg-accent ring-2 ring-inset ring-ring" : undefined}
+                  title={rowTitle}
+                >
                   <TableCell className="whitespace-nowrap" title={formatReviewText(txn.entry_date)}>{txn.entry_date || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap" title={formatReviewText(txn.transaction_type)}>{txn.transaction_type || "-"}</TableCell>
                   <TableCell className="whitespace-nowrap" title={formatReviewText(txn.transaction_number)}>{txn.transaction_number || "-"}</TableCell>
@@ -1246,15 +1569,11 @@ function ReviewAccountGroup({
                   <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.debit)}>{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
                   <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.credit)}>{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
                   <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.balance_after)}>{txn.balance_after == null ? "-" : formatMoney(txn.balance_after)}</TableCell>
-                  <TableCell className="text-right" title={formatReviewStatus(suggestion, previewReview, txn.is_bank_line)}>
-                    <div className="flex justify-end gap-1">
-                      {suggestion && <SuggestionBadge suggestion={suggestion} />}
-                      {showPreviewReview && <PreviewReviewBadge review={previewReview} />}
-                      {txn.is_bank_line && (
-                        <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100">Bank</Badge>
-                      )}
-                      {!suggestion && !showPreviewReview && !txn.is_bank_line ? "-" : null}
-                    </div>
+                  <TableCell className="text-right" title={formatReviewMarker(suggestion, previewReview)}>
+                    <ReviewStatusStack
+                      suggestion={suggestion}
+                      review={previewReview}
+                    />
                   </TableCell>
                 </TableRow>
                 );
@@ -1541,7 +1860,7 @@ function AccountSuggestionReview({
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-medium">
-            <Sparkles className="h-4 w-4 text-blue-600" />
+            <Sparkles className="h-4 w-4 text-blue-600 dark:text-blue-300" />
             Account Review
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -1581,32 +1900,32 @@ function AccountSuggestionReview({
       </div>
 
       {error && (
-        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-200">
           {error}
         </div>
       )}
 
       {aiReview?.error && (
-        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-200">
           Gemini review did not finish: {aiReview.error}
         </div>
       )}
 
       {aiReview?.scope_note && (
-        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
           {aiReview.scope_note}
         </div>
       )}
 
       {geminiReviewedRowsLabel && (
-        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        <div className="mb-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
           <div className="font-medium">Gemini AI test rows reviewed</div>
           <div className="mt-1 font-mono text-xs">{geminiReviewedRowsLabel}</div>
         </div>
       )}
 
       {aiReview?.test_forced_manual_review_enabled && forcedManualReviewRowNumber && (
-        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-400/40 dark:bg-red-950/40 dark:text-red-200">
           <div className="font-medium">Gemini AI suggested manual review</div>
           <div className="mt-1">
             Test row {forcedManualReviewRowNumber} was forced to Manual review so this path can be tested.
@@ -1615,7 +1934,7 @@ function AccountSuggestionReview({
       )}
 
       {aiReview?.test_empty_current_target_suggestion_enabled && emptyCurrentTargetRowNumber && (
-        <div className="mb-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
+        <div className="mb-3 rounded-md border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800 dark:border-violet-400/40 dark:bg-violet-950/40 dark:text-violet-200">
           <div className="font-medium">Gemini AI suggested an account from memo with blank transaction Name</div>
           <div className="mt-1">
             Test row {emptyCurrentTargetRowNumber} has a blank transaction Name/payee and an empty current target. Gemini AI suggests {emptyCurrentTargetSuggestionLabel} from the memo/account context, but still requires manual review.
@@ -1672,6 +1991,12 @@ function AccountSuggestionReview({
                 const suggestedTargetTitle = formatSuggestionLabel(suggestion);
                 const rowTitle = formatAccountSuggestionTitle(suggestion);
                 const wasGeminiReviewed = geminiReviewedRowSet.has(suggestion.row_number);
+                const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
+                const hasPlainSuggestion = Boolean(
+                  isMarkedSuggestedChange(suggestion) &&
+                    !hasXgboostSuggestion &&
+                    !isGeminiSuggestion(suggestion)
+                );
                 const wasAiSuggestedManualReview = Boolean(
                   suggestion.row_number === forcedManualReviewRowNumber ||
                     (suggestion.rule === "gemini_ai_review_manual" &&
@@ -1704,18 +2029,28 @@ function AccountSuggestionReview({
                   <TableCell className="whitespace-nowrap font-medium" title={`Row ${suggestion.row_number}`}>
                     <div>{suggestion.row_number}</div>
                     {wasGeminiReviewed && (
-                      <Badge variant="outline" className="mt-1 border-blue-200 bg-blue-50 text-blue-700">
+                      <Badge variant="outline" className="mt-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
                         Gemini AI test
                       </Badge>
                     )}
                     {wasAiSuggestedManualReview && (
-                      <Badge variant="outline" className="mt-1 border-red-200 bg-red-50 text-red-700">
+                      <Badge variant="outline" className="mt-1 border-red-200 bg-red-50 text-red-700 dark:border-red-400/40 dark:bg-red-950/40 dark:text-red-200">
                         AI manual review
                       </Badge>
                     )}
                     {wasEmptyTargetManualSuggestion && (
-                      <Badge variant="outline" className="mt-1 border-violet-200 bg-violet-50 text-violet-700">
+                      <Badge variant="outline" className="mt-1 border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-400/40 dark:bg-violet-950/40 dark:text-violet-200">
                         Blank Name + memo
+                      </Badge>
+                    )}
+                    {hasXgboostSuggestion && (
+                      <Badge variant="outline" className="mt-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
+                        {suggestion.review_label || "XGBoosted"}
+                      </Badge>
+                    )}
+                    {hasPlainSuggestion && (
+                      <Badge variant="outline" className="mt-1 border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-950/40 dark:text-emerald-200">
+                        {suggestion.review_label || "Suggested"}
                       </Badge>
                     )}
                   </TableCell>
@@ -1751,12 +2086,12 @@ function AccountSuggestionReview({
                       {suggestedTargetTitle}
                     </div>
                     {wasAiSuggestedManualReview && (
-                      <div className="mt-1 text-xs font-medium text-red-700">
+                      <div className="mt-1 text-xs font-medium text-red-700 dark:text-red-300">
                         Gemini AI suggested manual review
                       </div>
                     )}
                     {wasEmptyTargetManualSuggestion && (
-                      <div className="mt-1 text-xs font-medium text-violet-700">
+                      <div className="mt-1 text-xs font-medium text-violet-700 dark:text-violet-300">
                         Gemini AI used memo/account context; manual review required
                       </div>
                     )}
@@ -1769,10 +2104,10 @@ function AccountSuggestionReview({
                   <TableCell className="text-right" title={formatPercent(suggestion.confidence)}>
                     {formatPercent(suggestion.confidence)}
                   </TableCell>
-                  <TableCell className="text-right" title={formatSuggestionStatus(suggestion)}>
-                    <SuggestionBadge suggestion={suggestion} />
+                  <TableCell className="text-right" title={formatReviewMarker(suggestion)}>
+                    <ReviewStatusStack suggestion={suggestion} />
                     {isApplied && (
-                      <Badge variant="outline" className="mt-1 border-green-600 bg-green-50 text-green-700">
+                      <Badge variant="outline" className="mt-1 border-green-600 bg-green-50 text-green-700 dark:border-green-400/40 dark:bg-green-950/40 dark:text-green-200">
                         Applied
                       </Badge>
                     )}
@@ -1919,7 +2254,14 @@ function DraggableWorkbookPreview({
           </TableHeader>
           <TableBody>
             {rows.slice(0, 500).map((row) => (
-              <TableRow key={`${row.account.account_key}-${row.txn.entry_id}`}>
+              <TableRow
+                key={`${row.account.account_key}-${row.txn.entry_id}`}
+                title={formatAccountReviewTransactionTitle(
+                  row.txn,
+                  row.suggestion ?? undefined,
+                  row.txn.account_review
+                )}
+              >
                 <TableCell className="whitespace-nowrap">{row.txn.entry_date || "-"}</TableCell>
                 <TableCell className="max-w-[220px] truncate">
                   {formatAccountLabel(row.account)}
@@ -1954,8 +2296,17 @@ function DraggableWorkbookPreview({
                 <TableCell className="text-right whitespace-nowrap">
                   {formatMoney(row.txn.amount)}
                 </TableCell>
-                <TableCell className="text-right">
-                  {row.suggestion ? <SuggestionBadge suggestion={row.suggestion} /> : "-"}
+                <TableCell
+                  className="text-right"
+                  title={formatReviewMarker(
+                    row.suggestion ?? undefined,
+                    row.txn.account_review
+                  )}
+                >
+                  <ReviewStatusStack
+                    suggestion={row.suggestion ?? undefined}
+                    review={row.txn.account_review}
+                  />
                 </TableCell>
               </TableRow>
             ))}
@@ -2025,7 +2376,7 @@ function SuggestedAccountValue({
   suggestion: GLAccountSuggestion;
 }) {
   if (suggestion.requires_manual_review && !suggestion.suggested_target_account_number) {
-    return <span className="font-medium text-red-700">Manual review</span>;
+    return <span className="font-medium text-red-700 dark:text-red-300">Manual review</span>;
   }
   if (isNoChangeSuggestion(suggestion)) {
     return <span className="text-muted-foreground">No change</span>;
@@ -2033,7 +2384,7 @@ function SuggestedAccountValue({
 
   return (
     <span
-      className="min-w-0 truncate font-medium text-blue-700"
+      className="min-w-0 truncate font-medium text-blue-700 dark:text-blue-300"
       title={formatSuggestionAccount(
         suggestion.suggested_target_account_number,
         suggestion.suggested_target_account_name
@@ -2047,28 +2398,68 @@ function SuggestedAccountValue({
   );
 }
 
+function ReviewStatusStack({
+  suggestion,
+  review,
+}: {
+  suggestion?: GLAccountSuggestion | null;
+  review?: ImportPreviewAccountReview | null;
+}) {
+  const visibleReview =
+    review && review.source !== "not_bank_transaction" ? review : null;
+  const status = formatReviewMarker(suggestion ?? undefined, visibleReview);
+  const hasReviewStatus = Boolean(suggestion || visibleReview);
+
+  if (!hasReviewStatus) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex flex-wrap justify-end gap-1">
+        {suggestion && <SuggestionBadge suggestion={suggestion} />}
+        {visibleReview && <PreviewReviewBadge review={visibleReview} />}
+      </div>
+      {status !== "-" && (
+        <div className="max-w-[220px] text-right text-[11px] leading-tight text-muted-foreground">
+          {status}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   const hasGeminiSuggestion =
-    suggestion.ai_provider === "gemini" && Boolean(suggestion.suggested_target_account_number);
+    isGeminiSuggestion(suggestion) && Boolean(suggestion.suggested_target_account_number);
+  const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
+  const hasPlainSuggestion = Boolean(
+    isMarkedSuggestedChange(suggestion) &&
+      !hasXgboostSuggestion &&
+      !isGeminiSuggestion(suggestion)
+  );
 
   if (
     suggestion.requires_manual_review &&
-    suggestion.ai_provider === "gemini" &&
+    isGeminiSuggestion(suggestion) &&
     suggestion.rule === "gemini_ai_review_manual"
   ) {
     return <Badge variant="destructive">Gemini manual review</Badge>;
   }
   if (suggestion.requires_manual_review && hasGeminiSuggestion) {
-    return <Badge className="bg-violet-600 hover:bg-violet-600">Gemini manual suggestion</Badge>;
+    return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">Gemini manual suggestion</Badge>;
+  }
+  if (hasXgboostSuggestion) {
+    return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">{suggestion.review_label || "XGBoosted"}</Badge>;
   }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
   }
-  if (suggestion.rule === "gemini_ai_fallback" || suggestion.ai_provider === "gemini") {
-    return <Badge className="bg-violet-600 hover:bg-violet-600">Gemini</Badge>;
+  if (isGeminiSuggestion(suggestion)) {
+    return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">Gemini</Badge>;
   }
-  if (suggestion.suggested_target_account_number) {
-    return <Badge className="bg-blue-600 hover:bg-blue-600">Suggested</Badge>;
+  if (hasPlainSuggestion || suggestion.suggested_target_account_number) {
+    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">{suggestion.review_label || "Suggested"}</Badge>;
   }
   return <Badge variant="outline">Checked</Badge>;
 }
@@ -2085,18 +2476,28 @@ function isNoChangeSuggestion(suggestion: GLAccountSuggestion) {
   );
 }
 
+function isMarkedSuggestedChange(suggestion: GLAccountSuggestion) {
+  if (suggestion.is_suggested_change != null) return suggestion.is_suggested_change;
+  return Boolean(
+    suggestion.suggested_target_account_number &&
+      suggestion.suggested_target_account_number !== "MANUAL_REVIEW" &&
+      suggestion.current_target_account_number &&
+      suggestion.suggested_target_account_number !== suggestion.current_target_account_number
+  );
+}
+
 function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
   if (review.requires_human_review) {
     return <Badge variant="destructive">Review</Badge>;
   }
   if (review.requires_ai_review) {
-    return <Badge className="bg-violet-600 hover:bg-violet-600">AI review</Badge>;
+    return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">AI review</Badge>;
   }
   if (review.source === "quickbooks_rule") {
-    return <Badge className="bg-emerald-600 hover:bg-emerald-600">QB Rule</Badge>;
+    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">QB Rule</Badge>;
   }
   if (review.source === "xgboost") {
-    return <Badge className="bg-blue-600 hover:bg-blue-600">XGBoost</Badge>;
+    return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">XGBoost</Badge>;
   }
   if (review.categorized) {
     return <Badge variant="outline">Checked</Badge>;
@@ -2157,6 +2558,56 @@ function transactionSuggestionKey(parts: {
     .join("|");
 }
 
+function isWorkbookXgboostReviewRow(row: WorkbookPreviewRow) {
+  return (
+    (row.suggestion ? isXgboostSuggestion(row.suggestion) : false) ||
+    row.txn.account_review?.source === "xgboost"
+  );
+}
+
+function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
+  return row.txn.account_review?.source === "quickbooks_rule";
+}
+
+function isWorkbookAiReviewRow(row: WorkbookPreviewRow) {
+  return Boolean(
+    (row.suggestion &&
+      (isGeminiSuggestion(row.suggestion) || row.suggestion.ai_provider)) ||
+      row.txn.account_review?.requires_ai_review ||
+      row.txn.account_review?.source === "gemini" ||
+      row.txn.account_review?.source === "ai"
+  );
+}
+
+function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRow) {
+  const review = row.txn.account_review;
+  if (kind === "quickbooks_rule" && review?.source === "quickbooks_rule") {
+    return `review_source: ${review.source} | review_status: ${review.status}`;
+  }
+  if (kind === "ai") {
+    if (row.suggestion && (isGeminiSuggestion(row.suggestion) || row.suggestion.ai_provider)) {
+      return formatReviewMarker(row.suggestion, null);
+    }
+    if (review && review.source !== "not_bank_transaction") {
+      return `review_source: ${review.source} | review_status: ${review.status}`;
+    }
+  }
+  if (kind === "xgboost" && review?.source === "xgboost") {
+    return `review_source: ${review.source} | review_status: ${review.status}`;
+  }
+  return formatReviewMarker(row.suggestion ?? undefined, review);
+}
+
+function previewRowDomId(
+  account: ImportPreviewAccount,
+  txn: ImportPreviewAccountTransaction
+) {
+  return `gl-review-row-${account.account_key}-${txn.entry_id}`.replace(
+    /[^A-Za-z0-9_-]/g,
+    "-"
+  );
+}
+
 function formatSuggestionAccount(number: string | null, name: string | null) {
   if (number && name) return `${number} · ${name}`;
   return number || name || "-";
@@ -2207,11 +2658,12 @@ function formatReviewSuggestedTarget(
 
 function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
   const hasGeminiSuggestion =
-    suggestion.ai_provider === "gemini" && Boolean(suggestion.suggested_target_account_number);
+    isGeminiSuggestion(suggestion) && Boolean(suggestion.suggested_target_account_number);
+  const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
 
   if (
     suggestion.requires_manual_review &&
-    suggestion.ai_provider === "gemini" &&
+    isGeminiSuggestion(suggestion) &&
     suggestion.rule === "gemini_ai_review_manual"
   ) {
     return "Gemini AI suggested manual review";
@@ -2219,10 +2671,32 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
   if (suggestion.requires_manual_review && hasGeminiSuggestion) {
     return "Gemini AI suggested an account; manual review required";
   }
+  if (hasXgboostSuggestion) {
+    return suggestion.review_label || (
+      suggestion.requires_manual_review
+        ? "XGBoost suggested an account; manual review required"
+        : "XGBoosted"
+    );
+  }
   if (suggestion.requires_manual_review) return "Manual review required";
-  if (suggestion.rule === "gemini_ai_fallback" || suggestion.ai_provider === "gemini") return "Gemini";
-  if (suggestion.suggested_target_account_number) return "Suggested";
+  if (isGeminiSuggestion(suggestion)) return "Gemini";
+  if (isMarkedSuggestedChange(suggestion) || suggestion.suggested_target_account_number) {
+    return suggestion.review_label || "Suggested";
+  }
   return "Checked";
+}
+
+function isXgboostSuggestion(suggestion: GLAccountSuggestion) {
+  return (
+    suggestion.is_xgboost_suggestion === true ||
+    suggestion.review_source === "xgboost" ||
+    suggestion.rule === "xgboost_prediction" ||
+    suggestion.rule.endsWith("_xgboost_candidate")
+  );
+}
+
+function isGeminiSuggestion(suggestion: GLAccountSuggestion) {
+  return suggestion.review_source === "gemini" || suggestion.rule.startsWith("gemini_ai_");
 }
 
 function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
@@ -2236,16 +2710,54 @@ function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
 
 function formatReviewStatus(
   suggestion?: GLAccountSuggestion,
-  review?: ImportPreviewAccountReview | null,
-  isBankLine = false
+  review?: ImportPreviewAccountReview | null
 ) {
   const statuses: string[] = [];
   if (suggestion) statuses.push(formatSuggestionStatus(suggestion));
   if (review && review.source !== "not_bank_transaction") {
     statuses.push(formatPreviewReviewStatus(review));
   }
-  if (isBankLine) statuses.push("Bank transaction");
   return statuses.length > 0 ? statuses.join("; ") : "-";
+}
+
+function formatReviewMarker(
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+) {
+  if (review?.source === "xgboost") {
+    return `review_source: ${review.source} | review_status: ${review.status}`;
+  }
+  if (suggestion) {
+    const source = suggestion.review_source || inferSuggestionReviewSource(suggestion);
+    const status = suggestion.review_status || inferSuggestionReviewStatus(suggestion);
+    return `review_source: ${source} | review_status: ${status}`;
+  }
+  if (review && review.source !== "not_bank_transaction") {
+    return `review_source: ${review.source} | review_status: ${review.status}`;
+  }
+  return "-";
+}
+
+function inferSuggestionReviewSource(suggestion: GLAccountSuggestion) {
+  if (isXgboostSuggestion(suggestion)) return "xgboost";
+  if (isGeminiSuggestion(suggestion)) return "gemini";
+  if (suggestion.requires_manual_review) return "manual";
+  return "rules";
+}
+
+function inferSuggestionReviewStatus(suggestion: GLAccountSuggestion) {
+  if (isXgboostSuggestion(suggestion)) {
+    return suggestion.requires_manual_review ? "xgboost_suggested" : "xgboosted";
+  }
+  if (isGeminiSuggestion(suggestion)) {
+    if (suggestion.requires_manual_review && suggestion.suggested_target_account_number) {
+      return "gemini_manual_suggestion";
+    }
+    if (suggestion.requires_manual_review) return "gemini_manual_review";
+    return isMarkedSuggestedChange(suggestion) ? "gemini_suggested" : "gemini_checked";
+  }
+  if (suggestion.requires_manual_review) return "manual_review";
+  return isMarkedSuggestedChange(suggestion) ? "suggested" : "checked";
 }
 
 function formatSuggestionTransactionTitle(suggestion: GLAccountSuggestion) {
@@ -2280,6 +2792,10 @@ function formatAccountSuggestionTitle(suggestion: GLAccountSuggestion) {
     `Suggested target: ${formatSuggestionLabel(suggestion)}`,
     `Confidence: ${formatPercent(suggestion.confidence)}`,
     `Status: ${formatSuggestionStatus(suggestion)}`,
+    `Review label: ${formatReviewText(suggestion.review_label)}`,
+    `Review source: ${formatReviewText(suggestion.review_source)}`,
+    `Review status: ${formatReviewText(suggestion.review_status)}`,
+    `Review marker: ${formatReviewMarker(suggestion)}`,
     `Rule: ${formatReviewText(suggestion.rule)}`,
     `Reason: ${formatReviewText(suggestion.reason)}`,
   ];
@@ -2310,7 +2826,8 @@ function formatAccountReviewTransactionTitle(
     `Balance: ${formatOptionalMoney(txn.balance_after)}`,
     `Current target: ${formatReviewCurrentTarget(txn, suggestion, review)}`,
     `Suggested target: ${formatReviewSuggestedTarget(suggestion, review)}`,
-    `Status: ${formatReviewStatus(suggestion, review, txn.is_bank_line)}`,
+    `Status: ${formatReviewStatus(suggestion, review)}`,
+    `Review marker: ${formatReviewMarker(suggestion, review)}`,
   ];
 
   if (suggestion) {

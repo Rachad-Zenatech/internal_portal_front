@@ -40,6 +40,8 @@ export type ParseImportResponse = {
 
 export type GLAccountSuggestionsRequest = {
   file: File;
+  companyId?: number | null;
+  companyName?: string | null;
   formatCode: string;
   includeAll?: boolean;
   useXgboost?: boolean;
@@ -56,6 +58,68 @@ export type GLAccountSuggestionsRequest = {
   aiEscalationModel?: string | null;
   aiEscalationConfidence?: number;
   applyAiSuggestions?: boolean;
+};
+
+export type GLXgboostTestTrainingRequest = {
+  file: File;
+  formatCode: string;
+  companyName?: string | null;
+  targetField?: "split_account" | "ledger_account" | "business_account" | "auto";
+  excludeBlankTargets?: boolean;
+  excludeTransfers?: boolean;
+  includeZeroAmounts?: boolean;
+  numRounds?: number;
+};
+
+export type GLXgboostTestTrainingResponse = {
+  status: "success" | "error" | string;
+  message: string;
+  source_filename?: string;
+  format_code?: string;
+  training?: {
+    test_only: boolean;
+    label_source: string;
+    feature_text_source?: string;
+    training_csv_path: string;
+    target_field: string;
+    training_rows: number;
+    memo_rows?: number;
+    description_rows?: number;
+    current_account_rows?: number;
+    class_count: number;
+    top_accounts: Array<{ account: string; rows: number }>;
+    skipped_blank_target_rows: number;
+    skipped_transfer_rows: number;
+    skipped_zero_amount_rows: number;
+    skipped_untrainable_target_rows?: number;
+    skipped_missing_transaction_text_rows?: number;
+    cleanup_files: string[];
+  };
+  result?: {
+    model_path: string;
+    labels_path: string;
+    metadata_path?: string;
+    class_count: number;
+    trained_rows: number;
+    known_vendor_count?: number;
+  };
+  model_status?: {
+    xgboost_installed?: boolean;
+    model_loaded?: boolean;
+    label_mapping_present?: boolean;
+    metadata_present?: boolean;
+    model_path?: string;
+    labels_path?: string;
+    metadata_path?: string;
+  };
+};
+
+export type GLAccountReviewCompanyContext = {
+  company_id: number | null;
+  company_name: string;
+  company_aliases?: string[];
+  entity?: string | null;
+  source?: string | null;
 };
 
 export type GLAccountReviewAiSuggestion = {
@@ -85,6 +149,7 @@ export type GLAccountReviewAi = {
   available: boolean;
   google_search_enabled?: boolean;
   rows_per_request: number;
+  company_context?: GLAccountReviewCompanyContext | null;
   max_rows?: number | null;
   scope_note?: string | null;
   total_transaction_count?: number | null;
@@ -136,6 +201,11 @@ export type GLAccountSuggestion = {
   reason: string;
   rule: string;
   requires_manual_review: boolean;
+  review_source?: "xgboost" | "gemini" | "rules" | "manual" | string;
+  review_status?: string;
+  review_label?: string;
+  is_xgboost_suggestion?: boolean;
+  is_suggested_change?: boolean;
   xgboost_suggested_account_number: string | null;
   xgboost_suggested_account_name: string | null;
   xgboost_confidence: number | null;
@@ -160,6 +230,7 @@ export type GLAccountSuggestionsResponse = {
   filename: string;
   format_code: string;
   metadata?: Record<string, string | null>;
+  company_context?: GLAccountReviewCompanyContext | null;
   transaction_count: number;
   suggestion_count: number;
   changed_suggestion_count: number;
@@ -170,8 +241,10 @@ export type GLAccountSuggestionsResponse = {
     xgboost_installed?: boolean;
     model_loaded?: boolean;
     label_mapping_present?: boolean;
+    metadata_present?: boolean;
     model_path?: string;
     labels_path?: string;
+    metadata_path?: string;
   };
   ai_review?: GLAccountReviewAi | null;
   suggestions: GLAccountSuggestion[];

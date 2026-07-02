@@ -251,10 +251,10 @@ function CompanyGLCardView({
           className={
             hasFormat
               ? "rounded-md border bg-muted/30 p-3"
-              : "rounded-md border border-amber-200 bg-amber-50 p-3"
+              : "rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-400/40 dark:bg-amber-950/40"
           }
         >
-          <p className={hasFormat ? "text-sm font-medium" : "text-sm font-medium text-amber-800"}>
+          <p className={hasFormat ? "text-sm font-medium" : "text-sm font-medium text-amber-800 dark:text-amber-200"}>
             {hasFormat ? "Default GL format" : "No GL format assigned"}
           </p>
           <div className="mt-3 flex gap-2">
