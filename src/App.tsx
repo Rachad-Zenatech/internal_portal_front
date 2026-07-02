@@ -25,11 +25,13 @@ import AuditLog from "./pages/Log/AuditLog";
 import Login from "./pages/Login";
 import PendingAccess from "./pages/PendingAccess";
 import { AuthProvider } from "./lib/AuthContext";
+import { GlobalProgressProvider } from "./lib/GlobalProgressContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <GlobalProgressProvider>
+        <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/pending-access" element={<PendingAccess />} />
@@ -72,6 +74,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      </GlobalProgressProvider>
     </AuthProvider>
   );
 }

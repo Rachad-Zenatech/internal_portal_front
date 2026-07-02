@@ -53,21 +53,8 @@ export default function UploadStatement({ onUploadStart, isUploading = false }: 
       formData.append("tesseract_cmd", tesseractCmd);
     }
     
-    const promise = apiClient.post<any>("/api/bank-statements/upload", formData).then(async (res) => {
-      const statementId = res?.bankStatementId;
-      if (!statementId) return res;
-
-      // Poll until processing_status is 'completed' or 'failed'
-      while (true) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const stmt = await apiClient.get<any>(`/api/bank-statements/${statementId}`);
-        if (stmt.processing_status === "ready" || stmt.processing_status === "completed") {
-          return stmt;
-        }
-        if (stmt.processing_status === "failed") {
-          throw new Error(stmt.error_message || "Processing failed");
-        }
-      }
+    const promise = apiClient.post<any>("/api/bank-statements/upload", formData).then((res) => {
+      return res;
     });
     
     onUploadStart(file, promise);

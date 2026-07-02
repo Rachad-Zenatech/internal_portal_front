@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient, BASE_URL } from "@/services/apiClient";
 
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import type { StatementPreview } from "@/types/bank";
 import { toast } from "sonner";
 
 interface BankStatement {
-  id: number;
+  id: string;
   user_id: number;
   file_url: string;
   file_name: string;
@@ -27,6 +27,7 @@ function useBankStatement(id: string) {
   return useQuery({
     queryKey: ["bank-statement", id],
     queryFn: () => apiClient.get<BankStatement>(`/api/bank-statements/${id}`),
+    retry: 0, // Do not retry on 404
     refetchInterval: (query) => {
       // Poll every 2 seconds if still processing
       const status = query.state.data?.processing_status;
@@ -41,8 +42,34 @@ function useBankStatement(id: string) {
 export default function BankStatementPreview() {
   const { bankStatementId } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { data: statement, isLoading, error } = useBankStatement(bankStatementId!);
   const commitMut = useCommitStatement();
+  
+  const isSavedOrCanceledRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      setTimeout(() => {
+        if (!isMountedRef.current && !isSavedOrCanceledRef.current && bankStatementId) {
+          // Send a delete request when leaving ungracefully
+          fetch(`${BASE_URL}/api/bank-statements/${bankStatementId}`, {
+            method: 'DELETE',
+            keepalive: true,
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}` // Ensure we pass token if needed
+            }
+          }).catch(() => {});
+          
+          // Remove from local cache so user can't navigate back and see stale data
+          qc.removeQueries({ queryKey: ["bank-statement", bankStatementId] });
+        }
+      }, 100);
+    };
+  }, [bankStatementId, qc]);
 
   useEffect(() => {
     if (statement?.file_name) {
@@ -54,12 +81,14 @@ export default function BankStatementPreview() {
 
   async function handleConfirm(editedPreviews: StatementPreview[]) {
     try {
+      isSavedOrCanceledRef.current = true;
       const stmts = await commitMut.mutateAsync(editedPreviews);
       toast.success("Statements added to the database", {
         description: `Successfully added ${stmts.length} statements.`,
       });
       navigate('/bank-statements');
     } catch (err) {
+      isSavedOrCanceledRef.current = false;
       toast.error("Failed to add statements", {
         description: (err as Error).message,
       });

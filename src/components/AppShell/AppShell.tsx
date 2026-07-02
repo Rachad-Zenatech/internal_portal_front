@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loader2, KeyRound } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
+import { GlobalProgressOverlay } from "./GlobalProgressOverlay";
 
 interface Props {
   children: ReactNode;
@@ -82,6 +83,7 @@ export default function AppShell({ children }: Props) {
           </div>
         </main>
         <FloatingChat />
+        <GlobalProgressOverlay />
       </div>
 
       <SessionTimeout />

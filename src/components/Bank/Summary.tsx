@@ -85,13 +85,6 @@ export default function SummaryPage() {
 
   return (
     <div className="p-4 space-y-6 animate-in fade-in duration-200">
-      <div>
-        <h2 className="text-xl font-bold tracking-tight mb-1">Statement Summary</h2>
-        <p className="text-sm text-muted-foreground">
-          Configure granularity parameters to aggregate macro ledger records across active fiscal frames.
-        </p>
-      </div>
-
       {/* Control Filter Panel Form */}
       <form onSubmit={handleSearch} className="space-y-4 rounded-xl border bg-card p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

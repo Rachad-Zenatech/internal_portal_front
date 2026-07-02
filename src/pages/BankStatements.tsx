@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload } from "lucide-react";
 import { toast } from "sonner";
 import StatementList   from "@/components/Bank/StatementList";
 import StatementDetail from "@/components/Bank/StatementDetail";
 import SummaryPage     from "@/components/Bank/Summary";
 import UploadStatement from "@/components/Bank/UploadStatement";
+import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 export default function BankStatements() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -15,7 +16,7 @@ export default function BankStatements() {
   
   // Drawer and Upload State
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  const [uploadingFile, setUploadingFile] = useState<string | null>(null);
+  const { addJob } = useGlobalProgress();
 
   function handleTabChange(value: string) {
     setActiveTab(value);
@@ -23,21 +24,19 @@ export default function BankStatements() {
   }
 
   function handleUploadStart(file: File, promise: Promise<any>) {
-    setUploadingFile(file.name);
+    addJob(file.name, promise, { description: "Processing Document...", type: "document" });
     setIsDrawerOpen(false); // Close drawer immediately
 
     promise.then(() => {
-      setUploadingFile(null);
-      toast.success("Bank statement processed", {
-        description: `Successfully uploaded ${file.name}.`,
+      toast.success("Bank statement uploaded", {
+        description: `Successfully uploaded ${file.name}. It is now processing in the background.`,
       });
       // Return to statements view to see the new upload
       setActiveTab("statements");
       setSelectedId(null);
     }).catch((err) => {
-      setUploadingFile(null);
       toast.error("Upload failed", {
-        description: err.message || "Failed to process bank statement",
+        description: err instanceof Error ? err.message : "Failed to start upload process",
       });
     });
   }
@@ -99,49 +98,9 @@ export default function BankStatements() {
               Select a target company and statement account, then deploy the document pipeline tracker.
             </SheetDescription>
           </SheetHeader>
-          <UploadStatement onUploadStart={handleUploadStart} isUploading={!!uploadingFile} />
+          <UploadStatement onUploadStart={handleUploadStart} isUploading={false} />
         </SheetContent>
       </Sheet>
-
-      {/* Floating Overlay for Background Upload Progress */}
-      {uploadingFile && (
-        <div className="fixed bottom-6 left-6 z-50 animate-in slide-in-from-bottom-6 fade-in duration-300">
-          <div className="bg-background border shadow-xl rounded-xl p-4 flex items-center gap-4 min-w-[300px] max-w-[400px]">
-            <div className="h-10 w-10 bg-primary/10 text-primary rounded-full flex items-center justify-center shrink-0">
-              <FileText className="h-5 w-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-bold text-foreground truncate mr-2">
-                  {uploadingFile}
-                </span>
-                <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin shrink-0" />
-              </div>
-              <div className="w-full bg-muted/50 rounded-full h-1.5 overflow-hidden relative shadow-inner">
-                <div 
-                  className="bg-primary h-full absolute left-0 top-0 w-1/3 animate-[progress_1s_ease-in-out_infinite]"
-                  style={{
-                    animationName: "indeterminate",
-                    animationDuration: "1.5s",
-                    animationIterationCount: "infinite",
-                    animationTimingFunction: "ease-in-out",
-                  }}
-                />
-              </div>
-              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1.5">
-                Processing Document...
-              </p>
-            </div>
-          </div>
-          <style>{`
-            @keyframes indeterminate {
-              0% { left: -33%; width: 33%; }
-              50% { width: 50%; }
-              100% { left: 100%; width: 33%; }
-            }
-          `}</style>
-        </div>
-      )}
     </div>
   );
 }

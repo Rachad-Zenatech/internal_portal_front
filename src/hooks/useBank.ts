@@ -157,7 +157,7 @@ export function useStatements(accountId?: number | null) {
   });
 }
  
-export function useStatement(id: number | null) {
+export function useStatement(id: string | null) {
   return useQuery<BankStatement>({
     queryKey: queryKeys.statement(id!),
     queryFn:  () => statementService.getStatement(id!),
@@ -208,7 +208,7 @@ export function useCreateStatement() {
  
 export function useUpdateStatement() {
   const qc = useQueryClient();
-  return useMutation<BankStatement, Error, { id: number; data: StatementUpdate }>({
+  return useMutation<BankStatement, Error, { id: string; data: StatementUpdate }>({
     mutationFn: ({ id, data }) => statementService.updateStatement(id, data),
     onSuccess:  (_, { id }) => {
       qc.invalidateQueries({ queryKey: ["statements"] });
@@ -261,7 +261,7 @@ export function useCommitStatement() {
  
 // ─── Check Transactions ───────────────────────────────────────────────────────
  
-export function useChecks(statementId: number | null, section?: string | null) {
+export function useChecks(statementId: string | null, section?: string | null) {
   return useQuery<CheckTransaction[]>({
     queryKey: queryKeys.statementChecks(statementId!, section),
     queryFn:  () => checkService.getChecks(statementId!, section),
@@ -289,7 +289,7 @@ export function useUpdateCheck() {
  
 export function useDeleteCheck() {
   const qc = useQueryClient();
-  return useMutation<null, Error, { id: number; statementId: number }>({
+  return useMutation<null, Error, { id: number; statementId: string }>({
     mutationFn: ({ id }) => checkService.deleteCheck(id),
     onSuccess:  (_, { statementId }) =>
       qc.invalidateQueries({ queryKey: ["statements", statementId, "checks"] }),
@@ -298,7 +298,7 @@ export function useDeleteCheck() {
  
 // ─── Deposit Transactions ─────────────────────────────────────────────────────
  
-export function useDeposits(statementId: number | null, section?: string | null) {
+export function useDeposits(statementId: string | null, section?: string | null) {
   return useQuery<DepositTransaction[]>({
     queryKey: queryKeys.statementDeposits(statementId!, section),
     queryFn:  () => depositService.getDeposits(statementId!, section),
@@ -326,7 +326,7 @@ export function useUpdateDeposit() {
  
 export function useDeleteDeposit() {
   const qc = useQueryClient();
-  return useMutation<null, Error, { id: number; statementId: number }>({
+  return useMutation<null, Error, { id: number; statementId: string }>({
     mutationFn: ({ id }) => depositService.deleteDeposit(id),
     onSuccess:  (_, { statementId }) =>
       qc.invalidateQueries({ queryKey: ["statements", statementId, "deposits"] }),

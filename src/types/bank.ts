@@ -29,7 +29,7 @@ export interface BankAccount {
 }
  
 export interface BankStatement {
-  id: number;
+  id: string;
   account_id: number;
   statement_date: string;
   statement_type: string;  // 'checking' | 'savings'
@@ -48,7 +48,7 @@ export interface BankStatement {
  
 export interface CheckTransaction {
   id: number;
-  statement_id: number;
+  statement_id: string;
   section: string;
   date: string | null;
   check_number: string | null;
@@ -60,7 +60,7 @@ export interface CheckTransaction {
  
 export interface DepositTransaction {
   id: number;
-  statement_id: number;
+  statement_id: string;
   section: string;
   date: string | null;
   deposit_id: string | null;
@@ -159,7 +159,7 @@ export interface StatementUpdate {
   total_subtractions?: number; ending_balance?: number;
 }
 export interface CheckCreate {
-  statement_id: number; section: string; date?: string | null;
+  statement_id: string; section: string; date?: string | null;
   check_number?: string | null; type?: string | null;
   paid_to?: string | null; reference?: string | null; amount?: number | null;
 }
@@ -168,7 +168,7 @@ export interface CheckUpdate {
   type?: string | null; paid_to?: string | null; reference?: string | null; amount?: number | null;
 }
 export interface DepositCreate {
-  statement_id: number; section: string; date?: string | null;
+  statement_id: string; section: string; date?: string | null;
   deposit_id?: string | null; received_from?: string | null;
   reference?: string | null; amount?: number | null;
 }

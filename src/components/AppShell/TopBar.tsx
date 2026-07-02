@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, RefreshCw } from "lucide-react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, RefreshCw, Monitor, Laptop, Smartphone, CheckCircle2, Moon, Sun, Mail, BellRing, Settings2, ShieldCheck, Clock, MapPin, Activity } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
@@ -31,6 +32,7 @@ export default function TopBar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+  const [inAppAlerts, setInAppAlerts] = useState(() => localStorage.getItem("inAppAlerts") !== "false");
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, roles, logout } = useAuth();
@@ -335,66 +337,99 @@ export default function TopBar() {
       </div>
 
       <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-[425px] p-0 overflow-hidden border-border/50 shadow-2xl rounded-2xl max-h-[90vh] flex flex-col">
-          <div className="h-32 shrink-0 bg-gradient-to-r from-primary to-primary/60 relative">
-            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
-              <div className="relative group">
-                <div className="h-24 w-24 rounded-full border-4 border-card bg-muted overflow-hidden shadow-lg">
-                  <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || user?.email || "User")}&background=eff6ff&color=2563eb&rounded=true&bold=true`} alt="User avatar" className="h-full w-full object-cover" />
-                </div>
-                <button className="absolute bottom-0 right-0 h-8 w-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-md hover:scale-105 transition-transform">
-                  <Camera className="h-4 w-4" />
-                </button>
-              </div>
+        <DialogContent className="w-[95vw] sm:max-w-[600px] p-0 overflow-hidden border-border/50 shadow-2xl rounded-2xl flex flex-col">
+          <div className="bg-muted/30 border-b px-8 py-8 flex items-center gap-5">
+            <div className="h-20 w-20 rounded-full border-2 border-border bg-muted overflow-hidden shadow-sm relative group">
+              <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || user?.email || "User")}&background=eff6ff&color=2563eb&rounded=true&bold=true`} alt="User avatar" className="h-full w-full object-cover" />
+            </div>
+            <div>
+              <DialogTitle className="text-2xl font-bold">{user?.full_name || "User"}</DialogTitle>
+              <DialogDescription className="text-sm mt-1">
+                {user?.email} • {user?.is_super_admin ? "Super Admin" : roles.length > 0 ? roles.map(r => r.name).join(", ") : "Standard User"}
+              </DialogDescription>
             </div>
           </div>
           
-          <div className="pt-16 px-4 sm:px-6 pb-6 overflow-y-auto flex-1">
-            <div className="text-center mb-6 flex flex-col items-center space-y-1.5">
-              <DialogTitle className="text-xl sm:text-2xl font-bold">{user?.full_name || "User"}</DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm">
-                {user?.is_super_admin ? "Super Admin" : roles.length > 0 ? roles.map(r => r.name).join(", ") : "Standard User"} · {user?.email}
-              </DialogDescription>
+          <Tabs defaultValue="general" className="w-full flex-1 flex flex-col">
+            <div className="px-8 pt-6">
+              <TabsList className="grid w-full grid-cols-2 h-11 bg-muted/50">
+                <TabsTrigger value="general" className="rounded-md font-semibold text-xs uppercase tracking-wider">General</TabsTrigger>
+                <TabsTrigger value="preferences" className="rounded-md font-semibold text-xs uppercase tracking-wider">Preferences</TabsTrigger>
+              </TabsList>
             </div>
 
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="firstName" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Full Name
-                </Label>
-                <Input
-                  id="firstName"
-                  readOnly
-                  defaultValue={user?.full_name || ""}
-                  className="bg-muted/50 border-transparent focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl h-11"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Email Address
-                </Label>
-                <div className="flex rounded-xl shadow-sm">
-                  <Input
-                    id="email"
-                    type="text"
-                    readOnly
-                    defaultValue={user?.email ? user.email.replace(/@zenatech\.com$/, "") : ""}
-                    className="bg-muted/50 border-transparent focus-visible:ring-primary/30 focus-visible:border-primary/50 transition-all rounded-xl rounded-tr-none rounded-br-none h-11 border-r-0"
-                  />
-                  <span className="inline-flex items-center rounded-r-xl border border-transparent border-l-0 bg-muted/50 px-3 text-sm text-slate-500 dark:text-zinc-400">
-                    @zenatech.com
-                  </span>
+            <div className="px-8 py-6 flex-1 overflow-y-auto max-h-[60vh]">
+              <TabsContent value="general" className="space-y-6 mt-0 border-none outline-none">
+                <div className="space-y-5">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="firstName" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Full Name</Label>
+                    <Input id="firstName" readOnly defaultValue={user?.full_name || ""} className="bg-muted/30 border-border focus-visible:ring-primary/30 h-11" />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Department</Label>
+                      <Input readOnly defaultValue="Finance & Operations" className="bg-muted/30 border-border text-muted-foreground h-11" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Roles</Label>
+                      <Input readOnly value={user?.is_super_admin ? "Super Admin" : roles.length > 0 ? roles.map(r => r.name).join(", ") : "Standard User"} className="bg-muted/30 border-border text-muted-foreground h-11" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Email Address</Label>
+                    <Input id="email" type="text" readOnly defaultValue={user?.email || ""} className="bg-muted/30 border-border h-10" />
+                  </div>
                 </div>
-              </div>
+              </TabsContent>
 
+              <TabsContent value="preferences" className="space-y-6 mt-0 border-none outline-none">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    <Settings2 className="h-4 w-4 text-muted-foreground" /> App Settings
+                  </h4>
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Theme Preference</Label>
+                      <p className="text-xs text-muted-foreground">Select your preferred interface theme</p>
+                    </div>
+                    <ThemeSwitch />
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-card opacity-70">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium flex items-center gap-1.5">
+                        <Mail className="h-3.5 w-3.5" /> Email Notifications
+                      </Label>
+                      <p className="text-xs text-muted-foreground">Receive daily digest emails</p>
+                    </div>
+                    <div className="h-5 w-9 bg-primary/20 rounded-full relative cursor-not-allowed">
+                      <div className="h-4 w-4 bg-primary rounded-full absolute right-0.5 top-0.5" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium flex items-center gap-1.5">
+                        <BellRing className="h-3.5 w-3.5" /> In-App Alerts
+                      </Label>
+                      <p className="text-xs text-muted-foreground">Show push notifications</p>
+                    </div>
+                    <div 
+                      className={`h-5 w-9 rounded-full relative cursor-pointer transition-colors ${inAppAlerts ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+                      onClick={() => {
+                        const newVal = !inAppAlerts;
+                        setInAppAlerts(newVal);
+                        localStorage.setItem("inAppAlerts", String(newVal));
+                      }}
+                    >
+                      <div className={`h-4 w-4 bg-background rounded-full absolute top-0.5 transition-all ${inAppAlerts ? 'right-0.5' : 'left-0.5'}`} />
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
             </div>
-
-            <DialogFooter className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
-              <Button variant="outline" onClick={() => setIsProfileOpen(false)} className="rounded-xl w-full sm:w-auto font-semibold">
-                Close
-              </Button>
-            </DialogFooter>
-          </div>
+          </Tabs>
+          
         </DialogContent>
       </Dialog>
 
