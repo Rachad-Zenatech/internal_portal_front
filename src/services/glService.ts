@@ -14,6 +14,8 @@ import type {
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
+  GLXgboostTestTrainingRequest,
+  GLXgboostTestTrainingResponse,
   GLExtractionFormat,
   GLFormatsResponse,
   ImportPreview,
@@ -60,37 +62,68 @@ export const GLService = {
   async getAccountSuggestions(params: GLAccountSuggestionsRequest): Promise<GLAccountSuggestionsResponse> {
     const formData = new FormData();
     formData.append("file", params.file);
+    if (params.companyId !== undefined && params.companyId !== null) {
+      formData.append("company_id", String(params.companyId));
+    }
+    if (params.companyName) {
+      formData.append("company_name", params.companyName);
+    }
     formData.append("format_code", params.formatCode);
     formData.append("include_all", String(params.includeAll ?? false));
     formData.append("use_xgboost", String(params.useXgboost ?? true));
     formData.append(
       "xgboost_min_confidence",
-      String(params.xgboostMinConfidence ?? 0.85)
+      String(params.xgboostMinConfidence ?? 0.8)
     );
-    formData.append("use_ai", String(params.useAi ?? false));
-    formData.append("ai_provider", params.aiProvider ?? "gemini");
-    formData.append("ai_rows_per_request", String(params.aiRowsPerRequest ?? 50));
-    formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 3));
-    formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
-    formData.append("ai_review_all", String(params.aiReviewAll ?? true));
-    if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
-      formData.append("ai_max_rows", String(params.aiMaxRows));
-    }
-    formData.append("ai_enable_escalation", String(params.aiEnableEscalation ?? true));
-    formData.append(
-      "ai_escalation_confidence",
-      String(params.aiEscalationConfidence ?? 0.85)
-    );
-    formData.append("apply_ai_suggestions", String(params.applyAiSuggestions ?? true));
-    if (params.aiModel) {
-      formData.append("ai_model", params.aiModel);
-    }
-    if (params.aiEscalationModel) {
-      formData.append("ai_escalation_model", params.aiEscalationModel);
+    const useAi = params.useAi === true;
+    formData.append("use_ai", String(useAi));
+    if (useAi) {
+      formData.append("ai_provider", params.aiProvider ?? "gemini");
+      formData.append("ai_rows_per_request", String(params.aiRowsPerRequest ?? 50));
+      formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 3));
+      formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
+      formData.append("ai_review_all", String(params.aiReviewAll ?? true));
+      if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
+        formData.append("ai_max_rows", String(params.aiMaxRows));
+      }
+      formData.append("ai_enable_escalation", String(params.aiEnableEscalation ?? true));
+      formData.append(
+        "ai_escalation_confidence",
+        String(params.aiEscalationConfidence ?? 0.85)
+      );
+      formData.append("apply_ai_suggestions", String(params.applyAiSuggestions ?? true));
+      if (params.aiModel) {
+        formData.append("ai_model", params.aiModel);
+      }
+      if (params.aiEscalationModel) {
+        formData.append("ai_escalation_model", params.aiEscalationModel);
+      }
+    } else {
+      formData.append("ai_review_all", "false");
+      formData.append("ai_enable_escalation", "false");
+      formData.append("apply_ai_suggestions", "false");
     }
 
     return apiClient.post<GLAccountSuggestionsResponse>(
       "/accounting/gl/exports/account-suggestions",
+      formData
+    );
+  },
+
+  async trainXgboostTestModelFromGlExport(
+    params: GLXgboostTestTrainingRequest
+  ): Promise<GLXgboostTestTrainingResponse> {
+    const formData = new FormData();
+    formData.append("file", params.file);
+    formData.append("format_code", params.formatCode);
+    formData.append("target_field", params.targetField ?? "business_account");
+    formData.append("exclude_blank_targets", String(params.excludeBlankTargets ?? true));
+    formData.append("exclude_transfers", String(params.excludeTransfers ?? true));
+    formData.append("include_zero_amounts", String(params.includeZeroAmounts ?? false));
+    formData.append("num_rounds", String(params.numRounds ?? 50));
+
+    return apiClient.post<GLXgboostTestTrainingResponse>(
+      "/classification/train-from-gl-export",
       formData
     );
   },

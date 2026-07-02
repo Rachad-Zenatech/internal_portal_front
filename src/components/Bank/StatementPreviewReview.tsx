@@ -378,7 +378,7 @@ export default function StatementPreviewReview({
           </AlertDescription>
         </Alert>
       ) : (
-        <Alert className="mb-2 border-amber-200 bg-amber-50 text-amber-800 shrink-0 py-2">
+        <Alert className="mb-2 shrink-0 border-amber-200 bg-amber-50 py-2 text-amber-800 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-200">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-xs mt-0.5">
             Review the extracted data below. Nothing is saved until you confirm.
