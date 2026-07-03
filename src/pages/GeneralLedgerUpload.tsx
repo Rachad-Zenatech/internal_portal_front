@@ -88,7 +88,7 @@ type AccountReviewLogContext = {
 const GEMINI_ROWS_PER_REQUEST = 50;
 const GEMINI_CONCURRENCY_LIMIT = 3;
 // Temporary testing flag: set to null to let Gemini AI review all selected rows.
-const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = 100;
+const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = null;
 const GEMINI_AI_TEST_REVIEW_MODEL = "gemini-3.1-flash-lite";
 const GEMINI_USE_GOOGLE_SEARCH = false;
 const GEMINI_ENABLE_ESCALATION = false;
@@ -110,7 +110,6 @@ const emptyManualEntry: ManualEntryForm = {
 export default function GeneralLedgerUpload() {
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [dryRunPreview, setDryRunPreview] = useState(true);
   const [useGeminiReview, setUseGeminiReview] = useState(false);
   const [trainXgboostTestModel, setTrainXgboostTestModel] = useState(false);
 
@@ -396,7 +395,7 @@ export default function GeneralLedgerUpload() {
       const data = await parseImportMutation.mutateAsync({
         companyBookId: currentBook.book_id,
         file: currentFile,
-        dryRun: dryRunPreview,
+        dryRun: true,
       });
       if (parseRunIdRef.current !== parseRunId) return;
 
@@ -604,7 +603,7 @@ export default function GeneralLedgerUpload() {
 
   async function handleApplySuggestedTarget(suggestion: GLAccountSuggestion) {
     if (!summary || isDryRun || summary.source_file_id === null) return;
-    const suggestedAccountNumber = suggestion.suggested_target_account_number?.trim();
+    const suggestedAccountNumber = getVisibleSuggestedTargetNumber(suggestion)?.trim();
     if (!suggestedAccountNumber || suggestedAccountNumber === "MANUAL_REVIEW") {
       setError("Choose a valid suggested target before applying.");
       return;
@@ -912,23 +911,19 @@ export default function GeneralLedgerUpload() {
               <div>
                 <Label htmlFor="dry-run-preview">Dry-run preview</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  On means parse and preview only; no pending import rows are written.
+                  Preview/review does not write pending import rows or archive the upload.
+                  The file is stored only when Save is pressed.
                 </p>
               </div>
               <Button
                 id="dry-run-preview"
                 type="button"
-                variant={dryRunPreview ? "default" : "outline"}
+                variant="default"
                 size="sm"
-                onClick={() => setDryRunPreview((enabled) => !enabled)}
-                disabled={isUploadBusy}
-                title={
-                  dryRunPreview
-                    ? "Dry-run is on; the upload will not write database rows until Save"
-                    : "Dry-run is off; the upload will create a pending import that can be saved"
-                }
+                disabled
+                title="Preview is always dry-run; the upload is stored only when Save is pressed"
               >
-                {dryRunPreview ? "On" : "Off"}
+                On
               </Button>
             </div>
             <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
@@ -1000,14 +995,10 @@ export default function GeneralLedgerUpload() {
               {isTrainingXgboost
                 ? "Training XGBoost..."
                 : parseImportMutation.isPending
-                ? dryRunPreview
-                  ? "Building dry-run..."
-                  : "Parsing..."
+                ? "Building dry-run..."
                 : accountSuggestionsMutation.isPending
                   ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with Gemini..." : "Reviewing...")
-                  : dryRunPreview
-                    ? "Dry-run Preview"
-                    : "Parse & Stage"}
+                  : "Dry-run Preview"}
             </Button>
           </div>
         </CardContent>
@@ -1761,7 +1752,7 @@ function applySuggestionKey(suggestion: Pick<GLAccountSuggestion, "row_number" |
 
 function countChangedSuggestions(suggestions: GLAccountSuggestion[]) {
   return suggestions.filter((suggestion) => {
-    const suggestedCode = suggestion.suggested_target_account_number;
+    const suggestedCode = getVisibleSuggestedTargetNumber(suggestion);
     const currentCode = suggestion.current_target_account_number;
     return Boolean(suggestedCode && suggestedCode !== currentCode);
   }).length;
@@ -2140,10 +2131,11 @@ function AccountSuggestionReview({
                       !suggestion.current_target_account_number)
                 );
                 const isApplied = Boolean(appliedSuggestionRows?.has(suggestion.row_number));
+                const visibleSuggestedTargetNumber = getVisibleSuggestedTargetNumber(suggestion);
                 const canApplySuggestedTarget = Boolean(
                   onApplySuggestedTarget &&
-                    suggestion.suggested_target_account_number &&
-                    suggestion.suggested_target_account_number !== "MANUAL_REVIEW" &&
+                    visibleSuggestedTargetNumber &&
+                    visibleSuggestedTargetNumber !== "MANUAL_REVIEW" &&
                     !isNoChangeSuggestion(suggestion) &&
                     !isApplied
                 );
@@ -2529,7 +2521,10 @@ function SuggestedAccountValue({
 }: {
   suggestion: GLAccountSuggestion;
 }) {
-  if (suggestion.requires_manual_review && !suggestion.suggested_target_account_number) {
+  const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
+  const suggestedName = getVisibleSuggestedTargetName(suggestion);
+
+  if (suggestion.requires_manual_review && !suggestedNumber) {
     return (
       <div className="min-w-0">
         <span className="font-medium text-red-700 dark:text-red-300">Manual review</span>
@@ -2551,13 +2546,13 @@ function SuggestedAccountValue({
       <span
         className="block min-w-0 truncate font-medium text-blue-700 dark:text-blue-300"
         title={formatSuggestionAccount(
-          suggestion.suggested_target_account_number,
-          suggestion.suggested_target_account_name
+          suggestedNumber,
+          suggestedName
         )}
       >
         {formatSuggestionAccount(
-          suggestion.suggested_target_account_number,
-          suggestion.suggested_target_account_name
+          suggestedNumber,
+          suggestedName
         )}
       </span>
       <ConfidenceValue suggestion={suggestion} className="mt-1" />
@@ -2629,7 +2624,7 @@ function ReviewStatusStack({
 
 function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   const hasGeminiSuggestion =
-    isGeminiSuggestion(suggestion) && Boolean(suggestion.suggested_target_account_number);
+    isGeminiSuggestion(suggestion) && Boolean(getVisibleSuggestedTargetNumber(suggestion));
   const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
   const hasPlainSuggestion = Boolean(
     isMarkedSuggestedChange(suggestion) &&
@@ -2648,7 +2643,13 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
     return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">Gemini manual suggestion</Badge>;
   }
   if (hasXgboostSuggestion) {
-    return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">{suggestion.review_label || "XGBoosted"}</Badge>;
+    return (
+      <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">
+        {shouldUseXgboostFallbackSuggestion(suggestion)
+          ? "XGBoost suggested"
+          : suggestion.review_label || "XGBoosted"}
+      </Badge>
+    );
   }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
@@ -2656,35 +2657,51 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   if (isGeminiSuggestion(suggestion)) {
     return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">Gemini</Badge>;
   }
-  if (hasPlainSuggestion || suggestion.suggested_target_account_number) {
+  if (hasPlainSuggestion || getVisibleSuggestedTargetNumber(suggestion)) {
     return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">{suggestion.review_label || "Suggested"}</Badge>;
   }
   return <Badge variant="outline">Checked</Badge>;
 }
 
 function isNoChangeSuggestion(suggestion: GLAccountSuggestion) {
+  if (shouldUseXgboostFallbackSuggestion(suggestion)) return false;
+  const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
+
   return (
     suggestion.rule === "keep_current" ||
     suggestion.rule === "gemini_ai_no_change" ||
     Boolean(
-      suggestion.suggested_target_account_number &&
+      suggestedNumber &&
         suggestion.current_target_account_number &&
-        suggestion.suggested_target_account_number === suggestion.current_target_account_number
+        suggestedNumber === suggestion.current_target_account_number
     )
   );
 }
 
 function isMarkedSuggestedChange(suggestion: GLAccountSuggestion) {
+  const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
+  if (shouldUseXgboostFallbackSuggestion(suggestion)) {
+    return Boolean(
+      suggestedNumber &&
+        suggestedNumber !== "MANUAL_REVIEW" &&
+        suggestedNumber !== suggestion.current_target_account_number
+    );
+  }
+
   if (suggestion.is_suggested_change != null) return suggestion.is_suggested_change;
+
   return Boolean(
-    suggestion.suggested_target_account_number &&
-      suggestion.suggested_target_account_number !== "MANUAL_REVIEW" &&
+    suggestedNumber &&
+      suggestedNumber !== "MANUAL_REVIEW" &&
       suggestion.current_target_account_number &&
-      suggestion.suggested_target_account_number !== suggestion.current_target_account_number
+      suggestedNumber !== suggestion.current_target_account_number
   );
 }
 
 function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
+  if (review.source === "xgboost") {
+    return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">XGBoost</Badge>;
+  }
   if (review.requires_human_review) {
     return <Badge variant="destructive">Review</Badge>;
   }
@@ -2693,9 +2710,6 @@ function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) 
   }
   if (review.source === "quickbooks_rule") {
     return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">QB Rule</Badge>;
-  }
-  if (review.source === "xgboost") {
-    return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">XGBoost</Badge>;
   }
   if (review.categorized) {
     return <Badge variant="outline">Checked</Badge>;
@@ -2811,14 +2825,46 @@ function formatSuggestionAccount(number: string | null, name: string | null) {
   return number || name || "-";
 }
 
+function shouldUseXgboostFallbackSuggestion(suggestion: GLAccountSuggestion) {
+  const xgboostCode = suggestion.xgboost_suggested_account_number?.trim();
+  if (!xgboostCode || xgboostCode === "MANUAL_REVIEW") return false;
+
+  const visibleCode = suggestion.suggested_target_account_number?.trim();
+  if (!visibleCode || visibleCode === "MANUAL_REVIEW") return true;
+  if (visibleCode === xgboostCode) return false;
+
+  return (
+    suggestion.rule === "keep_current" ||
+    suggestion.rule === "missing_split" ||
+    suggestion.rule === "unknown_current_split" ||
+    suggestion.rule === "needs_ai_review" ||
+    suggestion.rule.endsWith("_xgboost_candidate")
+  );
+}
+
+function getVisibleSuggestedTargetNumber(suggestion: GLAccountSuggestion) {
+  return shouldUseXgboostFallbackSuggestion(suggestion)
+    ? suggestion.xgboost_suggested_account_number
+    : suggestion.suggested_target_account_number;
+}
+
+function getVisibleSuggestedTargetName(suggestion: GLAccountSuggestion) {
+  return shouldUseXgboostFallbackSuggestion(suggestion)
+    ? suggestion.xgboost_suggested_account_name
+    : suggestion.suggested_target_account_name;
+}
+
 function formatSuggestionLabel(suggestion: GLAccountSuggestion) {
-  if (suggestion.requires_manual_review && !suggestion.suggested_target_account_number) {
+  const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
+  const suggestedName = getVisibleSuggestedTargetName(suggestion);
+
+  if (suggestion.requires_manual_review && !suggestedNumber) {
     return "Manual review";
   }
   if (isNoChangeSuggestion(suggestion)) return "No change";
   return formatSuggestionAccount(
-    suggestion.suggested_target_account_number,
-    suggestion.suggested_target_account_name
+    suggestedNumber,
+    suggestedName
   );
 }
 
@@ -2856,7 +2902,7 @@ function formatReviewSuggestedTarget(
 
 function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
   const hasGeminiSuggestion =
-    isGeminiSuggestion(suggestion) && Boolean(suggestion.suggested_target_account_number);
+    isGeminiSuggestion(suggestion) && Boolean(getVisibleSuggestedTargetNumber(suggestion));
   const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
 
   if (
@@ -2870,6 +2916,9 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
     return "Gemini AI suggested an account; manual review required";
   }
   if (hasXgboostSuggestion) {
+    if (shouldUseXgboostFallbackSuggestion(suggestion)) {
+      return "XGBoost suggested an account; low training support requires manual approval";
+    }
     return suggestion.review_label || (
       suggestion.requires_manual_review
         ? "XGBoost suggested an account; manual review required"
@@ -2878,7 +2927,7 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
   }
   if (suggestion.requires_manual_review) return "Manual review required";
   if (isGeminiSuggestion(suggestion)) return "Gemini";
-  if (isMarkedSuggestedChange(suggestion) || suggestion.suggested_target_account_number) {
+  if (isMarkedSuggestedChange(suggestion) || getVisibleSuggestedTargetNumber(suggestion)) {
     return suggestion.review_label || "Suggested";
   }
   return "Checked";
@@ -2889,7 +2938,8 @@ function isXgboostSuggestion(suggestion: GLAccountSuggestion) {
     suggestion.is_xgboost_suggestion === true ||
     suggestion.review_source === "xgboost" ||
     suggestion.rule === "xgboost_prediction" ||
-    suggestion.rule.endsWith("_xgboost_candidate")
+    suggestion.rule.endsWith("_xgboost_candidate") ||
+    shouldUseXgboostFallbackSuggestion(suggestion)
   );
 }
 
@@ -2948,7 +2998,7 @@ function inferSuggestionReviewStatus(suggestion: GLAccountSuggestion) {
     return suggestion.requires_manual_review ? "xgboost_suggested" : "xgboosted";
   }
   if (isGeminiSuggestion(suggestion)) {
-    if (suggestion.requires_manual_review && suggestion.suggested_target_account_number) {
+    if (suggestion.requires_manual_review && getVisibleSuggestedTargetNumber(suggestion)) {
       return "gemini_manual_suggestion";
     }
     if (suggestion.requires_manual_review) return "gemini_manual_review";

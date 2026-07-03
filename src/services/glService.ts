@@ -56,7 +56,7 @@ export const GLService = {
   }): Promise<ParseImportResponse> {
     const formData = new FormData();
     formData.append("company_book_id", String(params.companyBookId));
-    formData.append("dry_run", String(params.dryRun ?? false));
+    formData.append("dry_run", String(params.dryRun ?? true));
     formData.append("file", params.file);
 
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
@@ -172,9 +172,14 @@ export const GLService = {
     companyId: number;
     limit?: number;
   }): Promise<ImportPreview> {
-    const limit = params.limit ?? 100;
+    const searchParams = new URLSearchParams({
+      company_id: String(params.companyId),
+    });
+    if (params.limit !== undefined) {
+      searchParams.set("limit", String(params.limit));
+    }
     return apiClient.get<ImportPreview>(
-      `/accounting/gl/imports/${params.sourceFileId}/preview?company_id=${params.companyId}&limit=${limit}`
+      `/accounting/gl/imports/${params.sourceFileId}/preview?${searchParams.toString()}`
     );
   },
 
@@ -183,9 +188,13 @@ export const GLService = {
     entry: ManualGlEntryRequest;
     previewLimit?: number;
   }): Promise<ManualGlEntryResponse> {
-    const previewLimit = params.previewLimit ?? 100;
+    const searchParams = new URLSearchParams();
+    if (params.previewLimit !== undefined) {
+      searchParams.set("preview_limit", String(params.previewLimit));
+    }
+    const query = searchParams.toString();
     return apiClient.post<ManualGlEntryResponse>(
-      `/accounting/gl/imports/${params.sourceFileId}/manual-entry?preview_limit=${previewLimit}`,
+      `/accounting/gl/imports/${params.sourceFileId}/manual-entry${query ? `?${query}` : ""}`,
       params.entry
     );
   },
@@ -195,9 +204,13 @@ export const GLService = {
     change: ApplySuggestedTargetRequest;
     previewLimit?: number;
   }): Promise<ApplySuggestedTargetResponse> {
-    const previewLimit = params.previewLimit ?? 100;
+    const searchParams = new URLSearchParams();
+    if (params.previewLimit !== undefined) {
+      searchParams.set("preview_limit", String(params.previewLimit));
+    }
+    const query = searchParams.toString();
     return apiClient.post<ApplySuggestedTargetResponse>(
-      `/accounting/gl/imports/${params.sourceFileId}/apply-suggested-target?preview_limit=${previewLimit}`,
+      `/accounting/gl/imports/${params.sourceFileId}/apply-suggested-target${query ? `?${query}` : ""}`,
       params.change
     );
   },
@@ -207,9 +220,13 @@ export const GLService = {
     change: UnapplySuggestedTargetRequest;
     previewLimit?: number;
   }): Promise<UnapplySuggestedTargetResponse> {
-    const previewLimit = params.previewLimit ?? 100;
+    const searchParams = new URLSearchParams();
+    if (params.previewLimit !== undefined) {
+      searchParams.set("preview_limit", String(params.previewLimit));
+    }
+    const query = searchParams.toString();
     return apiClient.post<UnapplySuggestedTargetResponse>(
-      `/accounting/gl/imports/${params.sourceFileId}/unapply-suggested-target?preview_limit=${previewLimit}`,
+      `/accounting/gl/imports/${params.sourceFileId}/unapply-suggested-target${query ? `?${query}` : ""}`,
       params.change
     );
   },
