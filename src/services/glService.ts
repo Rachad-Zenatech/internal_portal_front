@@ -127,6 +127,7 @@ export const GLService = {
     formData.append("exclude_transfers", String(params.excludeTransfers ?? true));
     formData.append("include_zero_amounts", String(params.includeZeroAmounts ?? false));
     formData.append("num_rounds", String(params.numRounds ?? 50));
+    formData.append("run_in_background", "true");
 
     return apiClient.post<GLXgboostTestTrainingResponse>(
       "/classification/train-from-gl-export",

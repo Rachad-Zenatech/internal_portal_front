@@ -82,8 +82,12 @@ export type GLXgboostTestTrainingRequest = {
 };
 
 export type GLXgboostTestTrainingResponse = {
-  status: "success" | "error" | string;
+  status: "success" | "queued" | "error" | string;
   message: string;
+  queued?: boolean;
+  backgroundJobId?: string;
+  jobId?: string;
+  queued_upload_bytes?: number;
   source_filename?: string;
   format_code?: string;
   training?: {

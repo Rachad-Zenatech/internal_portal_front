@@ -25,6 +25,7 @@ import {
   useSaveImport,
   useSaveImportFromUpload,
 } from "@/hooks/useGL";
+import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -153,6 +154,7 @@ export default function GeneralLedgerUpload() {
   const parseImportMutation = useParseImport();
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
+  const { addJob } = useGlobalProgress();
   const deleteImportMutation = useDeleteImport();
   const addManualEntryMutation = useAddManualEntry();
   const applySuggestedTargetMutation = useApplySuggestedTarget();
@@ -373,25 +375,6 @@ export default function GeneralLedgerUpload() {
     setXgboostTrainingResult(null);
 
     try {
-      if (trainXgboostTestModel) {
-        const training = await xgboostTrainingMutation.mutateAsync({
-          file: currentFile,
-          formatCode: currentBook.format_code,
-          companyName: currentBook.company_name,
-          targetField: "split_account",
-          excludeBlankTargets: true,
-          excludeTransfers: true,
-          includeZeroAmounts: false,
-          numRounds: 50,
-        });
-        if (parseRunIdRef.current !== parseRunId) return;
-        setXgboostTrainingResult(training);
-        if (training.status !== "success") {
-          setError(`XGBoost test training failed: ${training.message}`);
-          return;
-        }
-      }
-
       const data = await parseImportMutation.mutateAsync({
         companyBookId: currentBook.book_id,
         file: currentFile,
@@ -405,6 +388,35 @@ export default function GeneralLedgerUpload() {
         setShowWorkbookPreview(true);
       }
       // Staged imports fetch preview automatically since sourceFileId is set.
+
+      if (trainXgboostTestModel) {
+        const training = await xgboostTrainingMutation.mutateAsync({
+          file: currentFile,
+          formatCode: currentBook.format_code,
+          companyName: currentBook.company_name,
+          targetField: "split_account",
+          excludeBlankTargets: true,
+          excludeTransfers: true,
+          includeZeroAmounts: false,
+          numRounds: 50,
+        });
+        if (parseRunIdRef.current !== parseRunId) return;
+        setXgboostTrainingResult(training);
+        if (training.status !== "success" && training.status !== "queued") {
+          setError(`XGBoost test training failed: ${training.message}`);
+          return;
+        }
+        if (training.status === "queued") {
+          addJob(
+            "XGBoost training",
+            Promise.resolve(training),
+            {
+              description: "Training from the GL export in the background...",
+              type: "database",
+            }
+          );
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
@@ -963,21 +975,32 @@ export default function GeneralLedgerUpload() {
             </div>
           </div>
 
-          {xgboostTrainingResult?.status === "success" && (
+          {(xgboostTrainingResult?.status === "success" || xgboostTrainingResult?.status === "queued") && (
             <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
-              <div className="font-medium">
-                XGBoost test trained:{" "}
-                {xgboostTrainingResult.result?.trained_rows.toLocaleString("en-US") ?? "0"} rows /{" "}
-                {xgboostTrainingResult.result?.class_count.toLocaleString("en-US") ?? "0"} accounts
-              </div>
-              {xgboostTrainingResult.training && (
-                <div className="mt-1 text-xs">
-                  Trusted current split-account labels from company/name/memo/current bank input;{" "}
-                  {(xgboostTrainingResult.training.memo_rows ?? 0).toLocaleString("en-US")} memo rows,{" "}
-                  {(xgboostTrainingResult.training.current_account_rows ?? 0).toLocaleString("en-US")} current-account rows; skipped{" "}
-                  {xgboostTrainingResult.training.skipped_transfer_rows.toLocaleString("en-US")} transfers,{" "}
-                  {(xgboostTrainingResult.training.skipped_untrainable_target_rows ?? 0).toLocaleString("en-US")} clearing/bank targets.
+              {xgboostTrainingResult.status === "queued" ? (
+                <div>
+                  <div className="font-medium">XGBoost test training queued</div>
+                  <div className="mt-1 text-xs">
+                    The model is training in the background. Keep using the page; a notification will appear when it finishes.
+                  </div>
                 </div>
+              ) : (
+                <>
+                  <div className="font-medium">
+                    XGBoost test trained:{" "}
+                    {xgboostTrainingResult.result?.trained_rows.toLocaleString("en-US") ?? "0"} rows /{" "}
+                    {xgboostTrainingResult.result?.class_count.toLocaleString("en-US") ?? "0"} accounts
+                  </div>
+                  {xgboostTrainingResult.training && (
+                    <div className="mt-1 text-xs">
+                      Trusted current split-account labels from company/name/memo/current bank input;{" "}
+                      {(xgboostTrainingResult.training.memo_rows ?? 0).toLocaleString("en-US")} memo rows,{" "}
+                      {(xgboostTrainingResult.training.current_account_rows ?? 0).toLocaleString("en-US")} current-account rows; skipped{" "}
+                      {xgboostTrainingResult.training.skipped_transfer_rows.toLocaleString("en-US")} transfers,{" "}
+                      {(xgboostTrainingResult.training.skipped_untrainable_target_rows ?? 0).toLocaleString("en-US")} clearing/bank targets.
+                    </div>
+                  )}
+                </>
               )}
               {xgboostTrainingResult.training?.cleanup_files?.length ? (
                 <div className="mt-1 truncate font-mono text-xs" title={xgboostTrainingResult.training.cleanup_files.join(" | ")}>
