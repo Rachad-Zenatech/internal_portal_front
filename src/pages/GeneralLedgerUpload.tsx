@@ -363,11 +363,20 @@ export default function GeneralLedgerUpload() {
   function scrollToImportReview() {
     window.setTimeout(() => {
       const reviewSection = document.getElementById("import-review");
-      if (!reviewSection) return;
-      reviewSection.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
+      const mainContainer = document.querySelector("main");
+      if (!reviewSection || !mainContainer) return;
+      
+      const reviewRect = reviewSection.getBoundingClientRect();
+      const mainRect = mainContainer.getBoundingClientRect();
+      
+      // Calculate scroll position bounded only to the main container
+      const targetScroll = mainContainer.scrollTop + (reviewRect.top - mainRect.top) - 24;
+      
+      mainContainer.scrollTo({
+        top: targetScroll,
+        behavior: "smooth"
       });
+      
       pendingImportReviewScrollRef.current = false;
     }, 50);
   }
