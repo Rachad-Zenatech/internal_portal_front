@@ -90,7 +90,9 @@ export default function GeneralLedger() {
         isLoading={isUploadQueueLoading}
         onRefresh={() => void refetchUploadQueue()}
         onOpenPreview={(token) => {
-          window.location.assign(`/general-ledger/upload?dry_run_preview_token=${encodeURIComponent(token)}`);
+          window.location.assign(
+            `/general-ledger/upload?dry_run_preview_token=${encodeURIComponent(token)}#import-review`
+          );
         }}
       />
 
