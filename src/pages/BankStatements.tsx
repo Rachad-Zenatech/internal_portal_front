@@ -11,7 +11,7 @@ import UploadStatement from "@/components/Bank/UploadStatement";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 export default function BankStatements() {
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab,  setActiveTab]  = useState<string>("statements");
   
   // Drawer and Upload State

@@ -141,6 +141,17 @@ export const useImportPreview = (sourceFileId: number | null, companyId: number 
   });
 };
 
+export const useImportSummary = (sourceFileId: number | null, companyId: number | null) => {
+  return useQuery<ParseImportResponse['summary'], Error>({
+    queryKey: ['import-summary', sourceFileId, companyId],
+    queryFn: () => {
+      if (sourceFileId === null || companyId === null) throw new Error("Missing IDs");
+      return GLService.getImportSummary({ sourceFileId, companyId });
+    },
+    enabled: sourceFileId !== null && companyId !== null,
+  });
+};
+
 export const useParseImport = () => {
   return useMutation<ParseImportResponse, Error, GLParseImportRequest>({
     mutationFn: (params) => GLService.parseImport(params),
@@ -188,23 +199,6 @@ export const useDryRunPreviewPage = () => {
     { previewToken: string; page: number; pageSize?: number }
   >({
     mutationFn: (params) => GLService.getDryRunPreviewPage(params),
-  });
-};
-
-export const useParseImportAsync = () => {
-  return useMutation<{ backgroundJobId: string }, Error, { companyBookId: number; file: File }>({
-    mutationFn: ({ companyBookId, file }) => GLService.parseImportAsync({ companyBookId, file }),
-  });
-};
-
-export const useImportSummary = (sourceFileId: number | null, companyId: number | null) => {
-  return useQuery({
-    queryKey: ['import-summary', sourceFileId, companyId],
-    queryFn: () => {
-      if (sourceFileId === null || companyId === null) throw new Error("Missing IDs");
-      return GLService.getImportSummary({ sourceFileId, companyId });
-    },
-    enabled: sourceFileId !== null && companyId !== null,
   });
 };
 

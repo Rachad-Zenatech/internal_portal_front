@@ -219,7 +219,7 @@ export function useUpdateStatement() {
  
 export function useDeleteStatement() {
   const qc = useQueryClient();
-  return useMutation<null, Error, number>({
+  return useMutation<null, Error, string>({
     mutationFn: statementService.deleteStatement,
     onSuccess:  () => qc.invalidateQueries({ queryKey: ["statements"] }),
   });

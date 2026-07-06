@@ -51,10 +51,10 @@ export const statementService = {
     const url = accountId ? `/bank_statement/statements?account_id=${accountId}` : "/bank_statement/statements";
     return apiClient.get<BankStatement[]>(url);
   },
-  getStatement: (id: number) => apiClient.get<BankStatement>(`/bank_statement/statements/${id}`),
+  getStatement: (id: string) => apiClient.get<BankStatement>(`/bank_statement/statements/${id}`),
   createStatement: (data: StatementCreate) => apiClient.post<BankStatement>("/bank_statement/statements", data),
-  updateStatement: (id: number, data: StatementUpdate) => apiClient.patch<BankStatement>(`/bank_statement/statements/${id}`, data),
-  deleteStatement: (id: number) => apiClient.delete<null>(`/bank_statement/statements/${id}`),
+  updateStatement: (id: string, data: StatementUpdate) => apiClient.patch<BankStatement>(`/bank_statement/statements/${id}`, data),
+  deleteStatement: (id: string) => apiClient.delete<null>(`/bank_statement/statements/${id}`),
   
   getStatementsByQuarter: (year: number, quarter: number, accountId?: number | null) => {
     let url = `/bank_statement/statements/by-quarter?year=${year}&quarter=${quarter}`;
@@ -98,7 +98,7 @@ export const statementService = {
 // ─── Check transaction service ────────────────────────────────────────────────
 
 export const checkService = {
-  getChecks: (statementId: number, section?: string | null) => {
+  getChecks: (statementId: string, section?: string | null) => {
     const url = section 
       ? `/bank_statement/statements/${statementId}/checks?section=${section}` 
       : `/bank_statement/statements/${statementId}/checks`;
@@ -113,7 +113,7 @@ export const checkService = {
 // ─── Deposit transaction service ──────────────────────────────────────────────
 
 export const depositService = {
-  getDeposits: (statementId: number, section?: string | null) => {
+  getDeposits: (statementId: string, section?: string | null) => {
     const url = section 
       ? `/bank_statement/statements/${statementId}/deposits?section=${section}` 
       : `/bank_statement/statements/${statementId}/deposits`;

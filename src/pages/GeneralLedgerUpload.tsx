@@ -160,9 +160,12 @@ export default function GeneralLedgerUpload() {
 
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
-
-  const urlSourceFileId = searchParams.get("source_file_id") ? Number(searchParams.get("source_file_id")) : null;
-  const urlCompanyId = searchParams.get("company_id") ? Number(searchParams.get("company_id")) : null;
+  const urlSourceFileId = searchParams.get("source_file_id")
+    ? Number(searchParams.get("source_file_id"))
+    : null;
+  const urlCompanyId = searchParams.get("company_id")
+    ? Number(searchParams.get("company_id"))
+    : null;
 
   const { data: importSummary } = useImportSummary(urlSourceFileId, urlCompanyId);
 
@@ -379,11 +382,20 @@ export default function GeneralLedgerUpload() {
   function scrollToImportReview() {
     window.setTimeout(() => {
       const reviewSection = document.getElementById("import-review");
-      if (!reviewSection) return;
-      reviewSection.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
+      const mainContainer = document.querySelector("main");
+      if (!reviewSection || !mainContainer) return;
+      
+      const reviewRect = reviewSection.getBoundingClientRect();
+      const mainRect = mainContainer.getBoundingClientRect();
+      
+      // Calculate scroll position bounded only to the main container
+      const targetScroll = mainContainer.scrollTop + (reviewRect.top - mainRect.top) - 24;
+      
+      mainContainer.scrollTo({
+        top: targetScroll,
+        behavior: "smooth"
       });
+      
       pendingImportReviewScrollRef.current = false;
     }, 50);
   }

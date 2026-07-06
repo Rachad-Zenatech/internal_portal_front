@@ -23,7 +23,7 @@ const typeLabel = (t: string): string =>
   t ? t.charAt(0).toUpperCase() + t.slice(1) : "—";
 
 interface Props {
-  onSelect: (id: number) => void;
+  onSelect: (id: string) => void;
 }
 
 export default function StatementList({ onSelect }: Props) {

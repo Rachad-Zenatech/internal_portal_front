@@ -55,7 +55,7 @@ const TABS = [
 ] as const;
 
 interface Props {
-  statementId: number;
+  statementId: string;
   onBack: () => void;
 }
 

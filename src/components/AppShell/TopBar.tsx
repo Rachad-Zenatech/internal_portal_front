@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Camera, Sparkles, RefreshCw, Monitor, Laptop, Smartphone, CheckCircle2, Moon, Sun, Mail, BellRing, Settings2, ShieldCheck, Clock, MapPin, Activity } from "lucide-react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, RefreshCw, Mail, BellRing, Settings2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,7 @@ export default function TopBar() {
   const [inputValue, setInputValue] = useState("");
   const [debouncedValue, setDebouncedValue] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
   const [inAppAlerts, setInAppAlerts] = useState(() => localStorage.getItem("inAppAlerts") !== "false");
@@ -238,7 +239,7 @@ export default function TopBar() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <DropdownMenu>
+          <DropdownMenu open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground hover:bg-muted rounded-full h-10 w-10 outline-none focus-visible:ring-0">
                 <Bell className="h-5 w-5" />
@@ -275,6 +276,7 @@ export default function TopBar() {
                           markAsRead(notification.id);
                         }
                         if (notification.link_url) {
+                          setIsNotificationsOpen(false);
                           navigate(notification.link_url);
                         }
                       }}

@@ -21,9 +21,20 @@ export function GlobalProgressOverlay() {
           // Check if in-app alerts are enabled (defaults to true if not set)
           const alertsEnabled = localStorage.getItem("inAppAlerts") !== "false";
           if (alertsEnabled) {
-            toast.success(matchingNotification.title, {
-              description: matchingNotification.message || `${job.title} has completed successfully.`
-            });
+            const isFailure = matchingNotification.type.includes("failed");
+            const toastOptions = {
+              description: matchingNotification.message || `${job.title} has completed successfully.`,
+              action: matchingNotification.link_url ? {
+                label: "View",
+                onClick: () => window.location.assign(matchingNotification.link_url!)
+              } : undefined
+            };
+
+            if (isFailure) {
+              toast.error(matchingNotification.title, toastOptions);
+            } else {
+              toast.success(matchingNotification.title, toastOptions);
+            }
           }
         }
       }
