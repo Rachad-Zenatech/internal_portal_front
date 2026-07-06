@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CompanyGLCard, GLExtractionFormat } from "@/types/gl";
-import { useCompanyCards, useGLFormats, useAssignFormat, useGLUploadQueue } from "@/hooks/useGL";
+import {
+  useCancelGLUploadQueueJob,
+  useCompanyCards,
+  useDeleteGLUploadQueueJob,
+  useGLFormats,
+  useAssignFormat,
+  useGLUploadQueue,
+} from "@/hooks/useGL";
 import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
+import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -17,6 +25,10 @@ export default function GeneralLedger() {
   const [year, setYear] = useState<number>(2026);
   const [companyId, setCompanyId] = useState<string>("all");
   const [entityFilter, setEntityFilter] = useState("all");
+  const [queueActionMessage, setQueueActionMessage] = useState<string | null>(null);
+  const [queueActionError, setQueueActionError] = useState<string | null>(null);
+  const [cancelingQueueJobId, setCancelingQueueJobId] = useState<number | null>(null);
+  const [deletingQueueJobId, setDeletingQueueJobId] = useState<number | null>(null);
 
   const { data: cards = [], isLoading: loadingCards, error: cardsError } = useCompanyCards(period, year);
   const { data: formats = [] } = useGLFormats();
@@ -26,7 +38,48 @@ export default function GeneralLedger() {
     refetch: refetchUploadQueue,
   } = useGLUploadQueue(10);
   const assignFormatMutation = useAssignFormat();
+  const cancelUploadQueueJobMutation = useCancelGLUploadQueueJob();
+  const deleteUploadQueueJobMutation = useDeleteGLUploadQueueJob();
+  const { activeJobs, removeJob } = useGlobalProgress();
   const uploadQueue = uploadQueueData?.jobs ?? [];
+
+  async function handleCancelQueueJob(jobId: number) {
+    setQueueActionError(null);
+    setQueueActionMessage(null);
+    setCancelingQueueJobId(jobId);
+    try {
+      const result = await cancelUploadQueueJobMutation.mutateAsync({ jobId });
+      setQueueActionMessage(result.message || "Cancel requested.");
+      const activeUploadJob = activeJobs.find((job) => String(job.jobId) === String(jobId));
+      if (activeUploadJob) {
+        removeJob(activeUploadJob.id);
+      }
+      void refetchUploadQueue();
+    } catch (err) {
+      setQueueActionError(err instanceof Error ? err.message : "Failed to cancel GL upload");
+    } finally {
+      setCancelingQueueJobId(null);
+    }
+  }
+
+  async function handleDeleteQueueJob(jobId: number) {
+    setQueueActionError(null);
+    setQueueActionMessage(null);
+    setDeletingQueueJobId(jobId);
+    try {
+      const result = await deleteUploadQueueJobMutation.mutateAsync({ jobId });
+      setQueueActionMessage(result.message || "GL upload queue item deleted.");
+      const activeUploadJob = activeJobs.find((job) => String(job.jobId) === String(jobId));
+      if (activeUploadJob) {
+        removeJob(activeUploadJob.id);
+      }
+      void refetchUploadQueue();
+    } catch (err) {
+      setQueueActionError(err instanceof Error ? err.message : "Failed to delete GL upload");
+    } finally {
+      setDeletingQueueJobId(null);
+    }
+  }
 
   const companies = useMemo(() => {
     const seen = new Map<number, { id: number; name: string; entity: string | null }>();
@@ -85,6 +138,18 @@ export default function GeneralLedger() {
         </section>
       )}
 
+      {queueActionError && (
+        <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {queueActionError}
+        </section>
+      )}
+
+      {queueActionMessage && (
+        <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
+          {queueActionMessage}
+        </section>
+      )}
+
       <GLUploadQueuePanel
         jobs={uploadQueue}
         isLoading={isUploadQueueLoading}
@@ -94,6 +159,10 @@ export default function GeneralLedger() {
             `/general-ledger/upload?dry_run_preview_token=${encodeURIComponent(token)}#import-review`
           );
         }}
+        onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
+        cancelingJobId={cancelingQueueJobId}
+        onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
+        deletingJobId={deletingQueueJobId}
       />
 
       <Card className="p-6">

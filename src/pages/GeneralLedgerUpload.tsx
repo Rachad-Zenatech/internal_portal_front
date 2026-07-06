@@ -234,6 +234,8 @@ export default function GeneralLedgerUpload() {
     loadedPreviewTokenRef.current = token;
     pendingImportReviewScrollRef.current = window.location.hash === "#import-review";
     void handleDryRunPreviewPage(1, token);
+    // This is a one-time URL bootstrap; pagination controls call the handler directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectedBook = useMemo(
