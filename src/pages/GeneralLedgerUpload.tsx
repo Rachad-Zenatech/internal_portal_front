@@ -15,6 +15,7 @@ import type {
 import {
   useBooks,
   useParseImport,
+  useDryRunPreviewPage,
   useImportPreview,
   useGLAccountSuggestions,
   useTrainXgboostTestModelFromGlExport,
@@ -48,6 +49,8 @@ type ParseSummary = {
   bank_lines: number;
   status?: string;
   dry_run?: boolean;
+  dry_run_preview_token?: string;
+  dry_run_preview_expires_at?: string;
 };
 
 type ManualEntryForm = {
@@ -88,6 +91,7 @@ type AccountReviewLogContext = {
 
 const GEMINI_ROWS_PER_REQUEST = 50;
 const GEMINI_CONCURRENCY_LIMIT = 3;
+const DRY_RUN_PREVIEW_LIMIT = 1000;
 // Temporary testing flag: set to null to let Gemini AI review all selected rows.
 const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = null;
 const GEMINI_AI_TEST_REVIEW_MODEL = "gemini-3.1-flash-lite";
@@ -152,6 +156,7 @@ export default function GeneralLedgerUpload() {
   const { data: previewData, isLoading: isPreviewLoading } = useImportPreview(sourceFileId, companyIdForPreview);
 
   const parseImportMutation = useParseImport();
+  const dryRunPreviewPageMutation = useDryRunPreviewPage();
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
   const { addJob } = useGlobalProgress();
@@ -245,8 +250,9 @@ export default function GeneralLedgerUpload() {
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending;
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
+  const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
   const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending;
-  const isUploadBusy = parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts || isSavingImport;
+  const isUploadBusy = parseImportMutation.isPending || isPreviewPageLoading || isTrainingXgboost || isReviewingAccounts || isSavingImport;
   const canRunAccountReview = Boolean(summary && file && selectedBook && !isReviewingAccounts);
   const accountReviewProgressLabel = accountReviewProgress
     ? formatAccountReviewProgress(accountReviewProgress)
@@ -254,6 +260,7 @@ export default function GeneralLedgerUpload() {
   const hasAccountReviewProgress = accountReviewProgress !== null;
 
   const previewAccounts = preview?.accounts ?? [];
+  const previewPagination = preview?.pagination ?? null;
   const visibleReviewAccounts = useMemo(() => {
     if (!preview) return [];
     if (accountFilter === "all") return preview.accounts ?? [];
@@ -379,6 +386,7 @@ export default function GeneralLedgerUpload() {
         companyBookId: currentBook.book_id,
         file: currentFile,
         dryRun: true,
+        previewLimit: DRY_RUN_PREVIEW_LIMIT,
       });
       if (parseRunIdRef.current !== parseRunId) return;
 
@@ -420,6 +428,29 @@ export default function GeneralLedgerUpload() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
+    }
+  }
+
+  async function handleDryRunPreviewPage(page: number) {
+    const previewToken =
+      preview?.pagination?.preview_token ?? summary?.dry_run_preview_token ?? null;
+    if (!previewToken) return;
+
+    setError(null);
+    try {
+      const data = await dryRunPreviewPageMutation.mutateAsync({
+        previewToken,
+        page,
+        pageSize: DRY_RUN_PREVIEW_LIMIT,
+      });
+      setSummary(data.summary);
+      setLocalPreview(data.preview ?? null);
+      setAccountFilter("all");
+      setFocusedReviewRowId(null);
+      setActiveReviewFinder(null);
+      setShowWorkbookPreview(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load dry-run preview page");
     }
   }
 
@@ -1059,6 +1090,42 @@ export default function GeneralLedgerUpload() {
                     {preview.rows.length} of {preview.totals.line_count} rows shown
                     {isDryRun ? " from a dry-run preview" : ""}
                   </p>
+                  {isDryRun && previewPagination?.preview_token && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isPreviewPageLoading ||
+                          !previewPagination.has_previous
+                        }
+                        onClick={() =>
+                          handleDryRunPreviewPage((previewPagination.page ?? 1) - 1)
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <span>
+                        Page {(previewPagination.page ?? 1).toLocaleString("en-US")} of{" "}
+                        {(previewPagination.page_count ?? 1).toLocaleString("en-US")}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isPreviewPageLoading ||
+                          !previewPagination.has_next
+                        }
+                        onClick={() =>
+                          handleDryRunPreviewPage((previewPagination.page ?? 1) + 1)
+                        }
+                      >
+                        {isPreviewPageLoading ? "Loading..." : "Next"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {isDryRun && (

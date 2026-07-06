@@ -9,6 +9,7 @@ import type {
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
+  GLParseImportRequest,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
   TrialBalance,
@@ -137,8 +138,18 @@ export const useImportPreview = (sourceFileId: number | null, companyId: number 
 };
 
 export const useParseImport = () => {
-  return useMutation<ParseImportResponse, Error, { companyBookId: number; file: File; dryRun?: boolean }>({
-    mutationFn: ({ companyBookId, file, dryRun }) => GLService.parseImport({ companyBookId, file, dryRun }),
+  return useMutation<ParseImportResponse, Error, GLParseImportRequest>({
+    mutationFn: (params) => GLService.parseImport(params),
+  });
+};
+
+export const useDryRunPreviewPage = () => {
+  return useMutation<
+    ParseImportResponse,
+    Error,
+    { previewToken: string; page: number; pageSize?: number }
+  >({
+    mutationFn: (params) => GLService.getDryRunPreviewPage(params),
   });
 };
 

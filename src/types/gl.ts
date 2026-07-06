@@ -35,12 +35,15 @@ export type ParseSummary = {
   bank_lines: number;
   status?: string;
   dry_run?: boolean;
+  dry_run_preview_token?: string;
+  dry_run_preview_expires_at?: string;
 };
 
 export type ParseImportResponse = {
   summary: ParseSummary;
   preview?: ImportPreview | null;
   dry_run?: boolean;
+  dry_run_preview_token?: string;
 };
 
 export type SaveImportFromUploadResponse = {
@@ -79,6 +82,13 @@ export type GLXgboostTestTrainingRequest = {
   excludeTransfers?: boolean;
   includeZeroAmounts?: boolean;
   numRounds?: number;
+};
+
+export type GLParseImportRequest = {
+  companyBookId: number;
+  file: File;
+  dryRun?: boolean;
+  previewLimit?: number | null;
 };
 
 export type GLXgboostTestTrainingResponse = {
@@ -380,6 +390,19 @@ export type ImportPreview = {
   };
   account_review_summary?: ImportPreviewAccountReviewSummary;
   reconciliation?: ImportReviewReconciliation;
+  pagination?: {
+    preview_token?: string;
+    page?: number;
+    page_size?: number;
+    page_count?: number;
+    offset: number;
+    limit: number;
+    returned_rows: number;
+    total_rows: number;
+    has_previous: boolean;
+    has_next: boolean;
+    expires_at?: string;
+  };
   accounts: ImportPreviewAccount[];
   rows: ImportPreviewRow[];
 };

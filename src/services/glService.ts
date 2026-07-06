@@ -14,6 +14,7 @@ import type {
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
+  GLParseImportRequest,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
   GLExtractionFormat,
@@ -49,17 +50,36 @@ export const GLService = {
     );
   },
 
-  async parseImport(params: {
-    companyBookId: number;
-    file: File;
-    dryRun?: boolean;
-  }): Promise<ParseImportResponse> {
+  async parseImport(params: GLParseImportRequest): Promise<ParseImportResponse> {
     const formData = new FormData();
     formData.append("company_book_id", String(params.companyBookId));
     formData.append("dry_run", String(params.dryRun ?? true));
+    if (params.previewLimit !== undefined && params.previewLimit !== null) {
+      formData.append("preview_limit", String(params.previewLimit));
+    }
     formData.append("file", params.file);
 
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
+  },
+
+  async getDryRunPreviewPage(params: {
+    previewToken: string;
+    page: number;
+    pageSize?: number;
+  }): Promise<ParseImportResponse> {
+    const searchParams = new URLSearchParams({
+      page: String(params.page),
+      page_size: String(params.pageSize ?? 1000),
+    });
+    return apiClient.get<ParseImportResponse>(
+      `/accounting/gl/imports/dry-run-preview/${params.previewToken}?${searchParams.toString()}`
+    );
+  },
+
+  async deleteDryRunPreview(params: { previewToken: string }): Promise<void> {
+    await apiClient.delete<void>(
+      `/accounting/gl/imports/dry-run-preview/${params.previewToken}`
+    );
   },
 
   async getAccountSuggestions(params: GLAccountSuggestionsRequest): Promise<GLAccountSuggestionsResponse> {
