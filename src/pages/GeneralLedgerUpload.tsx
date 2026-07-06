@@ -5,6 +5,7 @@ import type {
   ApplySuggestedTargetResponse,
   GLAccountSuggestion,
   GLAccountSuggestionsResponse,
+  GLUploadQueueItem,
   GLXgboostTestTrainingResponse,
   ImportPreview,
   ImportPreviewAccount,
@@ -17,6 +18,9 @@ import {
   useParseImportAsync,
   useImportSummary,
   useParseImport,
+  useParseImportInBackground,
+  useGLUploadQueue,
+  useDryRunPreviewPage,
   useImportPreview,
   useGLAccountSuggestions,
   useTrainXgboostTestModelFromGlExport,
@@ -26,6 +30,7 @@ import {
   useUnapplySuggestedTarget,
   useSaveImport,
   useSaveImportFromUpload,
+  useSaveDryRunPreview,
 } from "@/hooks/useGL";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
@@ -51,6 +56,8 @@ type ParseSummary = {
   bank_lines: number;
   status?: string;
   dry_run?: boolean;
+  dry_run_preview_token?: string;
+  dry_run_preview_expires_at?: string;
 };
 
 type ManualEntryForm = {
@@ -91,6 +98,7 @@ type AccountReviewLogContext = {
 
 const GEMINI_ROWS_PER_REQUEST = 50;
 const GEMINI_CONCURRENCY_LIMIT = 3;
+const DRY_RUN_PREVIEW_LIMIT = 1000;
 // Temporary testing flag: set to null to let Gemini AI review all selected rows.
 const GEMINI_AI_TEST_REVIEW_MAX_ROWS: number | null = null;
 const GEMINI_AI_TEST_REVIEW_MODEL = "gemini-3.1-flash-lite";
@@ -140,8 +148,10 @@ export default function GeneralLedgerUpload() {
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [xgboostTrainingResult, setXgboostTrainingResult] =
     useState<GLXgboostTestTrainingResponse | null>(null);
+  const [backgroundUploadMessage, setBackgroundUploadMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const parseRunIdRef = useRef(0);
+  const loadedPreviewTokenRef = useRef<string | null>(null);
   const glFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Queries & Mutations
@@ -165,9 +175,17 @@ export default function GeneralLedgerUpload() {
   );
 
   const { data: previewData, isLoading: isPreviewLoading } = useImportPreview(sourceFileId, companyIdForPreview);
+  const {
+    data: uploadQueueData,
+    isLoading: isUploadQueueLoading,
+    refetch: refetchUploadQueue,
+  } = useGLUploadQueue(10);
+  const uploadQueue = uploadQueueData?.jobs ?? [];
 
   const parseImportAsyncMutation = useParseImportAsync();
   const parseImportMutation = useParseImport();
+  const parseImportBackgroundMutation = useParseImportInBackground();
+  const dryRunPreviewPageMutation = useDryRunPreviewPage();
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
   const { addJob } = useGlobalProgress();
@@ -177,6 +195,7 @@ export default function GeneralLedgerUpload() {
   const unapplySuggestedTargetMutation = useUnapplySuggestedTarget();
   const saveImportMutation = useSaveImport();
   const saveImportFromUploadMutation = useSaveImportFromUpload();
+  const saveDryRunPreviewMutation = useSaveDryRunPreview();
 
   const [localPreview, setLocalPreview] = useState<ImportPreview | null>(null);
 
@@ -200,6 +219,13 @@ export default function GeneralLedgerUpload() {
       }
     }
   }, [books, bookId, searchParams]);
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("dry_run_preview_token");
+    if (!token || loadedPreviewTokenRef.current === token) return;
+    loadedPreviewTokenRef.current = token;
+    void handleDryRunPreviewPage(1, token);
+  }, []);
 
   const selectedBook = useMemo(
     () => books.find((book) => book.book_id === bookId) ?? null,
@@ -261,15 +287,19 @@ export default function GeneralLedgerUpload() {
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending;
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
-  const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending;
-  const isUploadBusy = parseImportAsyncMutation.isPending || parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts || isSavingImport || isSummaryLoading;
+  const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
+  const isBackgroundParsing = parseImportBackgroundMutation.isPending;
+  const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending || saveDryRunPreviewMutation.isPending;
+  const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isTrainingXgboost || isReviewingAccounts || isSavingImport;
   const canRunAccountReview = Boolean(summary && file && selectedBook && !isReviewingAccounts);
+  const canSaveDryRun = Boolean(summary?.dry_run_preview_token || (selectedBook && file));
   const accountReviewProgressLabel = accountReviewProgress
     ? formatAccountReviewProgress(accountReviewProgress)
     : null;
   const hasAccountReviewProgress = accountReviewProgress !== null;
 
   const previewAccounts = preview?.accounts ?? [];
+  const previewPagination = preview?.pagination ?? null;
   const visibleReviewAccounts = useMemo(() => {
     if (!preview) return [];
     if (accountFilter === "all") return preview.accounts ?? [];
@@ -311,6 +341,7 @@ export default function GeneralLedgerUpload() {
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
     setXgboostTrainingResult(null);
+    setBackgroundUploadMessage(null);
   }
 
   function toggleReviewFinder(kind: ReviewFinderKind, rows: WorkbookPreviewRow[]) {
@@ -389,26 +420,28 @@ export default function GeneralLedgerUpload() {
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
     setXgboostTrainingResult(null);
+    setBackgroundUploadMessage(null);
 
     try {
-      const data = await parseImportAsyncMutation.mutateAsync({
+      const backgroundParse = await parseImportBackgroundMutation.mutateAsync({
         companyBookId: currentBook.book_id,
         file: currentFile,
+        dryRun: true,
+        previewLimit: DRY_RUN_PREVIEW_LIMIT,
       });
       if (parseRunIdRef.current !== parseRunId) return;
-
       addJob(
-        "General Ledger Upload", 
-        Promise.resolve(data), 
+        "GL dry-run preview",
+        Promise.resolve(backgroundParse),
         {
-          description: "Parsing GL file in the background...",
+          description: "Backend worker is parsing the GL file...",
           type: "upload",
         }
       );
-      
-      // Clear file after submitting
-      setFile(null);
-      if (glFileInputRef.current) glFileInputRef.current.value = "";
+      setBackgroundUploadMessage(
+        "The backend worker is parsing this GL dry-run preview. You can leave this page and open the notification when it is ready."
+      );
+      void refetchUploadQueue();
 
       if (trainXgboostTestModel) {
         const training = await xgboostTrainingMutation.mutateAsync({
@@ -441,6 +474,35 @@ export default function GeneralLedgerUpload() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
+    }
+  }
+
+  async function handleDryRunPreviewPage(page: number, explicitPreviewToken?: string) {
+    const previewToken =
+      explicitPreviewToken ??
+      preview?.pagination?.preview_token ??
+      summary?.dry_run_preview_token ??
+      null;
+    if (!previewToken) return;
+
+    setError(null);
+    setBackgroundUploadMessage(null);
+    try {
+      const data = await dryRunPreviewPageMutation.mutateAsync({
+        previewToken,
+        page,
+        pageSize: DRY_RUN_PREVIEW_LIMIT,
+      });
+      setSummary(data.summary);
+      setBookId(data.summary.company_book_id);
+      setLocalPreview(data.preview ?? null);
+      setAccountFilter("all");
+      setFocusedReviewRowId(null);
+      setActiveReviewFinder(null);
+      setShowWorkbookPreview(true);
+      window.history.replaceState(null, "", "/general-ledger/upload");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load dry-run preview page");
     }
   }
 
@@ -813,13 +875,27 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleSave() {
-    if (!selectedBook || !summary) return;
+    if (!summary) return;
     setError(null);
 
     try {
       if (isDryRun || summary.source_file_id === null) {
+        const previewToken = summary.dry_run_preview_token ?? preview?.pagination?.preview_token;
+        if (previewToken) {
+          const saved = await saveDryRunPreviewMutation.mutateAsync({
+            previewToken,
+          });
+          const companyId = saved.summary.company_id ?? summary.company_id;
+          window.location.assign(`/general-ledger/company/${companyId}?period=q1&year=2026`);
+          return;
+        }
+
         if (!file) {
           setError("Choose a GL file before saving.");
+          return;
+        }
+        if (!selectedBook) {
+          setError("Choose a company/book before saving.");
           return;
         }
 
@@ -832,10 +908,10 @@ export default function GeneralLedgerUpload() {
       }
 
       await saveImportMutation.mutateAsync({
-        companyId: selectedBook.company_id,
+        companyId: selectedBook?.company_id ?? summary.company_id,
         sourceFileId: summary.source_file_id,
       });
-      window.location.assign(`/general-ledger/company/${selectedBook.company_id}?period=q1&year=2026`);
+      window.location.assign(`/general-ledger/company/${selectedBook?.company_id ?? summary.company_id}?period=q1&year=2026`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save import");
     }
@@ -863,6 +939,19 @@ export default function GeneralLedgerUpload() {
         </section>
       )}
 
+      {backgroundUploadMessage && (
+        <section className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
+          {backgroundUploadMessage}
+        </section>
+      )}
+
+      <GLUploadQueuePanel
+        jobs={uploadQueue}
+        isLoading={isUploadQueueLoading}
+        onRefresh={() => void refetchUploadQueue()}
+        onOpenPreview={(token) => handleDryRunPreviewPage(1, token)}
+      />
+
       <Card>
         <CardContent className="p-6">
           <div className="grid gap-4 md:grid-cols-2">
@@ -888,6 +977,7 @@ export default function GeneralLedgerUpload() {
                   setActiveReviewFinder(null);
                   setAppliedSuggestionChanges(new Map());
                   setSuggestionError(null);
+                  setBackgroundUploadMessage(null);
                 }}
               >
                 <SelectTrigger>
@@ -1046,6 +1136,8 @@ export default function GeneralLedgerUpload() {
             >
               {isTrainingXgboost
                 ? "Training XGBoost..."
+                : isBackgroundParsing
+                ? "Queueing dry-run..."
                 : parseImportMutation.isPending
                 ? "Building dry-run..."
                 : accountSuggestionsMutation.isPending
@@ -1088,6 +1180,42 @@ export default function GeneralLedgerUpload() {
                     {preview.rows.length} of {preview.totals.line_count} rows shown
                     {isDryRun ? " from a dry-run preview" : ""}
                   </p>
+                  {isDryRun && previewPagination?.preview_token && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isPreviewPageLoading ||
+                          !previewPagination.has_previous
+                        }
+                        onClick={() =>
+                          handleDryRunPreviewPage((previewPagination.page ?? 1) - 1)
+                        }
+                      >
+                        Previous
+                      </Button>
+                      <span>
+                        Page {(previewPagination.page ?? 1).toLocaleString("en-US")} of{" "}
+                        {(previewPagination.page_count ?? 1).toLocaleString("en-US")}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={
+                          isPreviewPageLoading ||
+                          !previewPagination.has_next
+                        }
+                        onClick={() =>
+                          handleDryRunPreviewPage((previewPagination.page ?? 1) + 1)
+                        }
+                      >
+                        {isPreviewPageLoading ? "Loading..." : "Next"}
+                      </Button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {isDryRun && (
@@ -1381,7 +1509,7 @@ export default function GeneralLedgerUpload() {
                     applySuggestedTargetMutation.isPending ||
                     unapplySuggestedTargetMutation.isPending ||
                     !reviewReady ||
-                    (isDryRun && (!selectedBook || !file))
+                    (isDryRun && !canSaveDryRun)
                   }
                   onClick={handleSave}
                 >
@@ -1421,6 +1549,145 @@ function Info({ label, value }: { label: string; value: string }) {
       <p className="font-medium mt-1">{value}</p>
     </div>
   );
+}
+
+function GLUploadQueuePanel({
+  jobs,
+  isLoading,
+  onRefresh,
+  onOpenPreview,
+}: {
+  jobs: GLUploadQueueItem[];
+  isLoading: boolean;
+  onRefresh: () => void;
+  onOpenPreview: (token: string) => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-medium">Server GL Upload Queue</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Backend dry-run parses that continue while you use the site.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={onRefresh}>
+            Refresh
+          </Button>
+        </div>
+
+        {isLoading && jobs.length === 0 ? (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            Loading upload queue...
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+            No background GL uploads yet.
+          </div>
+        ) : (
+          <div className="divide-y rounded-md border">
+            {jobs.map((job) => (
+              <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="truncate text-sm font-medium">
+                      {job.filename || `Upload job #${job.id}`}
+                    </span>
+                    <Badge variant={queueStatusVariant(job.status)}>
+                      {queueStatusLabel(job.status)}
+                    </Badge>
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {job.company_name ? `${job.company_name} · ` : ""}
+                    {job.gl_entry_lines != null
+                      ? `${job.gl_entry_lines.toLocaleString("en-US")} rows · `
+                      : ""}
+                    {job.status === "failed" ? job.error_message || "Failed" : queueProgressText(job)}
+                  </div>
+                  {shouldShowQueueProgress(job) && (
+                    <div
+                      className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+                      aria-label={`${queueProgressPercent(job)}% complete`}
+                    >
+                      <div
+                        className="h-full rounded-full bg-primary transition-all"
+                        style={{ width: `${queueProgressPercent(job)}%` }}
+                      />
+                    </div>
+                  )}
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Started {formatQueueDate(job.created_at)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {job.preview_token ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => onOpenPreview(job.preview_token as string)}
+                    >
+                      Open Preview
+                    </Button>
+                  ) : (
+                    <Button type="button" size="sm" variant="outline" disabled>
+                      Preview pending
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function queueStatusLabel(status: string) {
+  if (status === "queued" || status === "queued_local") return "Queued";
+  if (status === "processing") return "Backend processing";
+  if (status === "completed") return "Ready";
+  if (status === "failed") return "Failed";
+  return status || "Unknown";
+}
+
+function queueStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "completed") return "default";
+  if (status === "failed") return "destructive";
+  if (status === "processing") return "secondary";
+  return "outline";
+}
+
+function queueProgressPercent(job: GLUploadQueueItem) {
+  if (job.status === "completed") return 100;
+  return Math.max(0, Math.min(100, Number(job.progress) || 0));
+}
+
+function queueProgressText(job: GLUploadQueueItem) {
+  if (job.status === "queued" || job.status === "queued_local") return "Waiting for backend worker";
+  if (job.status === "processing") {
+    const progress = queueProgressPercent(job);
+    return progress <= 1 ? "Backend worker starting..." : `${progress}% complete`;
+  }
+  if (job.status === "completed") return "Ready to open";
+  return `${queueProgressPercent(job)}% complete`;
+}
+
+function shouldShowQueueProgress(job: GLUploadQueueItem) {
+  return job.status === "processing" || job.status === "completed";
+}
+
+function formatQueueDate(value?: string | null) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function ReviewFinderPanel({

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GLService } from '../services/glService';
 import type {
+  BackgroundGlParseResponse,
   CompanyGLCard,
   ConsolidatedMatrixResponse,
   ApplySuggestedTargetRequest,
@@ -9,6 +10,8 @@ import type {
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
+  GLParseImportRequest,
+  GLUploadQueueResponse,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
   TrialBalance,
@@ -137,8 +140,32 @@ export const useImportPreview = (sourceFileId: number | null, companyId: number 
 };
 
 export const useParseImport = () => {
-  return useMutation<ParseImportResponse, Error, { companyBookId: number; file: File; dryRun?: boolean }>({
-    mutationFn: ({ companyBookId, file, dryRun }) => GLService.parseImport({ companyBookId, file, dryRun }),
+  return useMutation<ParseImportResponse, Error, GLParseImportRequest>({
+    mutationFn: (params) => GLService.parseImport(params),
+  });
+};
+
+export const useParseImportInBackground = () => {
+  return useMutation<BackgroundGlParseResponse, Error, GLParseImportRequest>({
+    mutationFn: (params) => GLService.parseImportInBackground(params),
+  });
+};
+
+export const useGLUploadQueue = (limit: number = 20) => {
+  return useQuery<GLUploadQueueResponse, Error>({
+    queryKey: ['gl-upload-queue', limit],
+    queryFn: () => GLService.getUploadQueue(limit),
+    refetchInterval: 1500,
+  });
+};
+
+export const useDryRunPreviewPage = () => {
+  return useMutation<
+    ParseImportResponse,
+    Error,
+    { previewToken: string; page: number; pageSize?: number }
+  >({
+    mutationFn: (params) => GLService.getDryRunPreviewPage(params),
   });
 };
 
@@ -200,6 +227,23 @@ export const useSaveImportFromUpload = () => {
   >({
     mutationFn: ({ companyBookId, file }) =>
       GLService.saveImportFromUpload({ companyBookId, file }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['company-ledger'] });
+    },
+  });
+};
+
+export const useSaveDryRunPreview = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    SaveImportFromUploadResponse,
+    Error,
+    { previewToken: string }
+  >({
+    mutationFn: ({ previewToken }) =>
+      GLService.saveDryRunPreview({ previewToken }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-cards'] });
       queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
