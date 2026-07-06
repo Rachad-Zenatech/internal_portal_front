@@ -15,8 +15,6 @@ import type {
 } from "@/types/gl";
 import {
   useBooks,
-  useParseImportAsync,
-  useImportSummary,
   useParseImport,
   useParseImportInBackground,
   useGLUploadQueue,
@@ -157,16 +155,7 @@ export default function GeneralLedgerUpload() {
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
 
-  const urlSourceFileId = searchParams.get("source_file_id") ? Number(searchParams.get("source_file_id")) : null;
-  const urlCompanyId = searchParams.get("company_id") ? Number(searchParams.get("company_id")) : null;
 
-  const { data: importSummary, isLoading: isSummaryLoading } = useImportSummary(urlSourceFileId, urlCompanyId);
-
-  useEffect(() => {
-    if (importSummary && !summary) {
-      setSummary(importSummary);
-    }
-  }, [importSummary, summary]);
 
   const sourceFileId = summary?.source_file_id ?? null;
   const companyIdForPreview = summary?.company_id ?? null;
@@ -182,7 +171,6 @@ export default function GeneralLedgerUpload() {
   } = useGLUploadQueue(10);
   const uploadQueue = uploadQueueData?.jobs ?? [];
 
-  const parseImportAsyncMutation = useParseImportAsync();
   const parseImportMutation = useParseImport();
   const parseImportBackgroundMutation = useParseImportInBackground();
   const dryRunPreviewPageMutation = useDryRunPreviewPage();
