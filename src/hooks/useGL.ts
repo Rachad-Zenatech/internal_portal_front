@@ -155,7 +155,7 @@ export const useGLUploadQueue = (limit: number = 20) => {
   return useQuery<GLUploadQueueResponse, Error>({
     queryKey: ['gl-upload-queue', limit],
     queryFn: () => GLService.getUploadQueue(limit),
-    refetchInterval: 5000,
+    refetchInterval: 1500,
   });
 };
 
