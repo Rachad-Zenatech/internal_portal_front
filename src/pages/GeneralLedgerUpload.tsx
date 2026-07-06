@@ -15,6 +15,8 @@ import type {
 } from "@/types/gl";
 import {
   useBooks,
+  useParseImportAsync,
+  useImportSummary,
   useParseImport,
   useParseImportInBackground,
   useGLUploadQueue,
@@ -33,6 +35,7 @@ import {
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { useSearchParams } from "react-router-dom";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -117,6 +120,7 @@ const emptyManualEntry: ManualEntryForm = {
 };
 
 export default function GeneralLedgerUpload() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [useGeminiReview, setUseGeminiReview] = useState(false);
@@ -154,6 +158,17 @@ export default function GeneralLedgerUpload() {
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
 
+  const urlSourceFileId = searchParams.get("source_file_id") ? Number(searchParams.get("source_file_id")) : null;
+  const urlCompanyId = searchParams.get("company_id") ? Number(searchParams.get("company_id")) : null;
+
+  const { data: importSummary, isLoading: isSummaryLoading } = useImportSummary(urlSourceFileId, urlCompanyId);
+
+  useEffect(() => {
+    if (importSummary && !summary) {
+      setSummary(importSummary);
+    }
+  }, [importSummary, summary]);
+
   const sourceFileId = summary?.source_file_id ?? null;
   const companyIdForPreview = summary?.company_id ?? null;
   const isDryRun = Boolean(
@@ -168,6 +183,7 @@ export default function GeneralLedgerUpload() {
   } = useGLUploadQueue(10);
   const uploadQueue = uploadQueueData?.jobs ?? [];
 
+  const parseImportAsyncMutation = useParseImportAsync();
   const parseImportMutation = useParseImport();
   const parseImportBackgroundMutation = useParseImportInBackground();
   const dryRunPreviewPageMutation = useDryRunPreviewPage();
@@ -193,7 +209,7 @@ export default function GeneralLedgerUpload() {
 
   // Handle URL Param selection
   useEffect(() => {
-    const companyParam = new URLSearchParams(window.location.search).get("company_id");
+    const companyParam = searchParams.get("company_id");
     const requestedCompanyId = companyParam ? Number(companyParam) : null;
     if (requestedCompanyId && books.length > 0 && !bookId) {
       const requestedBook =
@@ -203,7 +219,7 @@ export default function GeneralLedgerUpload() {
         setBookId(requestedBook.book_id);
       }
     }
-  }, [books, bookId]);
+  }, [books, bookId, searchParams]);
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("dry_run_preview_token");
@@ -649,6 +665,14 @@ export default function GeneralLedgerUpload() {
       setActiveReviewFinder(null);
       setAppliedSuggestionChanges(new Map());
       setSuggestionError(null);
+
+      // Clear URL params
+      const currentSearchParams = new URLSearchParams(window.location.search);
+      if (currentSearchParams.has("source_file_id")) {
+        currentSearchParams.delete("source_file_id");
+        currentSearchParams.delete("company_id");
+        setSearchParams(currentSearchParams, { replace: true });
+      }
     }
   }
 

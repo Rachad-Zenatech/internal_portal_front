@@ -31,6 +31,20 @@ import type {
   TrialBalance,
 } from "@/types/gl";
 
+export type ParseSummary = {
+  company_id: number;
+  company_book_id: number;
+  company_name: string;
+  source_file_id: number | null;
+  accounts_resolved: number;
+  accounts_unresolved?: number;
+  gl_entries: number;
+  gl_entry_lines: number;
+  bank_lines: number;
+  status?: string;
+  dry_run?: boolean;
+};
+
 export const GLService = {
   async getFormats(): Promise<GLExtractionFormat[]> {
     const data = await apiClient.get<GLFormatsResponse | GLExtractionFormat[]>("/accounting/gl/formats");
