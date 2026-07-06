@@ -28,6 +28,20 @@ import type {
   TrialBalance,
 } from "@/types/gl";
 
+export type ParseSummary = {
+  company_id: number;
+  company_book_id: number;
+  company_name: string;
+  source_file_id: number | null;
+  accounts_resolved: number;
+  accounts_unresolved?: number;
+  gl_entries: number;
+  gl_entry_lines: number;
+  bank_lines: number;
+  status?: string;
+  dry_run?: boolean;
+};
+
 export const GLService = {
   async getFormats(): Promise<GLExtractionFormat[]> {
     const data = await apiClient.get<GLFormatsResponse | GLExtractionFormat[]>("/accounting/gl/formats");
@@ -60,6 +74,24 @@ export const GLService = {
     formData.append("file", params.file);
 
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
+  },
+
+  async parseImportAsync(params: {
+    companyBookId: number;
+    file: File;
+  }): Promise<{ backgroundJobId: string }> {
+    const formData = new FormData();
+    formData.append("company_book_id", String(params.companyBookId));
+    formData.append("file", params.file);
+
+    return apiClient.post<{ backgroundJobId: string }>("/accounting/gl/imports/upload-async", formData);
+  },
+
+  async getImportSummary(params: {
+    sourceFileId: number;
+    companyId: number;
+  }): Promise<ParseSummary> {
+    return apiClient.get<ParseSummary>(`/accounting/gl/imports/${params.sourceFileId}/summary?company_id=${params.companyId}`);
   },
 
   async getAccountSuggestions(params: GLAccountSuggestionsRequest): Promise<GLAccountSuggestionsResponse> {

@@ -14,6 +14,8 @@ import type {
 } from "@/types/gl";
 import {
   useBooks,
+  useParseImportAsync,
+  useImportSummary,
   useParseImport,
   useImportPreview,
   useGLAccountSuggestions,
@@ -28,6 +30,7 @@ import {
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 import { Card, CardContent } from "@/components/ui/card";
+import { useSearchParams } from "react-router-dom";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -109,6 +112,7 @@ const emptyManualEntry: ManualEntryForm = {
 };
 
 export default function GeneralLedgerUpload() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [useGeminiReview, setUseGeminiReview] = useState(false);
@@ -143,6 +147,17 @@ export default function GeneralLedgerUpload() {
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
 
+  const urlSourceFileId = searchParams.get("source_file_id") ? Number(searchParams.get("source_file_id")) : null;
+  const urlCompanyId = searchParams.get("company_id") ? Number(searchParams.get("company_id")) : null;
+
+  const { data: importSummary, isLoading: isSummaryLoading } = useImportSummary(urlSourceFileId, urlCompanyId);
+
+  useEffect(() => {
+    if (importSummary && !summary) {
+      setSummary(importSummary);
+    }
+  }, [importSummary, summary]);
+
   const sourceFileId = summary?.source_file_id ?? null;
   const companyIdForPreview = summary?.company_id ?? null;
   const isDryRun = Boolean(
@@ -151,6 +166,7 @@ export default function GeneralLedgerUpload() {
 
   const { data: previewData, isLoading: isPreviewLoading } = useImportPreview(sourceFileId, companyIdForPreview);
 
+  const parseImportAsyncMutation = useParseImportAsync();
   const parseImportMutation = useParseImport();
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
@@ -173,7 +189,7 @@ export default function GeneralLedgerUpload() {
 
   // Handle URL Param selection
   useEffect(() => {
-    const companyParam = new URLSearchParams(window.location.search).get("company_id");
+    const companyParam = searchParams.get("company_id");
     const requestedCompanyId = companyParam ? Number(companyParam) : null;
     if (requestedCompanyId && books.length > 0 && !bookId) {
       const requestedBook =
@@ -183,7 +199,7 @@ export default function GeneralLedgerUpload() {
         setBookId(requestedBook.book_id);
       }
     }
-  }, [books, bookId]);
+  }, [books, bookId, searchParams]);
 
   const selectedBook = useMemo(
     () => books.find((book) => book.book_id === bookId) ?? null,
@@ -246,7 +262,7 @@ export default function GeneralLedgerUpload() {
   const isReviewingAccounts = accountSuggestionsMutation.isPending;
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
   const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending;
-  const isUploadBusy = parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts || isSavingImport;
+  const isUploadBusy = parseImportAsyncMutation.isPending || parseImportMutation.isPending || isTrainingXgboost || isReviewingAccounts || isSavingImport || isSummaryLoading;
   const canRunAccountReview = Boolean(summary && file && selectedBook && !isReviewingAccounts);
   const accountReviewProgressLabel = accountReviewProgress
     ? formatAccountReviewProgress(accountReviewProgress)
@@ -375,19 +391,24 @@ export default function GeneralLedgerUpload() {
     setXgboostTrainingResult(null);
 
     try {
-      const data = await parseImportMutation.mutateAsync({
+      const data = await parseImportAsyncMutation.mutateAsync({
         companyBookId: currentBook.book_id,
         file: currentFile,
-        dryRun: true,
       });
       if (parseRunIdRef.current !== parseRunId) return;
 
-      setSummary(data.summary);
-      if (data.preview) {
-        setLocalPreview(data.preview);
-        setShowWorkbookPreview(true);
-      }
-      // Staged imports fetch preview automatically since sourceFileId is set.
+      addJob(
+        "General Ledger Upload", 
+        Promise.resolve(data), 
+        {
+          description: "Parsing GL file in the background...",
+          type: "upload",
+        }
+      );
+      
+      // Clear file after submitting
+      setFile(null);
+      if (glFileInputRef.current) glFileInputRef.current.value = "";
 
       if (trainXgboostTestModel) {
         const training = await xgboostTrainingMutation.mutateAsync({
@@ -558,6 +579,14 @@ export default function GeneralLedgerUpload() {
       setActiveReviewFinder(null);
       setAppliedSuggestionChanges(new Map());
       setSuggestionError(null);
+
+      // Clear URL params
+      const currentSearchParams = new URLSearchParams(window.location.search);
+      if (currentSearchParams.has("source_file_id")) {
+        currentSearchParams.delete("source_file_id");
+        currentSearchParams.delete("company_id");
+        setSearchParams(currentSearchParams, { replace: true });
+      }
     }
   }
 
