@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { GLService } from '../services/glService';
 import type {
+  BackgroundGlParseResponse,
   CompanyGLCard,
   ConsolidatedMatrixResponse,
   ApplySuggestedTargetRequest,
@@ -10,6 +11,7 @@ import type {
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLParseImportRequest,
+  GLUploadQueueResponse,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
   TrialBalance,
@@ -143,6 +145,20 @@ export const useParseImport = () => {
   });
 };
 
+export const useParseImportInBackground = () => {
+  return useMutation<BackgroundGlParseResponse, Error, GLParseImportRequest>({
+    mutationFn: (params) => GLService.parseImportInBackground(params),
+  });
+};
+
+export const useGLUploadQueue = (limit: number = 20) => {
+  return useQuery<GLUploadQueueResponse, Error>({
+    queryKey: ['gl-upload-queue', limit],
+    queryFn: () => GLService.getUploadQueue(limit),
+    refetchInterval: 5000,
+  });
+};
+
 export const useDryRunPreviewPage = () => {
   return useMutation<
     ParseImportResponse,
@@ -194,6 +210,23 @@ export const useSaveImportFromUpload = () => {
   >({
     mutationFn: ({ companyBookId, file }) =>
       GLService.saveImportFromUpload({ companyBookId, file }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-cards'] });
+      queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
+      queryClient.invalidateQueries({ queryKey: ['company-ledger'] });
+    },
+  });
+};
+
+export const useSaveDryRunPreview = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    SaveImportFromUploadResponse,
+    Error,
+    { previewToken: string }
+  >({
+    mutationFn: ({ previewToken }) =>
+      GLService.saveDryRunPreview({ previewToken }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-cards'] });
       queryClient.invalidateQueries({ queryKey: ['trial-balance'] });

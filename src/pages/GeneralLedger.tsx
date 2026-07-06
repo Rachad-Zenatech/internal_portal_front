@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { CompanyGLCard, GLExtractionFormat } from "@/types/gl";
-import { useCompanyCards, useGLFormats, useAssignFormat } from "@/hooks/useGL";
+import { useCompanyCards, useGLFormats, useAssignFormat, useGLUploadQueue } from "@/hooks/useGL";
+import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -19,7 +20,13 @@ export default function GeneralLedger() {
 
   const { data: cards = [], isLoading: loadingCards, error: cardsError } = useCompanyCards(period, year);
   const { data: formats = [] } = useGLFormats();
+  const {
+    data: uploadQueueData,
+    isLoading: isUploadQueueLoading,
+    refetch: refetchUploadQueue,
+  } = useGLUploadQueue(10);
   const assignFormatMutation = useAssignFormat();
+  const uploadQueue = uploadQueueData?.jobs ?? [];
 
   const companies = useMemo(() => {
     const seen = new Map<number, { id: number; name: string; entity: string | null }>();
@@ -77,6 +84,15 @@ export default function GeneralLedger() {
           {assignFormatMutation.error?.message || "Failed to assign GL format"}
         </section>
       )}
+
+      <GLUploadQueuePanel
+        jobs={uploadQueue}
+        isLoading={isUploadQueueLoading}
+        onRefresh={() => void refetchUploadQueue()}
+        onOpenPreview={(token) => {
+          window.location.assign(`/general-ledger/upload?dry_run_preview_token=${encodeURIComponent(token)}`);
+        }}
+      />
 
       <Card className="p-6">
         <div className="grid gap-4 md:grid-cols-4">

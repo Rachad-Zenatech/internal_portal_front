@@ -46,6 +46,37 @@ export type ParseImportResponse = {
   dry_run_preview_token?: string;
 };
 
+export type BackgroundGlParseResponse = {
+  status: "queued" | string;
+  queued?: boolean;
+  message: string;
+  backgroundJobId?: string;
+  jobId?: string;
+  source_filename?: string;
+  queued_upload_bytes?: number;
+};
+
+export type GLUploadQueueItem = {
+  id: number;
+  status: string;
+  progress: number;
+  filename?: string | null;
+  company_book_id?: number | null;
+  company_name?: string | null;
+  gl_entry_lines?: number | null;
+  preview_token?: string | null;
+  preview_url?: string | null;
+  error_message?: string | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type GLUploadQueueResponse = {
+  jobs: GLUploadQueueItem[];
+};
+
 export type SaveImportFromUploadResponse = {
   status: "saved" | string;
   summary: ParseSummary;

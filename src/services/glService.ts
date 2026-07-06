@@ -2,6 +2,7 @@
 
 import { BASE_URL, apiClient } from "./apiClient";
 import type {
+  BackgroundGlParseResponse,
   CompanyBook,
   CompanyBooksResponse,
   CompanyGLCard,
@@ -15,6 +16,7 @@ import type {
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLParseImportRequest,
+  GLUploadQueueResponse,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
   GLExtractionFormat,
@@ -62,6 +64,26 @@ export const GLService = {
     return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
   },
 
+  async parseImportInBackground(params: GLParseImportRequest): Promise<BackgroundGlParseResponse> {
+    const formData = new FormData();
+    formData.append("company_book_id", String(params.companyBookId));
+    if (params.previewLimit !== undefined && params.previewLimit !== null) {
+      formData.append("preview_limit", String(params.previewLimit));
+    }
+    formData.append("file", params.file);
+
+    return apiClient.post<BackgroundGlParseResponse>(
+      "/accounting/gl/imports/parse-background",
+      formData
+    );
+  },
+
+  async getUploadQueue(limit = 20): Promise<GLUploadQueueResponse> {
+    return apiClient.get<GLUploadQueueResponse>(
+      `/accounting/gl/imports/queue?limit=${encodeURIComponent(String(limit))}`
+    );
+  },
+
   async getDryRunPreviewPage(params: {
     previewToken: string;
     page: number;
@@ -79,6 +101,13 @@ export const GLService = {
   async deleteDryRunPreview(params: { previewToken: string }): Promise<void> {
     await apiClient.delete<void>(
       `/accounting/gl/imports/dry-run-preview/${params.previewToken}`
+    );
+  },
+
+  async saveDryRunPreview(params: { previewToken: string }): Promise<SaveImportFromUploadResponse> {
+    return apiClient.post<SaveImportFromUploadResponse>(
+      `/accounting/gl/imports/dry-run-preview/${params.previewToken}/save`,
+      {}
     );
   },
 
