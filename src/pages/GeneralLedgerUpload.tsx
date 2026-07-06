@@ -15,11 +15,12 @@ import type {
 } from "@/types/gl";
 import {
   useBooks,
-  useParseImportAsync,
   useImportSummary,
   useParseImport,
   useParseImportInBackground,
   useGLUploadQueue,
+  useCancelGLUploadQueueJob,
+  useDeleteGLUploadQueueJob,
   useDryRunPreviewPage,
   useImportPreview,
   useGLAccountSuggestions,
@@ -42,7 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Check, FileSpreadsheet, Move, RotateCcw, Sparkles, UploadCloud, X } from "lucide-react";
+import { Check, FileSpreadsheet, Move, RotateCcw, Sparkles, Trash2, UploadCloud, X } from "lucide-react";
 
 type ParseSummary = {
   company_id: number;
@@ -149,6 +150,8 @@ export default function GeneralLedgerUpload() {
   const [xgboostTrainingResult, setXgboostTrainingResult] =
     useState<GLXgboostTestTrainingResponse | null>(null);
   const [backgroundUploadMessage, setBackgroundUploadMessage] = useState<string | null>(null);
+  const [cancelingQueueJobId, setCancelingQueueJobId] = useState<number | null>(null);
+  const [deletingQueueJobId, setDeletingQueueJobId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const parseRunIdRef = useRef(0);
   const loadedPreviewTokenRef = useRef<string | null>(null);
@@ -161,7 +164,7 @@ export default function GeneralLedgerUpload() {
   const urlSourceFileId = searchParams.get("source_file_id") ? Number(searchParams.get("source_file_id")) : null;
   const urlCompanyId = searchParams.get("company_id") ? Number(searchParams.get("company_id")) : null;
 
-  const { data: importSummary, isLoading: isSummaryLoading } = useImportSummary(urlSourceFileId, urlCompanyId);
+  const { data: importSummary } = useImportSummary(urlSourceFileId, urlCompanyId);
 
   useEffect(() => {
     if (importSummary && !summary) {
@@ -183,13 +186,12 @@ export default function GeneralLedgerUpload() {
   } = useGLUploadQueue(10);
   const uploadQueue = uploadQueueData?.jobs ?? [];
 
-  const parseImportAsyncMutation = useParseImportAsync();
   const parseImportMutation = useParseImport();
   const parseImportBackgroundMutation = useParseImportInBackground();
   const dryRunPreviewPageMutation = useDryRunPreviewPage();
   const accountSuggestionsMutation = useGLAccountSuggestions();
   const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
-  const { addJob } = useGlobalProgress();
+  const { activeJobs, addJob, removeJob } = useGlobalProgress();
   const deleteImportMutation = useDeleteImport();
   const addManualEntryMutation = useAddManualEntry();
   const applySuggestedTargetMutation = useApplySuggestedTarget();
@@ -197,6 +199,8 @@ export default function GeneralLedgerUpload() {
   const saveImportMutation = useSaveImport();
   const saveImportFromUploadMutation = useSaveImportFromUpload();
   const saveDryRunPreviewMutation = useSaveDryRunPreview();
+  const cancelUploadQueueJobMutation = useCancelGLUploadQueueJob();
+  const deleteUploadQueueJobMutation = useDeleteGLUploadQueueJob();
 
   const [localPreview, setLocalPreview] = useState<ImportPreview | null>(null);
 
@@ -494,6 +498,47 @@ export default function GeneralLedgerUpload() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
+    }
+  }
+
+  async function handleCancelQueueJob(jobId: number) {
+    setError(null);
+    setCancelingQueueJobId(jobId);
+    try {
+      const result = await cancelUploadQueueJobMutation.mutateAsync({ jobId });
+      setBackgroundUploadMessage(
+        result.message ||
+          (result.canceled
+            ? "GL upload canceled."
+            : "Cancel requested. The backend worker will stop this upload shortly.")
+      );
+      const activeUploadJob = activeJobs.find((job) => String(job.jobId) === String(jobId));
+      if (activeUploadJob) {
+        removeJob(activeUploadJob.id);
+      }
+      void refetchUploadQueue();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel GL upload");
+    } finally {
+      setCancelingQueueJobId(null);
+    }
+  }
+
+  async function handleDeleteQueueJob(jobId: number) {
+    setError(null);
+    setDeletingQueueJobId(jobId);
+    try {
+      const result = await deleteUploadQueueJobMutation.mutateAsync({ jobId });
+      setBackgroundUploadMessage(result.message || "GL upload queue item deleted.");
+      const activeUploadJob = activeJobs.find((job) => String(job.jobId) === String(jobId));
+      if (activeUploadJob) {
+        removeJob(activeUploadJob.id);
+      }
+      void refetchUploadQueue();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete GL upload");
+    } finally {
+      setDeletingQueueJobId(null);
     }
   }
 
@@ -974,6 +1019,10 @@ export default function GeneralLedgerUpload() {
         isLoading={isUploadQueueLoading}
         onRefresh={() => void refetchUploadQueue()}
         onOpenPreview={(token) => handleDryRunPreviewPage(1, token)}
+        onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
+        cancelingJobId={cancelingQueueJobId}
+        onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
+        deletingJobId={deletingQueueJobId}
       />
 
       <Card>
@@ -1580,11 +1629,19 @@ function GLUploadQueuePanel({
   isLoading,
   onRefresh,
   onOpenPreview,
+  onCancelJob,
+  cancelingJobId,
+  onDeleteJob,
+  deletingJobId,
 }: {
   jobs: GLUploadQueueItem[];
   isLoading: boolean;
   onRefresh: () => void;
   onOpenPreview: (token: string) => void;
+  onCancelJob: (jobId: number) => void;
+  cancelingJobId: number | null;
+  onDeleteJob: (jobId: number) => void;
+  deletingJobId: number | null;
 }) {
   return (
     <Card>
@@ -1644,7 +1701,26 @@ function GLUploadQueuePanel({
                     Started {formatQueueDate(job.created_at)}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {job.can_cancel && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => onCancelJob(job.id)}
+                      disabled={cancelingJobId === job.id || job.status === "cancel_requested"}
+                      title={
+                        job.status === "cancel_requested"
+                          ? "Cancel request has been sent"
+                          : "Stop this GL upload"
+                      }
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {cancelingJobId === job.id || job.status === "cancel_requested"
+                        ? "Canceling..."
+                        : "Cancel"}
+                    </Button>
+                  )}
                   {job.preview_token ? (
                     <Button
                       type="button"
@@ -1656,6 +1732,19 @@ function GLUploadQueuePanel({
                   ) : (
                     <Button type="button" size="sm" variant="outline" disabled>
                       Preview pending
+                    </Button>
+                  )}
+                  {job.can_delete && (
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="destructive"
+                      onClick={() => onDeleteJob(job.id)}
+                      disabled={deletingJobId === job.id}
+                      title="Delete this dry-run preview"
+                      aria-label="Delete this dry-run preview"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}
                 </div>
@@ -1671,6 +1760,9 @@ function GLUploadQueuePanel({
 function queueStatusLabel(status: string) {
   if (status === "queued" || status === "queued_local") return "Queued";
   if (status === "processing") return "Backend processing";
+  if (status === "cancel_requested") return "Canceling";
+  if (status === "canceled") return "Canceled";
+  if (status === "discarded") return "Deleted";
   if (status === "completed") return "Ready";
   if (status === "failed") return "Failed";
   return status || "Unknown";
@@ -1679,7 +1771,7 @@ function queueStatusLabel(status: string) {
 function queueStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "completed") return "default";
   if (status === "failed") return "destructive";
-  if (status === "processing") return "secondary";
+  if (status === "processing" || status === "cancel_requested") return "secondary";
   return "outline";
 }
 
@@ -1690,6 +1782,8 @@ function queueProgressPercent(job: GLUploadQueueItem) {
 
 function queueProgressText(job: GLUploadQueueItem) {
   if (job.status === "queued" || job.status === "queued_local") return "Waiting for backend worker";
+  if (job.status === "cancel_requested") return "Stopping upload...";
+  if (job.status === "canceled") return "Upload stopped";
   if (job.status === "processing") {
     const progress = queueProgressPercent(job);
     return progress <= 1 ? "Backend worker starting..." : `${progress}% complete`;
@@ -1699,7 +1793,7 @@ function queueProgressText(job: GLUploadQueueItem) {
 }
 
 function shouldShowQueueProgress(job: GLUploadQueueItem) {
-  return job.status === "processing" || job.status === "completed";
+  return job.status === "processing" || job.status === "cancel_requested" || job.status === "completed";
 }
 
 function formatQueueDate(value?: string | null) {

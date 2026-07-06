@@ -67,6 +67,10 @@ export type GLUploadQueueItem = {
   preview_token?: string | null;
   preview_url?: string | null;
   error_message?: string | null;
+  can_cancel?: boolean;
+  cancel_url?: string | null;
+  can_delete?: boolean;
+  delete_url?: string | null;
   created_at?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -75,6 +79,20 @@ export type GLUploadQueueItem = {
 
 export type GLUploadQueueResponse = {
   jobs: GLUploadQueueItem[];
+};
+
+export type GLUploadQueueCancelResponse = {
+  id: number;
+  status: string;
+  canceled: boolean;
+  message: string;
+};
+
+export type GLUploadQueueDeleteResponse = {
+  id: number;
+  status: string;
+  deleted: boolean;
+  message: string;
 };
 
 export type SaveImportFromUploadResponse = {

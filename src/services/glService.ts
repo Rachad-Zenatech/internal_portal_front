@@ -16,6 +16,8 @@ import type {
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLParseImportRequest,
+  GLUploadQueueCancelResponse,
+  GLUploadQueueDeleteResponse,
   GLUploadQueueResponse,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
@@ -92,9 +94,36 @@ export const GLService = {
     );
   },
 
+  async parseImportAsync(params: {
+    companyBookId: number;
+    file: File;
+  }): Promise<{ backgroundJobId: string }> {
+    const response = await GLService.parseImportInBackground({
+      companyBookId: params.companyBookId,
+      file: params.file,
+      dryRun: true,
+    });
+    return {
+      backgroundJobId: response.backgroundJobId || response.jobId || "",
+    };
+  },
+
   async getUploadQueue(limit = 20): Promise<GLUploadQueueResponse> {
     return apiClient.get<GLUploadQueueResponse>(
       `/accounting/gl/imports/queue?limit=${encodeURIComponent(String(limit))}`
+    );
+  },
+
+  async cancelUploadQueueJob(jobId: number): Promise<GLUploadQueueCancelResponse> {
+    return apiClient.post<GLUploadQueueCancelResponse>(
+      `/accounting/gl/imports/queue/${jobId}/cancel`,
+      {}
+    );
+  },
+
+  async deleteUploadQueueJob(jobId: number): Promise<GLUploadQueueDeleteResponse> {
+    return apiClient.delete<GLUploadQueueDeleteResponse>(
+      `/accounting/gl/imports/queue/${jobId}`
     );
   },
 
@@ -245,6 +274,33 @@ export const GLService = {
     return apiClient.get<ImportPreview>(
       `/accounting/gl/imports/${params.sourceFileId}/preview?${searchParams.toString()}`
     );
+  },
+
+  async getImportSummary(params: {
+    sourceFileId: number;
+    companyId: number;
+  }): Promise<ParseSummary> {
+    const preview = await GLService.getImportPreview({
+      sourceFileId: params.sourceFileId,
+      companyId: params.companyId,
+      limit: 1,
+    });
+    const bankLines = preview.accounts.reduce(
+      (total, account) => total + Number(account.bank_lines || 0),
+      0
+    );
+    return {
+      company_id: params.companyId,
+      company_book_id: 0,
+      company_name: "",
+      source_file_id: params.sourceFileId,
+      accounts_resolved: preview.accounts.length,
+      gl_entries: preview.totals.unique_gl_ids,
+      gl_entry_lines: preview.totals.line_count,
+      bank_lines: bankLines,
+      status: preview.dry_run ? "dry_run" : "pending",
+      dry_run: Boolean(preview.dry_run),
+    };
   },
 
   async addManualEntry(params: {

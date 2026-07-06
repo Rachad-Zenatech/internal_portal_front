@@ -11,6 +11,8 @@ import type {
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLParseImportRequest,
+  GLUploadQueueCancelResponse,
+  GLUploadQueueDeleteResponse,
   GLUploadQueueResponse,
   GLXgboostTestTrainingRequest,
   GLXgboostTestTrainingResponse,
@@ -156,6 +158,26 @@ export const useGLUploadQueue = (limit: number = 20) => {
     queryKey: ['gl-upload-queue', limit],
     queryFn: () => GLService.getUploadQueue(limit),
     refetchInterval: 1500,
+  });
+};
+
+export const useCancelGLUploadQueueJob = () => {
+  const queryClient = useQueryClient();
+  return useMutation<GLUploadQueueCancelResponse, Error, { jobId: number }>({
+    mutationFn: ({ jobId }) => GLService.cancelUploadQueueJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gl-upload-queue'] });
+    },
+  });
+};
+
+export const useDeleteGLUploadQueueJob = () => {
+  const queryClient = useQueryClient();
+  return useMutation<GLUploadQueueDeleteResponse, Error, { jobId: number }>({
+    mutationFn: ({ jobId }) => GLService.deleteUploadQueueJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gl-upload-queue'] });
+    },
   });
 };
 
