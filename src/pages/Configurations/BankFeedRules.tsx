@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 const formatConditionValue = (type: number, value: any) => {
   if (type === 10) {
@@ -29,8 +30,9 @@ const formatActionValue = (value: any) => {
 };
 
 export default function BankFeedRules() {
+  const { addJob } = useGlobalProgress();
   const { data: rules, isPending: loadingRules } = useBankFeedRules();
-  const { mutate: uploadRules, isPending: isUploading } = useUploadBankFeedRules();
+  const { mutateAsync: uploadRules, isPending: isUploading } = useUploadBankFeedRules();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedRule, setSelectedRule] = useState<BankFeedRule | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -41,14 +43,16 @@ export default function BankFeedRules() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    uploadRules(file, {
-      onSuccess: () => {
-        toast.success("Successfully replaced rules.");
-      },
-      onError: (err) => {
-        toast.error("Failed to process the uploaded file.");
-        console.error(err);
-      }
+    const promise = uploadRules(file);
+    addJob("Replace Bank Feed Rules", promise, { description: "Uploading...", type: "upload", link_url: window.location.pathname });
+
+    promise.then(() => {
+      toast.success("Successfully replaced rules.", {
+        action: { label: "Refresh", onClick: () => window.location.reload() }
+      });
+    }).catch((err) => {
+      toast.error("Failed to process the uploaded file.");
+      console.error(err);
     });
     
     if (fileInputRef.current) {

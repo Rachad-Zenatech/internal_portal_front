@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Upload } from "lucide-react";
@@ -57,20 +57,31 @@ export default function BankStatements() {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList variant="line" className="mb-8">
-          <TabsTrigger value="statements" className="flex items-center gap-2">
-            Statements
-          </TabsTrigger>
-          <TabsTrigger value="summary" className="flex items-center gap-2">
-            Summary
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent 
-          value="statements" 
-          className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2"
+      <div className="flex mb-6 gap-2">
+        <button
+          onClick={() => handleTabChange('statements')}
+          className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none
+            ${activeTab === 'statements'
+              ? 'text-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary'
+              : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
+          Statements
+        </button>
+        <button
+          onClick={() => handleTabChange('summary')}
+          className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none
+            ${activeTab === 'summary'
+              ? 'text-primary after:absolute after:bottom-0 after:left-0 after:w-full after:h-0.5 after:bg-primary'
+              : 'text-muted-foreground hover:text-foreground'
+            }`}
+        >
+          Summary
+        </button>
+      </div>
+
+      {activeTab === 'statements' && (
+        <div className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2">
           {selectedId == null ? (
             <StatementList onSelect={setSelectedId} />
           ) : (
@@ -79,15 +90,14 @@ export default function BankStatements() {
               onBack={() => setSelectedId(null)}
             />
           )}
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent 
-          value="summary" 
-          className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2"
-        >
+      {activeTab === 'summary' && (
+        <div className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2">
           <SummaryPage />
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
 
       {/* Right-side Drawer for Uploading */}
       <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>

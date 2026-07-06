@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Calendar, CreditCard, Layers, ArrowUpRight, ArrowDownLeft, Scale, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, Calendar, CreditCard, Layers, ArrowUpRight, ArrowDownLeft, Scale, ArrowUp, ArrowDown, Calculator, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useStatement, useChecks, useDeposits } from "@/hooks/useBank";
 import type { CheckTransaction, DepositTransaction } from "@/types/bank";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Table,
@@ -13,6 +14,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +86,7 @@ export default function StatementDetail({ statementId, onBack }: Props) {
   if (!statement) return null;
 
   return (
-    <div className="p-4 space-y-6 animate-in fade-in duration-200">
+    <div className="p-4 space-y-6 animate-in fade-in duration-200 pb-12">
       {/* Back Button with Motion Feedback */}
       <div>
         <Button 
@@ -167,6 +169,7 @@ export default function StatementDetail({ statementId, onBack }: Props) {
             />
             <Bal label="Ending Balance" value={statement.ending_balance} bold />
           </div>
+          <BalanceVerificationBlock statement={statement} checks={checks} deposits={deposits} />
         </CardContent>
       </Card>
 
@@ -242,7 +245,7 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <Table containerClassName="max-h-[calc(100vh-450px)]">
+    <Table containerClassName="max-h-[70vh] custom-scrollbar">
       <TableHeader className="bg-muted sticky top-0 z-10 shadow-sm">
           <TableRow>
             {["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].map(
@@ -254,7 +257,7 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
             )}
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="[&_tr:last-child>td]:pb-8">
           {sorted.map((r) => (
             <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
               <TableCell className="font-medium text-sm">{r.date}</TableCell>
@@ -267,7 +270,17 @@ function CheckTable({ rows }: { rows: CheckTransaction[] }) {
               </TableCell>
             </TableRow>
           ))}
-      </TableBody>
+        </TableBody>
+        <TableFooter>
+          <TableRow className="hover:bg-transparent bg-muted/50">
+            <TableCell colSpan={5} className="text-right font-semibold text-foreground">
+              Subtotal
+            </TableCell>
+            <TableCell className="text-right font-bold text-sm tracking-tight text-foreground">
+              ${fmt(rows.reduce((sum, r) => sum + (r.amount || 0), 0))}
+            </TableCell>
+          </TableRow>
+        </TableFooter>
     </Table>
   );
 }
@@ -277,7 +290,7 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
   const sorted = useMemo(() => sortByDate(rows, sortDir), [rows, sortDir]);
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   return (
-    <Table containerClassName="max-h-[calc(100vh-450px)]">
+    <Table containerClassName="max-h-[70vh] custom-scrollbar">
       <TableHeader className="bg-muted sticky top-0 z-10 shadow-sm">
           <TableRow>
             {["Date", "Deposit ID", "Received From", "Reference", "Amount"].map(
@@ -289,7 +302,7 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
             )}
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <TableBody className="[&_tr:last-child>td]:pb-8">
           {sorted.map((r) => (
             <TableRow key={r.id} className="hover:bg-muted/30 transition-colors">
               <TableCell className="font-medium text-sm">{r.date}</TableCell>
@@ -301,7 +314,57 @@ function DepositTable({ rows }: { rows: DepositTransaction[] }) {
               </TableCell>
             </TableRow>
           ))}
-      </TableBody>
+        </TableBody>
+        <TableFooter>
+          <TableRow className="hover:bg-transparent bg-muted/50">
+            <TableCell colSpan={4} className="text-right font-semibold text-foreground">
+              Subtotal
+            </TableCell>
+            <TableCell className="text-right font-bold text-sm tracking-tight text-green-600 dark:text-green-400">
+              ${fmt(rows.reduce((sum, r) => sum + (r.amount || 0), 0))}
+            </TableCell>
+          </TableRow>
+        </TableFooter>
     </Table>
+  );
+}
+
+function BalanceVerificationBlock({
+  statement,
+  checks,
+  deposits,
+}: {
+  statement: any;
+  checks: CheckTransaction[];
+  deposits: DepositTransaction[];
+}) {
+  const totalChecks = checks.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+  const calculatedEnding = (Number(statement.beginning_balance) || 0) + totalDeposits - totalChecks;
+  const isMatch = Math.abs(calculatedEnding - (Number(statement.ending_balance) || 0)) < 0.01;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border mt-3 bg-muted/5 gap-4">
+      <div className="space-y-1">
+        <div className="text-sm font-semibold flex items-center gap-2">
+          <Calculator className="h-4 w-4 text-muted-foreground" /> Calculated Ending Balance
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Beginning Balance (${fmt(statement.beginning_balance)}) + Extracted Deposits (${fmt(totalDeposits)}) - Extracted Checks (${fmt(totalChecks)})
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-lg font-bold">${fmt(calculatedEnding)}</div>
+        {isMatch ? (
+          <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Matches Ending Balance
+          </Badge>
+        ) : (
+          <Badge variant="destructive">
+            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Mismatch
+          </Badge>
+        )}
+      </div>
+    </div>
   );
 }

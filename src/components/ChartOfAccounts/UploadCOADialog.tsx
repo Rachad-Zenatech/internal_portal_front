@@ -6,9 +6,11 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Loader2, AlertTriangle, UploadCloud, FileSpreadsheet, X, Replace } from "lucide-react";
 import { toast } from "sonner";
+import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 export default function UploadCOADialog() {
-  const { mutate: replaceCOA, isPending } = useReplaceChartOfAccount();
+  const { addJob } = useGlobalProgress();
+  const { mutateAsync: replaceCOA, isPending } = useReplaceChartOfAccount();
   const [isOpen, setIsOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -33,20 +35,24 @@ export default function UploadCOADialog() {
 
   const replaceChartOfAccounts = () => {
     if (!selectedFile) return;
-    replaceCOA(selectedFile, {
-      onSuccess: (data) => {
-        toast.success("Sync Complete", { description: data.message });
-        setSelectedFile(null);
-        setIsConfirmOpen(false);
-        setIsOpen(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      },
-      onError: (error: Error) => {
-        toast.error("Sync Failed", { description: error.message });
-        setIsConfirmOpen(false);
-        setSelectedFile(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }
+    
+    const promise = replaceCOA(selectedFile);
+    addJob("Replace Chart of Accounts", promise, { description: "Uploading...", type: "upload", link_url: window.location.pathname });
+
+    promise.then((data) => {
+      toast.success("Sync Complete", { 
+        description: data.message,
+        action: { label: "Refresh", onClick: () => window.location.reload() }
+      });
+      setSelectedFile(null);
+      setIsConfirmOpen(false);
+      setIsOpen(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }).catch((error: Error) => {
+      toast.error("Sync Failed", { description: error.message });
+      setIsConfirmOpen(false);
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     });
   };
 

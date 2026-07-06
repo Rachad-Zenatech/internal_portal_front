@@ -60,7 +60,7 @@ export default function TrialBalance() {
           </p>
         </div>
       </header>
-      <div className="flex border-b mb-6 gap-2">
+      <div className="flex mb-6 gap-2">
         <button
           onClick={() => setActiveTab('trial')}
           className={`relative px-6 py-3 text-sm font-semibold transition-colors duration-200 focus:outline-none

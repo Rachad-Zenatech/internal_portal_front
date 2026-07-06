@@ -22,11 +22,12 @@ export function GlobalProgressOverlay() {
           const alertsEnabled = localStorage.getItem("inAppAlerts") !== "false";
           if (alertsEnabled) {
             const isFailure = matchingNotification.type.includes("failed");
+            const targetUrl = matchingNotification.link_url || job.link_url;
             const toastOptions = {
               description: matchingNotification.message || `${job.title} has completed successfully.`,
-              action: matchingNotification.link_url ? {
+              action: targetUrl ? {
                 label: "View",
-                onClick: () => window.location.assign(matchingNotification.link_url!)
+                onClick: () => window.location.assign(targetUrl)
               } : undefined
             };
 

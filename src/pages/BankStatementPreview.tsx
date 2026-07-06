@@ -168,7 +168,7 @@ export default function BankStatementPreview() {
               </div>
             </div>
             
-            <div className="flex-1 min-h-0 flex flex-col">
+            <div className="flex-1 min-h-0 flex flex-col pb-6">
               <StatementPreviewReview 
                 previews={previews} 
                 pdfUrl={statement.file_url ? (statement.file_url.startsWith("http") ? statement.file_url : BASE_URL + statement.file_url) : undefined}

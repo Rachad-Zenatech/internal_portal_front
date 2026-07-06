@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus, Trash2, FileText } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, AlertTriangle, ArrowUp, ArrowDown, Settings2, Plus, Trash2, FileText, Calculator } from "lucide-react";
 import type {
   StatementPreview,
   PreviewCheckTransaction,
@@ -25,6 +25,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
@@ -356,7 +357,7 @@ export default function StatementPreviewReview({
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col">
       <div className="flex items-center justify-between mb-2 shrink-0">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Review Extracted Data</h2>
@@ -424,6 +425,7 @@ export default function StatementPreviewReview({
           </div>
         </CardContent>
       </Card>
+      <BalanceVerificationBlock preview={localPreview} />
 
       {localPreviews.length > 1 && (
         <Tabs value={String(activePreviewIndex)} onValueChange={(v) => setActivePreviewIndex(Number(v))} className="mb-3 shrink-0">
@@ -449,11 +451,11 @@ export default function StatementPreviewReview({
         </Tabs>
       )}
 
-      <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex flex-col mt-2">
         <Tabs
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as Tab)}
-            className="flex-1 flex flex-col min-h-0 mb-1"
+            className="flex flex-col mb-1"
           >
             <div className="flex items-center justify-between shrink-0 border-b border-slate-100 pb-1 mb-1">
               <TabsList variant="line" className="flex-wrap shrink-0">
@@ -527,7 +529,7 @@ export default function StatementPreviewReview({
               const empty = isDeposit ? depositRows.length === 0 : checkRows.length === 0;
 
               return (
-                <TabsContent key={t} value={t} className="mt-2 flex-1 min-h-0 flex flex-col overflow-hidden">
+                <TabsContent key={t} value={t} className="mt-2 flex flex-col">
                   {empty ? (
                     <p className="py-4 text-sm text-muted-foreground">No transactions</p>
                   ) : isDeposit ? (
@@ -692,7 +694,7 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   const cols = ["Date", "Check #", "Type", "Paid To", "Reference", "Amount"].filter(c => !hiddenColumns.has(c));
   return (
-    <Table containerClassName="flex-1 overflow-auto custom-scrollbar border rounded-md">
+    <Table containerClassName="max-h-[70vh] overflow-auto custom-scrollbar border rounded-md mb-12">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
           {cols.map((h) => {
@@ -711,7 +713,7 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
           <TableHead className="w-[50px]"></TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody>
+      <TableBody className="[&_tr:last-child>td]:pb-8">
         {sorted.map((r) => (
           <TableRow key={r._id}>
             {cols.includes("Date") && (
@@ -755,6 +757,16 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
           </TableRow>
         ))}
       </TableBody>
+      <TableFooter>
+        <TableRow className="hover:bg-transparent bg-muted/50">
+          <TableCell colSpan={cols.length} className="text-right font-semibold text-foreground">
+            Subtotal
+          </TableCell>
+          <TableCell className="text-right font-bold text-sm tracking-tight text-foreground pr-4">
+            ${fmt(rows.reduce((sum, r) => sum + (r.amount || 0), 0))}
+          </TableCell>
+        </TableRow>
+      </TableFooter>
     </Table>
   );
 }
@@ -765,7 +777,7 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
   const toggle = () => setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   const cols = ["Date", "Deposit ID", "Received From", "Reference", "Amount"].filter(c => !hiddenColumns.has(c));
   return (
-    <Table containerClassName="flex-1 overflow-auto custom-scrollbar border rounded-md">
+    <Table containerClassName="max-h-[70vh] overflow-auto custom-scrollbar border rounded-md mb-12">
       <TableHeader className="sticky top-0 bg-background z-10 shadow-sm">
         <TableRow>
           {cols.map((h) => {
@@ -783,7 +795,7 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
           <TableHead className="w-[50px]"></TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody>
+      <TableBody className="[&_tr:last-child>td]:pb-8">
         {sorted.map((r) => (
           <TableRow key={r._id}>
             {cols.includes("Date") && (
@@ -822,6 +834,52 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
           </TableRow>
         ))}
       </TableBody>
+      <TableFooter>
+        <TableRow className="hover:bg-transparent bg-muted/50">
+          <TableCell colSpan={cols.length} className="text-right font-semibold text-foreground">
+            Subtotal
+          </TableCell>
+          <TableCell className="text-right font-bold text-sm tracking-tight text-green-600 dark:text-green-400 pr-4">
+            ${fmt(rows.reduce((sum, r) => sum + (r.amount || 0), 0))}
+          </TableCell>
+        </TableRow>
+      </TableFooter>
     </Table>
+  );
+}
+
+function BalanceVerificationBlock({
+  preview,
+}: {
+  preview: EditablePreview;
+}) {
+  const totalChecks = preview.checks.reduce((sum, c) => sum + (c.amount || 0), 0);
+  const totalDeposits = preview.deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+  const calculatedEnding = (Number(preview.beginning_balance) || 0) + totalDeposits - totalChecks;
+  const isMatch = Math.abs(calculatedEnding - (Number(preview.ending_balance) || 0)) < 0.01;
+
+  return (
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded-xl border mb-3 bg-muted/5 gap-4">
+      <div className="space-y-1">
+        <div className="text-sm font-semibold flex items-center gap-2">
+          <Calculator className="h-4 w-4 text-muted-foreground" /> Calculated Ending Balance
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Beginning Balance (${fmt(preview.beginning_balance)}) + Extracted Deposits (${fmt(totalDeposits)}) - Extracted Checks (${fmt(totalChecks)})
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="text-lg font-bold">${fmt(calculatedEnding)}</div>
+        {isMatch ? (
+          <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Matches Ending Balance
+          </Badge>
+        ) : (
+          <Badge variant="destructive">
+            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Mismatch
+          </Badge>
+        )}
+      </div>
+    </div>
   );
 }

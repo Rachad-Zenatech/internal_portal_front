@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface COATableProps {
@@ -105,8 +105,14 @@ export default function COATable({ result, loadingData }: COATableProps) {
                     <TableCell>{account.account_type}</TableCell>
                     <TableCell>{account.detail_type}</TableCell>
                     <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleEditClick(account)}>Edit</Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(account)}>Remove</Button>
+                      <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleEditClick(account)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+                      <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => handleDeleteClick(account)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Remove
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

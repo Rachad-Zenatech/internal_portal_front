@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Bot, X, Minimize2, Paperclip, FileText, Sparkles } from "lucide-react";
+import { Send, Bot, X, Minimize2, Paperclip, Sparkles } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { useMutation } from "@tanstack/react-query";
@@ -14,6 +14,16 @@ import {
   MessageScrollerItem,
   MessageScrollerButton
 } from "@/components/ui/message-scroller";
+import { Attachment } from "@/components/ui/attachment";
+import { Marker } from "@/components/ui/marker";
+import { 
+  Card,
+  CardAction,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useAuth } from "@/lib/AuthContext";
 
 const MotionMessageScrollerItem = motion.create(MessageScrollerItem);
@@ -63,6 +73,7 @@ export default function FloatingChat() {
 
   const endRef = useRef<HTMLDivElement>(null);
   const isOpenRef = useRef(isOpen);
+  const isMutating = useRef(false);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -118,6 +129,7 @@ export default function FloatingChat() {
       ]);
     },
     onSettled: () => {
+      isMutating.current = false;
       if (!isOpenRef.current) {
         setHasUnread(true);
         playNotificationSound();
@@ -155,9 +167,11 @@ export default function FloatingChat() {
   }, [messages, loading, attachedFile]); // Bind to latest state so sendMessage isn't stale
 
   async function sendMessage(text: string) {
+    if (isMutating.current) return;
     const question = text.trim();
     if (!question && !attachedFile) return;
-    if (loading) return;
+
+    isMutating.current = true;
 
     const fileToSend = attachedFile;
     const nextMessages: Message[] = [
@@ -236,33 +250,34 @@ export default function FloatingChat() {
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
       {isOpen && (
-        <div 
-          className="bg-card text-card-foreground border border-border shadow-xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-shadow relative animate-pop-in origin-bottom-right"
-          style={{ width: size.width, height: size.height }}
-        >
-          {/* Resize Handle Top-Left */}
-          <div 
-            onMouseDown={startResizing}
-            className="absolute top-0 left-0 w-6 h-6 cursor-nwse-resize z-10"
-          />
+        <MessageScrollerProvider>
+          <Card 
+            className="shadow-xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-shadow relative animate-pop-in origin-bottom-right gap-0"
+            style={{ width: size.width, height: size.height }}
+          >
+            {/* Resize Handle Top-Left */}
+            <div 
+              onMouseDown={startResizing}
+              className="absolute top-0 left-0 w-6 h-6 cursor-nwse-resize z-10"
+            />
 
-          <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
-            <div className="flex items-center gap-2">
-              <Bot className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold">ZenaBot</h3>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsOpen(false)}>
-                <Minimize2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+            <CardHeader className="gap-1 border-b pb-4 px-4 pt-4 shrink-0">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bot className="h-5 w-5 text-blue-600" />
+                ZenaBot
+              </CardTitle>
+              <CardAction>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsOpen(false)}>
+                  <Minimize2 className="h-4 w-4" />
+                </Button>
+              </CardAction>
+            </CardHeader>
 
-          <MessageScrollerProvider>
-            <MessageScroller className="flex-1">
-              <MessageScrollerViewport className="custom-scrollbar">
-                <MessageScrollerContent className="p-4">
-                  <MessageGroup>
+            <CardContent className="flex-1 overflow-hidden p-0 relative">
+              <MessageScroller className="h-full">
+                <MessageScrollerViewport className="custom-scrollbar">
+                  <MessageScrollerContent className="p-4">
+                    <MessageGroup>
               {messages.map((message, index) => (
                 <MotionMessageScrollerItem 
                   key={index}
@@ -283,21 +298,11 @@ export default function FloatingChat() {
                   </MessageAvatar>
                   <MessageContent>
                     {message.file && (
-                      <Bubble variant={message.role === "user" ? "default" : "outline"} className="mb-1">
-                        <BubbleContent>
-                          <div className="flex items-center gap-3 w-fit">
-                            <div className="h-10 w-10 shrink-0 bg-red-500 rounded-[10px] flex items-center justify-center">
-                              <FileText className="h-5 w-5 text-white" />
-                            </div>
-                            <div className="flex flex-col overflow-hidden min-w-[120px] pr-4">
-                              <span className="text-sm font-bold truncate leading-tight">{message.file.name}</span>
-                              <span className="text-xs uppercase mt-0.5 opacity-80">
-                                {message.file.name.split('.').pop() || "FILE"}
-                              </span>
-                            </div>
-                          </div>
-                        </BubbleContent>
-                      </Bubble>
+                      <Attachment 
+                        name={message.file.name} 
+                        type={message.file.name.split('.').pop() || "FILE"} 
+                        className="mb-1"
+                      />
                     )}
                     {message.content && (
                       <Bubble variant={message.role === "user" ? "default" : "muted"}>
@@ -318,24 +323,15 @@ export default function FloatingChat() {
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
                   scrollAnchor={true}
                 >
-                  <Message align="start">
-                    <MessageAvatar className="h-8 w-8 min-w-8 shrink-0 bg-blue-100 text-blue-600 overflow-hidden rounded-full shadow-sm">
-                    <Bot size={18} />
-                  </MessageAvatar>
-                  <MessageContent>
-                    <Bubble variant="muted">
-                      <BubbleContent>
-                        <div className="flex items-center gap-2">
-                          <span className="relative flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
-                          </span>
-                          Thinking...
-                        </div>
-                      </BubbleContent>
-                    </Bubble>
-                  </MessageContent>
-                </Message>
+                  <Marker>
+                    <div className="flex items-center gap-2 text-primary">
+                      <span className="relative flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                      </span>
+                      Thinking...
+                    </div>
+                  </Marker>
                 </MotionMessageScrollerItem>
               )}
               <div ref={endRef} />
@@ -344,75 +340,85 @@ export default function FloatingChat() {
               </MessageScrollerViewport>
               <MessageScrollerButton />
             </MessageScroller>
-          </MessageScrollerProvider>
 
-          {messages.length === 1 && (
-            <div className="px-4 pb-3 flex flex-wrap gap-2">
-              {SUGGESTIONS.map((item) => (
-                <button
-                  key={item}
-                  onClick={() => sendMessage(item)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            {messages.length === 1 && (
+              <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 flex flex-wrap gap-2 pointer-events-none">
+                {SUGGESTIONS.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => sendMessage(item)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border bg-background rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors pointer-events-auto"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    {item}
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardContent>
+
+          <CardFooter className="flex-col gap-2 p-3 shrink-0 bg-background border-t">
+            {attachedFile && (
+              <div className="w-full px-3 py-1.5 bg-muted/50 rounded-md border border-border flex items-center justify-between">
+                <span className="text-xs font-medium text-foreground flex items-center gap-2 truncate">
+                  <Paperclip className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{attachedFile.name}</span>
+                </span>
+                <button 
+                  onClick={() => setAttachedFile(null)} 
+                  className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted shrink-0"
                 >
-                  <Sparkles className="w-3 h-3" />
-                  {item}
+                  <X className="h-3 w-3" />
                 </button>
-              ))}
-            </div>
-          )}
+              </div>
+            )}
 
-          {attachedFile && (
-            <div className="px-4 py-2 border-t border-border bg-muted/30 flex items-center justify-between">
-              <span className="text-xs font-medium text-foreground flex items-center gap-2 truncate">
-                <Paperclip className="h-3 w-3 shrink-0" />
-                <span className="truncate">{attachedFile.name}</span>
-              </span>
-              <button 
-                onClick={() => setAttachedFile(null)} 
-                className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted shrink-0"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendMessage(input);
-            }}
-            className="p-3 border-t border-border bg-card flex gap-2 items-center"
-          >
-            <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors p-2 rounded-full hover:bg-muted shrink-0">
-              <Paperclip className="h-4 w-4" />
-              <input
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files.length > 0) {
-                    setAttachedFile(e.target.files[0]);
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendMessage(input);
+              }}
+              className="w-full flex flex-col border border-border rounded-lg bg-background shadow-sm overflow-hidden focus-within:ring-1 focus-within:ring-ring"
+            >
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask anything..."
+                className="w-full resize-none bg-transparent px-3 py-2 outline-none text-sm min-h-[60px]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage(input);
                   }
-                  e.target.value = "";
                 }}
               />
-            </label>
-
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask anything..."
-              className="flex-1 bg-muted border-none rounded-full px-4 py-2 outline-none text-sm focus-visible:ring-1 focus-visible:ring-ring min-w-0"
-            />
-
-            <Button
-              type="submit"
-              disabled={(!input.trim() && !attachedFile) || loading}
-              className="rounded-full h-9 w-9 p-0 shrink-0 bg-blue-600 hover:bg-blue-700"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </form>
-        </div>
+              <div className="flex items-center justify-between p-2 pt-0 bg-muted/10">
+                <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted shrink-0">
+                  <Paperclip className="h-4 w-4" />
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setAttachedFile(e.target.files[0]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  disabled={(!input.trim() && !attachedFile) || loading}
+                  className="h-8 w-8 rounded-md p-0 shrink-0 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Send className="w-3 h-3" />
+                  <span className="sr-only">Send</span>
+                </Button>
+              </div>
+            </form>
+          </CardFooter>
+        </Card>
+        </MessageScrollerProvider>
       )}
 
       {/* Floating Action Button */}
@@ -424,7 +430,7 @@ export default function FloatingChat() {
             setHasUnread(false);
           }
         }}
-        className="h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 relative"
+        className="h-14 w-14 rounded-full bg-blue-600/80 hover:bg-blue-700/90 backdrop-blur-md text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 relative"
       >
         {isOpen ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
         {!isOpen && hasUnread && (
