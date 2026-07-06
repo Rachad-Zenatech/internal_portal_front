@@ -150,6 +150,7 @@ export default function GeneralLedgerUpload() {
   const [error, setError] = useState<string | null>(null);
   const parseRunIdRef = useRef(0);
   const loadedPreviewTokenRef = useRef<string | null>(null);
+  const pendingImportReviewScrollRef = useRef(false);
   const glFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Queries & Mutations
@@ -212,6 +213,7 @@ export default function GeneralLedgerUpload() {
     const token = new URLSearchParams(window.location.search).get("dry_run_preview_token");
     if (!token || loadedPreviewTokenRef.current === token) return;
     loadedPreviewTokenRef.current = token;
+    pendingImportReviewScrollRef.current = window.location.hash === "#import-review";
     void handleDryRunPreviewPage(1, token);
   }, []);
 
@@ -295,6 +297,12 @@ export default function GeneralLedgerUpload() {
   }, [accountFilter, preview]);
 
   useEffect(() => {
+    if (!preview || !pendingImportReviewScrollRef.current) return;
+    const timeout = window.setTimeout(scrollToImportReview, 100);
+    return () => window.clearTimeout(timeout);
+  }, [preview]);
+
+  useEffect(() => {
     if (!accountSuggestionsMutation.isPending || !hasAccountReviewProgress) return;
 
     const interval = window.setInterval(() => {
@@ -350,6 +358,18 @@ export default function GeneralLedgerUpload() {
         block: "center",
       });
     }, 100);
+  }
+
+  function scrollToImportReview() {
+    window.setTimeout(() => {
+      const reviewSection = document.getElementById("import-review");
+      if (!reviewSection) return;
+      reviewSection.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      pendingImportReviewScrollRef.current = false;
+    }, 50);
   }
 
   function handleGlFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -474,7 +494,8 @@ export default function GeneralLedgerUpload() {
     if (!previewToken) return;
 
     setError(null);
-    setBackgroundUploadMessage(null);
+    pendingImportReviewScrollRef.current = true;
+    setBackgroundUploadMessage("Loading saved dry-run preview...");
     try {
       const data = await dryRunPreviewPageMutation.mutateAsync({
         previewToken,
@@ -487,9 +508,12 @@ export default function GeneralLedgerUpload() {
       setAccountFilter("all");
       setFocusedReviewRowId(null);
       setActiveReviewFinder(null);
-      setShowWorkbookPreview(true);
-      window.history.replaceState(null, "", "/general-ledger/upload");
+      setShowWorkbookPreview(false);
+      setBackgroundUploadMessage(null);
+      window.history.replaceState(null, "", "/general-ledger/upload#import-review");
+      scrollToImportReview();
     } catch (err) {
+      setBackgroundUploadMessage(null);
       setError(err instanceof Error ? err.message : "Failed to load dry-run preview page");
     }
   }
@@ -1160,7 +1184,7 @@ export default function GeneralLedgerUpload() {
               Loading preview...
             </div>
           ) : preview ? (
-            <Card className="overflow-hidden">
+            <Card id="import-review" className="scroll-mt-6 overflow-hidden">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b p-4 bg-muted/20">
                 <div>
                   <h2 className="text-lg font-medium">Import Review</h2>
