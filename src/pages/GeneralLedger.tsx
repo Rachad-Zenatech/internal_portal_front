@@ -17,6 +17,31 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+} from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from "@tanstack/react-table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type PeriodType = "january" | "february" | "march" | "april" | "may" | "june" | "july" | "august" | "september" | "october" | "november" | "december" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
 
@@ -275,35 +300,294 @@ export default function GeneralLedger() {
       ) : filteredCards.length === 0 ? (
         <EmptyState text="No GL data found for this company and period." />
       ) : (
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {filteredCards.map((card) => (
-            <CompanyGLCardView
-              key={card.company_id}
-              card={card}
-              period={period}
-              year={year}
-              formats={formats}
-              isAssigning={assignFormatMutation.isPending && assignFormatMutation.variables?.companyId === card.company_id}
-              onAssignFormat={(companyId, formatId) => assignFormatMutation.mutate({ companyId, formatId })}
-            />
-          ))}
-        </section>
+        <GLDataTable
+          data={filteredCards}
+          period={period}
+          year={year}
+          formats={formats}
+          assignFormatMutation={assignFormatMutation}
+        />
       )}
     </main>
   );
 }
 
-function CompanyGLCardView({
-  card,
+function GLDataTable({
+  data,
   period,
   year,
+  formats,
+  assignFormatMutation,
+}: {
+  data: CompanyGLCard[];
+  period: PeriodType;
+  year: number;
+  formats: GLExtractionFormat[];
+  assignFormatMutation: any;
+}) {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  const columns = useMemo<ColumnDef<CompanyGLCard>[]>(
+    () => [
+      {
+        accessorKey: "company_name",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Company Name
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-medium">{row.original.company_name}</span>
+            <span className="text-xs text-muted-foreground">{row.original.entity || "No Entity"}</span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "default_format_name",
+        header: "GL Format",
+        cell: ({ row }) => (
+          <FormatCell
+            card={row.original}
+            formats={formats}
+            isAssigning={assignFormatMutation.isPending && assignFormatMutation.variables?.companyId === row.original.company_id}
+            onAssignFormat={(companyId, formatId) => assignFormatMutation.mutate({ companyId, formatId })}
+          />
+        ),
+      },
+      {
+        accessorKey: "import_count",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Imports
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+      },
+      {
+        accessorKey: "gl_entry_lines",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            GL Lines
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+      },
+      {
+        accessorKey: "bank_lines",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Bank Lines
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const card = row.original;
+          const hasFormat = card.default_format_id != null;
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!hasFormat}
+              onClick={() =>
+                window.location.assign(
+                  `/general-ledger/company/${card.company_id}?period=${period}&year=${year}`
+                )
+              }
+            >
+              {hasFormat ? "View Transactions" : "Assign format"}
+            </Button>
+          );
+        },
+      },
+    ],
+    [formats, assignFormatMutation, period, year]
+  );
+
+  const table = useReactTable({
+    data,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+    },
+  });
+
+  return (
+    <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Input
+          placeholder="Filter companies..."
+          value={(table.getColumn("company_name")?.getFilterValue() as string) ?? ""}
+          onChange={(event) =>
+            table.getColumn("company_name")?.setFilterValue(event.target.value)
+          }
+          className="max-w-sm"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="ml-auto">
+              Columns <ChevronDown className="ml-2 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => {
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                  >
+                    {column.id.replace(/_/g, " ")}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="rounded-md border bg-card overflow-hidden">
+        <Table containerClassName="max-h-[600px] overflow-auto">
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  No results.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
+        <div className="text-sm text-muted-foreground">
+          {table.getFilteredRowModel().rows.length} total row(s).
+        </div>
+        <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+          <div className="flex items-center space-x-2">
+            <p className="text-sm font-medium">Rows per page</p>
+            <Select
+              value={`${table.getState().pagination.pageSize}`}
+              onValueChange={(value) => {
+                table.setPageSize(Number(value));
+              }}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue placeholder={table.getState().pagination.pageSize} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {[10, 20, 30, 40, 50].map((pageSize) => (
+                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                    {pageSize}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount() || 1}
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Go to first page</span>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Go to previous page</span>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              <span className="sr-only">Go to next page</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+            >
+              <span className="sr-only">Go to last page</span>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FormatCell({
+  card,
   formats,
   isAssigning,
   onAssignFormat,
 }: {
   card: CompanyGLCard;
-  period: PeriodType;
-  year: number;
   formats: GLExtractionFormat[];
   isAssigning: boolean;
   onAssignFormat: (companyId: number, formatId: number) => void;
@@ -319,76 +603,32 @@ function CompanyGLCardView({
   }, [currentFormatId]);
 
   return (
-    <Card className="flex flex-col">
-      <CardContent className="flex-1 p-5">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold">{card.company_name}</h2>
-          <p className="text-sm text-muted-foreground">
-            {card.entity || "No Entity"} · {card.default_format_name || "No default format"}
-          </p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <InfoStat label="Imports" value={String(card.import_count)} />
-          <InfoStat label="GL Lines" value={String(card.gl_entry_lines)} />
-          <InfoStat label="Bank Lines" value={String(card.bank_lines)} />
-        </div>
-
-        <div
-          className={
-            hasFormat
-              ? "rounded-md border bg-muted/30 p-3"
-              : "rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-400/40 dark:bg-amber-950/40"
-          }
-        >
-          <p className={hasFormat ? "text-sm font-medium" : "text-sm font-medium text-amber-800 dark:text-amber-200"}>
-            {hasFormat ? "Default GL format" : "No GL format assigned"}
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Select
-              value={selectedFormatId || undefined}
-              onValueChange={setSelectedFormatId}
-              disabled={isAssigning || formats.length === 0}
-            >
-              <SelectTrigger className="flex-1 bg-background">
-                <SelectValue placeholder="Select a format" />
-              </SelectTrigger>
-              <SelectContent>
-                {formats.map((f) => (
-                  <SelectItem key={String(f.id)} value={String(f.id)}>
-                    {f.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!canSaveFormat}
-              onClick={() => onAssignFormat(card.company_id, Number(selectedFormatId))}
-            >
-              {isAssigning ? "Saving..." : hasFormat ? "Update" : "Assign"}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-
-      <div className="border-t p-4">
-        <Button
-          variant="outline"
-          className="w-full"
-          disabled={!hasFormat}
-          onClick={() =>
-            window.location.assign(
-              `/general-ledger/company/${card.company_id}?period=${period}&year=${year}`
-            )
-          }
-        >
-          {hasFormat ? "View Transactions" : "Assign format to view"}
-        </Button>
-      </div>
-    </Card>
+    <div className="flex items-center gap-2">
+      <Select
+        value={selectedFormatId || undefined}
+        onValueChange={setSelectedFormatId}
+        disabled={isAssigning || formats.length === 0}
+      >
+        <SelectTrigger className="w-[180px] bg-background">
+          <SelectValue placeholder="Select a format" />
+        </SelectTrigger>
+        <SelectContent>
+          {formats.map((f) => (
+            <SelectItem key={String(f.id)} value={String(f.id)}>
+              {f.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={!canSaveFormat}
+        onClick={() => onAssignFormat(card.company_id, Number(selectedFormatId))}
+      >
+        {isAssigning ? "Saving..." : hasFormat ? "Update" : "Assign"}
+      </Button>
+    </div>
   );
 }
 
@@ -400,15 +640,6 @@ function MetricCard({ label, value }: { label: string; value: number }) {
         <p className="mt-2 text-3xl font-bold tracking-tight">{value}</p>
       </CardContent>
     </Card>
-  );
-}
-
-function InfoStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium">{value}</p>
-    </div>
   );
 }
 
