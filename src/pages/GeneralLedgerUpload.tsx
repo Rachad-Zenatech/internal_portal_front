@@ -3077,6 +3077,7 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   const hasGeminiSuggestion =
     isGeminiSuggestion(suggestion) && Boolean(getVisibleSuggestedTargetNumber(suggestion));
   const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
+  const hasAiFallbackReview = isAiFallbackSuggestion(suggestion);
   const hasPlainSuggestion = Boolean(
     isMarkedSuggestedChange(suggestion) &&
       !hasXgboostSuggestion &&
@@ -3101,6 +3102,9 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
           : suggestion.review_label || "XGBoosted"}
       </Badge>
     );
+  }
+  if (hasAiFallbackReview) {
+    return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">AI review</Badge>;
   }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
@@ -3235,7 +3239,9 @@ function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
 function isWorkbookAiReviewRow(row: WorkbookPreviewRow) {
   return Boolean(
     (row.suggestion &&
-      (isGeminiSuggestion(row.suggestion) || row.suggestion.ai_provider)) ||
+      (isGeminiSuggestion(row.suggestion) ||
+        isAiFallbackSuggestion(row.suggestion) ||
+        row.suggestion.ai_provider)) ||
       row.txn.account_review?.requires_ai_review ||
       row.txn.account_review?.source === "gemini" ||
       row.txn.account_review?.source === "ai"
@@ -3248,7 +3254,12 @@ function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRo
     return `review_source: ${review.source} | review_status: ${review.status}`;
   }
   if (kind === "ai") {
-    if (row.suggestion && (isGeminiSuggestion(row.suggestion) || row.suggestion.ai_provider)) {
+    if (
+      row.suggestion &&
+      (isGeminiSuggestion(row.suggestion) ||
+        isAiFallbackSuggestion(row.suggestion) ||
+        row.suggestion.ai_provider)
+    ) {
       return formatReviewMarker(row.suggestion, null);
     }
     if (review && review.source !== "not_bank_transaction") {
@@ -3376,6 +3387,7 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
         : "XGBoosted"
     );
   }
+  if (isAiFallbackSuggestion(suggestion)) return "AI review required";
   if (suggestion.requires_manual_review) return "Manual review required";
   if (isGeminiSuggestion(suggestion)) return "Gemini";
   if (isMarkedSuggestedChange(suggestion) || getVisibleSuggestedTargetNumber(suggestion)) {
@@ -3396,6 +3408,15 @@ function isXgboostSuggestion(suggestion: GLAccountSuggestion) {
 
 function isGeminiSuggestion(suggestion: GLAccountSuggestion) {
   return suggestion.review_source === "gemini" || suggestion.rule.startsWith("gemini_ai_");
+}
+
+function isAiFallbackSuggestion(suggestion: GLAccountSuggestion) {
+  return (
+    suggestion.review_source === "ai_fallback" ||
+    suggestion.review_status === "needs_ai_review" ||
+    suggestion.rule === "amazon_ai_review" ||
+    suggestion.rule === "aliexpress_ai_review"
+  );
 }
 
 function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
@@ -3440,6 +3461,7 @@ function formatReviewMarker(
 function inferSuggestionReviewSource(suggestion: GLAccountSuggestion) {
   if (isXgboostSuggestion(suggestion)) return "xgboost";
   if (isGeminiSuggestion(suggestion)) return "gemini";
+  if (isAiFallbackSuggestion(suggestion)) return "ai_fallback";
   if (suggestion.requires_manual_review) return "manual";
   return "rules";
 }
@@ -3455,6 +3477,7 @@ function inferSuggestionReviewStatus(suggestion: GLAccountSuggestion) {
     if (suggestion.requires_manual_review) return "gemini_manual_review";
     return isMarkedSuggestedChange(suggestion) ? "gemini_suggested" : "gemini_checked";
   }
+  if (isAiFallbackSuggestion(suggestion)) return "needs_ai_review";
   if (suggestion.requires_manual_review) return "manual_review";
   return isMarkedSuggestedChange(suggestion) ? "suggested" : "checked";
 }
