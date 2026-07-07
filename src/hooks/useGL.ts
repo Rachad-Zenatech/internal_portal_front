@@ -168,7 +168,14 @@ export const useGLUploadQueue = (limit: number = 20) => {
   return useQuery<GLUploadQueueResponse, Error>({
     queryKey: ['gl-upload-queue', limit],
     queryFn: () => GLService.getUploadQueue(limit),
-    refetchInterval: 1500,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || !data.jobs) return 1500;
+      const isProcessing = data.jobs.some((job) =>
+        ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(job.status)
+      );
+      return isProcessing ? 1500 : false;
+    },
   });
 };
 

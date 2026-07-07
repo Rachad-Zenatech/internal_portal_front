@@ -16,11 +16,11 @@ export interface Notification {
   read_at?: string;
 }
 
-export function useNotifications() {
+export function useNotifications(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => apiClient.get<Notification[]>("/api/notifications"),
-    refetchInterval: 30000, // Poll every 30s
+    refetchInterval: options?.refetchInterval ?? 30000, // Poll every 30s by default
   });
 }
 
@@ -43,6 +43,18 @@ export function useMarkNotificationAsRead() {
     },
   });
 }
+
+export function useMarkAllNotificationsAsRead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.patch(`/api/notifications/read-all`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+    },
+  });
+}
+
 export function useClearReadNotifications() {
   const queryClient = useQueryClient();
 

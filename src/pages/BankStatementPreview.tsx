@@ -76,6 +76,9 @@ export default function BankStatementPreview() {
       document.dispatchEvent(new CustomEvent("set-breadcrumb-title", {
         detail: { path: `/bank-statements/${statement.id}`, title: statement.file_name }
       }));
+      document.dispatchEvent(new CustomEvent("set-breadcrumb-title", {
+        detail: { path: `/bank-statements/${statement.id}/preview`, title: "Preview" }
+      }));
     }
   }, [statement?.file_name, statement?.id]);
 

@@ -1,5 +1,3 @@
-import type { GLUploadQueueItem } from "@/types/gl";
-
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +5,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Trash2, X, ChevronUp, ChevronDown, Play, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-export function GLUploadQueuePanel({
+export type BankStatementQueueItem = {
+  id: number;
+  status: string;
+  progress: number;
+  filename?: string;
+  preview_token?: string;
+  can_cancel: boolean;
+  can_delete: boolean;
+  error_message?: string;
+  created_at?: string;
+};
+
+export function BankStatementQueuePanel({
   jobs,
   isLoading,
   onRefresh,
@@ -19,7 +29,7 @@ export function GLUploadQueuePanel({
   isPreviewLoading = false,
   headerAction,
 }: {
-  jobs: GLUploadQueueItem[];
+  jobs: BankStatementQueueItem[];
   isLoading: boolean;
   onRefresh: () => void;
   onOpenPreview: (token: string) => void;
@@ -45,9 +55,9 @@ export function GLUploadQueuePanel({
                 </Button>
               </CollapsibleTrigger>
               <div>
-                <h2 className="text-base font-medium">Server GL Upload Queue</h2>
+                <h2 className="text-base font-medium">Bank Statement Upload Queue</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Backend dry-run parses that continue while you use the site.
+                  Backend extraction jobs that continue while you use the site.
                 </p>
               </div>
             </div>
@@ -66,7 +76,7 @@ export function GLUploadQueuePanel({
               </div>
             ) : jobs.length === 0 ? (
               <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                No background GL uploads yet.
+                No background bank statement uploads yet.
               </div>
             ) : (
               <div className="divide-y rounded-md border">
@@ -82,10 +92,6 @@ export function GLUploadQueuePanel({
                     </Badge>
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    {job.company_name ? `${job.company_name} / ` : ""}
-                    {job.gl_entry_lines != null
-                      ? `${job.gl_entry_lines.toLocaleString("en-US")} rows / `
-                      : ""}
                     {job.status === "failed" ? job.error_message || "Failed" : queueProgressText(job)}
                   </div>
                   {shouldShowQueueProgress(job) && (
@@ -121,22 +127,22 @@ export function GLUploadQueuePanel({
                         : "Cancel"}
                     </Button>
                   )}
-                  {job.preview_token ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => onOpenPreview(job.preview_token as string)}
-                        title="Dry-run Preview"
-                        disabled={isPreviewLoading}
-                      >
-                        <Play className="h-4 w-4" />
+                    {job.status === "completed" && job.preview_token ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => onOpenPreview(job.preview_token as string)}
+                          title="Dry-run Preview"
+                          disabled={isPreviewLoading}
+                        >
+                          <Play className="h-4 w-4" />
+                        </Button>
+                    ) : job.status === "completed" ? (
+                      <Button type="button" size="sm" variant="outline" disabled title="Preview pending">
+                        <Play className="h-4 w-4 opacity-50" />
                       </Button>
-                  ) : (
-                    <Button type="button" size="sm" variant="outline" disabled title="Preview pending">
-                      <Play className="h-4 w-4 opacity-50" />
-                    </Button>
-                  )}
+                    ) : null}
                   {job.can_delete && onDeleteJob && (
                     <Button
                       type="button"
@@ -144,8 +150,8 @@ export function GLUploadQueuePanel({
                       variant="destructive"
                       onClick={() => onDeleteJob(job.id)}
                       disabled={deletingJobId === job.id}
-                      title="Delete this dry-run preview"
-                      aria-label="Delete this dry-run preview"
+                      title="Delete this upload record"
+                      aria-label="Delete this upload record"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -180,12 +186,12 @@ function queueStatusVariant(status: string): "default" | "secondary" | "destruct
   return "outline";
 }
 
-function queueProgressPercent(job: GLUploadQueueItem) {
+function queueProgressPercent(job: BankStatementQueueItem) {
   if (job.status === "completed") return 100;
   return Math.max(0, Math.min(100, Number(job.progress) || 0));
 }
 
-function queueProgressText(job: GLUploadQueueItem) {
+function queueProgressText(job: BankStatementQueueItem) {
   if (job.status === "queued" || job.status === "queued_local") return "Waiting for backend worker";
   if (job.status === "cancel_requested") return "Stopping upload...";
   if (job.status === "canceled") return "Upload stopped";
@@ -197,7 +203,7 @@ function queueProgressText(job: GLUploadQueueItem) {
   return `${queueProgressPercent(job)}% complete`;
 }
 
-function shouldShowQueueProgress(job: GLUploadQueueItem) {
+function shouldShowQueueProgress(job: BankStatementQueueItem) {
   return job.status === "processing" || job.status === "cancel_requested" || job.status === "completed";
 }
 

@@ -6,7 +6,9 @@ import { toast } from "sonner";
 
 export function GlobalProgressOverlay() {
   const { activeJobs, removeJob } = useGlobalProgress();
-  const { data: notifications = [] } = useNotifications();
+  const { data: notifications = [] } = useNotifications({
+    refetchInterval: activeJobs.length > 0 ? 2000 : 30000,
+  });
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
