@@ -6,6 +6,7 @@ import type {
   ConsolidatedMatrixResponse,
   ApplySuggestedTargetRequest,
   ApplySuggestedTargetResponse,
+  ApplySuggestedTargetsResponse,
   UnapplySuggestedTargetRequest,
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
@@ -239,10 +240,10 @@ export const useSaveImportFromUpload = () => {
   return useMutation<
     SaveImportFromUploadResponse,
     Error,
-    { companyBookId: number; file: File }
+    { companyBookId: number; file: File; suggestions?: ApplySuggestedTargetRequest[] }
   >({
-    mutationFn: ({ companyBookId, file }) =>
-      GLService.saveImportFromUpload({ companyBookId, file }),
+    mutationFn: ({ companyBookId, file, suggestions }) =>
+      GLService.saveImportFromUpload({ companyBookId, file, suggestions }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-cards'] });
       queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
@@ -256,10 +257,10 @@ export const useSaveDryRunPreview = () => {
   return useMutation<
     SaveImportFromUploadResponse,
     Error,
-    { previewToken: string }
+    { previewToken: string; suggestions?: ApplySuggestedTargetRequest[] }
   >({
-    mutationFn: ({ previewToken }) =>
-      GLService.saveDryRunPreview({ previewToken }),
+    mutationFn: ({ previewToken, suggestions }) =>
+      GLService.saveDryRunPreview({ previewToken, suggestions }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['company-cards'] });
       queryClient.invalidateQueries({ queryKey: ['trial-balance'] });
@@ -308,6 +309,20 @@ export const useApplySuggestedTarget = () => {
   });
 };
 
+export const useApplySuggestedTargets = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ApplySuggestedTargetsResponse,
+    Error,
+    { sourceFileId: number; companyId: number; suggestions: ApplySuggestedTargetRequest[] }
+  >({
+    mutationFn: ({ sourceFileId, companyId, suggestions }) =>
+      GLService.applySuggestedTargets({ sourceFileId, companyId, suggestions }),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['import-preview', variables.sourceFileId] });
+    },
+  });
+};
 export const useUnapplySuggestedTarget = () => {
   const queryClient = useQueryClient();
   return useMutation<

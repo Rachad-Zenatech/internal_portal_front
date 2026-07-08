@@ -11,6 +11,7 @@ import type {
   ConsolidatedReconciliation,
   ApplySuggestedTargetRequest,
   ApplySuggestedTargetResponse,
+  ApplySuggestedTargetsResponse,
   UnapplySuggestedTargetRequest,
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
@@ -77,9 +78,34 @@ export const GLService = {
     }
     formData.append("file", params.file);
 
-    return apiClient.post<ParseImportResponse>("/accounting/gl/imports/parse", formData);
-  },
+    const endpoint = "/accounting/gl/imports/parse";
+    console.log("[GL Preview] fetch", {
+      url: `${BASE_URL}${endpoint}`,
+      method: "POST",
+      companyBookId: params.companyBookId,
+      dryRun: params.dryRun ?? true,
+      previewLimit: params.previewLimit ?? null,
+      fileName: params.file.name,
+      fileSize: params.file.size,
+    });
 
+    try {
+      const response = await apiClient.post<ParseImportResponse>(endpoint, formData);
+      console.log("[GL Preview] response", {
+        status: response.summary?.status ?? null,
+        sourceFileId: response.summary?.source_file_id ?? null,
+        companyId: response.summary?.company_id ?? null,
+        dryRun: response.dry_run,
+        previewRows: response.preview?.rows?.length ?? null,
+        previewLineCount: response.preview?.totals?.line_count ?? null,
+        previewToken: response.dry_run_preview_token ?? response.preview?.pagination?.preview_token ?? null,
+      });
+      return response;
+    } catch (error) {
+      console.log("[GL Preview] fetch failed", { url: `${BASE_URL}${endpoint}`, error });
+      throw error;
+    }
+  },
   async parseImportInBackground(params: GLParseImportRequest): Promise<BackgroundGlParseResponse> {
     const formData = new FormData();
     formData.append("company_book_id", String(params.companyBookId));
@@ -88,12 +114,29 @@ export const GLService = {
     }
     formData.append("file", params.file);
 
-    return apiClient.post<BackgroundGlParseResponse>(
-      "/accounting/gl/imports/parse-background",
-      formData
-    );
-  },
+    const endpoint = "/accounting/gl/imports/parse-background";
+    console.log("[GL Preview] background fetch", {
+      url: `${BASE_URL}${endpoint}`,
+      method: "POST",
+      companyBookId: params.companyBookId,
+      previewLimit: params.previewLimit ?? null,
+      fileName: params.file.name,
+      fileSize: params.file.size,
+    });
 
+    try {
+      const response = await apiClient.post<BackgroundGlParseResponse>(endpoint, formData);
+      console.log("[GL Preview] background response", {
+        backgroundJobId: response.backgroundJobId ?? response.jobId,
+        status: response.status,
+        message: response.message,
+      });
+      return response;
+    } catch (error) {
+      console.log("[GL Preview] background fetch failed", { url: `${BASE_URL}${endpoint}`, error });
+      throw error;
+    }
+  },
   async parseImportAsync(params: {
     companyBookId: number;
     file: File;
@@ -136,24 +179,58 @@ export const GLService = {
       page: String(params.page),
       page_size: String(params.pageSize ?? 1000),
     });
-    return apiClient.get<ParseImportResponse>(
-      `/accounting/gl/imports/dry-run-preview/${params.previewToken}?${searchParams.toString()}`
-    );
-  },
+    const endpoint = `/accounting/gl/imports/dry-run-preview/${params.previewToken}?${searchParams.toString()}`;
+    console.log("[GL Preview] page fetch", {
+      url: `${BASE_URL}${endpoint}`,
+      method: "GET",
+      previewToken: params.previewToken,
+      page: params.page,
+      pageSize: params.pageSize ?? 1000,
+    });
 
+    try {
+      const response = await apiClient.get<ParseImportResponse>(endpoint);
+      console.log("[GL Preview] page response", {
+        status: response.summary?.status ?? null,
+        previewRows: response.preview?.rows?.length ?? null,
+        page: response.preview?.pagination?.page ?? null,
+        pageCount: response.preview?.pagination?.page_count ?? null,
+      });
+      return response;
+    } catch (error) {
+      console.log("[GL Preview] page fetch failed", { url: `${BASE_URL}${endpoint}`, error });
+      throw error;
+    }
+  },
   async deleteDryRunPreview(params: { previewToken: string }): Promise<void> {
     await apiClient.delete<void>(
       `/accounting/gl/imports/dry-run-preview/${params.previewToken}`
     );
   },
 
-  async saveDryRunPreview(params: { previewToken: string }): Promise<SaveImportFromUploadResponse> {
-    return apiClient.post<SaveImportFromUploadResponse>(
-      `/accounting/gl/imports/dry-run-preview/${params.previewToken}/save`,
-      {}
-    );
-  },
+  async saveDryRunPreview(params: { previewToken: string; suggestions?: ApplySuggestedTargetRequest[] }): Promise<SaveImportFromUploadResponse> {
+    const endpoint = `/accounting/gl/imports/dry-run-preview/${params.previewToken}/save`;
+    console.log("[GL Preview] save fetch", {
+      url: `${BASE_URL}${endpoint}`,
+      method: "POST",
+      previewToken: params.previewToken,
+    });
 
+    try {
+      const response = await apiClient.post<SaveImportFromUploadResponse>(endpoint, {
+        suggestions: params.suggestions ?? [],
+      });
+      console.log("[GL Preview] save response", {
+        sourceFileId: response.summary?.source_file_id ?? null,
+        companyId: response.summary?.company_id ?? null,
+        status: response.status,
+      });
+      return response;
+    } catch (error) {
+      console.log("[GL Preview] save fetch failed", { url: `${BASE_URL}${endpoint}`, error });
+      throw error;
+    }
+  },
   async getAccountSuggestions(params: GLAccountSuggestionsRequest): Promise<GLAccountSuggestionsResponse> {
     const formData = new FormData();
     formData.append("file", params.file);
@@ -173,8 +250,8 @@ export const GLService = {
     const useAi = params.useAi === true;
     formData.append("use_ai", String(useAi));
     if (useAi) {
-      formData.append("ai_provider", params.aiProvider ?? "gemini");
-      formData.append("ai_rows_per_request", String(params.aiRowsPerRequest ?? 50));
+      formData.append("ai_provider", params.aiProvider ?? "ai");
+      formData.append("ai_rows_per_request", "50");
       formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 3));
       formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
       formData.append("ai_review_all", String(params.aiReviewAll ?? true));
@@ -199,10 +276,48 @@ export const GLService = {
       formData.append("apply_ai_suggestions", "false");
     }
 
-    return apiClient.post<GLAccountSuggestionsResponse>(
-      "/accounting/gl/exports/account-suggestions",
-      formData
-    );
+    const endpoint = "/accounting/gl/exports/account-suggestions";
+    console.log("[GL Account Suggestions] fetch", {
+      url: `${BASE_URL}${endpoint}`,
+      method: "POST",
+      fileName: params.file.name,
+      fileSize: params.file.size,
+      companyId: params.companyId ?? null,
+      companyName: params.companyName ?? null,
+      formatCode: params.formatCode,
+      includeAll: params.includeAll ?? false,
+      useXgboost: params.useXgboost ?? true,
+      useAi,
+      aiReviewAll: useAi ? params.aiReviewAll ?? true : false,
+      aiRowsPerRequest: useAi ? 50 : null,
+      aiConcurrencyLimit: useAi ? params.aiConcurrencyLimit ?? 3 : null,
+      aiMaxRows: useAi ? params.aiMaxRows ?? null : null,
+    });
+
+    try {
+      const response = await apiClient.post<GLAccountSuggestionsResponse>(endpoint, formData);
+      console.log("[GL Account Suggestions] response", {
+        suggestionCount: response.suggestion_count,
+        changedSuggestionCount: response.changed_suggestion_count,
+        manualReviewCount: response.manual_review_count,
+        reviewMode: response.review_mode,
+        aiStatus: response.ai_review?.status,
+        aiModelAttemptCount: response.ai_review?.model_attempt_count,
+        aiReviewedRows: response.ai_review?.reviewed_row_count,
+        aiSuggestionCount: response.ai_review?.suggestion_count,
+        aiFailedChunks: response.ai_review?.failed_chunk_count,
+        aiTotalTokenCount: response.ai_review?.token_usage?.total_token_count,
+        aiTokenUsage: response.ai_review?.token_usage,
+        aiError: response.ai_review?.error,
+      });
+      return response;
+    } catch (error) {
+      console.log("[GL Account Suggestions] fetch failed", {
+        url: `${BASE_URL}${endpoint}`,
+        error,
+      });
+      throw error;
+    }
   },
 
   async trainXgboostTestModelFromGlExport(
@@ -240,9 +355,13 @@ export const GLService = {
   async saveImportFromUpload(params: {
     companyBookId: number;
     file: File;
+    suggestions?: ApplySuggestedTargetRequest[];
   }): Promise<SaveImportFromUploadResponse> {
     const formData = new FormData();
     formData.append("company_book_id", String(params.companyBookId));
+    if (params.suggestions?.length) {
+      formData.append("suggestions_json", JSON.stringify(params.suggestions));
+    }
     formData.append("file", params.file);
 
     return apiClient.post<SaveImportFromUploadResponse>(
@@ -335,6 +454,25 @@ export const GLService = {
     );
   },
 
+  async applySuggestedTargets(params: {
+    sourceFileId: number;
+    companyId: number;
+    suggestions: ApplySuggestedTargetRequest[];
+    previewLimit?: number;
+  }): Promise<ApplySuggestedTargetsResponse> {
+    const searchParams = new URLSearchParams();
+    if (params.previewLimit !== undefined) {
+      searchParams.set("preview_limit", String(params.previewLimit));
+    }
+    const query = searchParams.toString();
+    return apiClient.post<ApplySuggestedTargetsResponse>(
+      `/accounting/gl/imports/${params.sourceFileId}/apply-suggested-targets${query ? `?${query}` : ""}`,
+      {
+        company_id: params.companyId,
+        suggestions: params.suggestions,
+      }
+    );
+  },
   async unapplySuggestedTarget(params: {
     sourceFileId: number;
     change: UnapplySuggestedTargetRequest;

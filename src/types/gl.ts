@@ -97,7 +97,10 @@ export type GLUploadQueueDeleteResponse = {
 
 export type SaveImportFromUploadResponse = {
   status: "saved" | string;
-  summary: ParseSummary;
+  summary: ParseSummary & {
+    applied_suggestions?: { applied_count: number; skipped_count: number; errors: string[] };
+    xgboost_training?: { status: string; job_id?: number; training_rows?: number; class_count?: number; error?: string };
+  };
 };
 
 export type GLAccountSuggestionsRequest = {
@@ -207,21 +210,45 @@ export type GLAccountReviewAiSuggestion = {
   requires_manual_review: boolean;
 };
 
+export type GLAccountReviewAiTokenUsage = {
+  prompt_token_count: number;
+  candidates_token_count: number;
+  thoughts_token_count: number;
+  tool_use_prompt_token_count: number;
+  total_token_count: number;
+};
+
 export type GLAccountReviewAiChunk = {
+  chunk_index?: number;
   start_row: number;
   end_row: number;
   transaction_count: number;
+  status?: string;
+  model_response_received?: boolean;
+  token_usage?: GLAccountReviewAiTokenUsage;
+  retried_without_search?: boolean;
+  model_attempts?: number;
+  response_id?: string | null;
+  search_retry_reason?: string | null;
   suggestion_count: number;
   error: string | null;
 };
 
 export type GLAccountReviewAi = {
-  provider: "gemini" | string;
-  model: string;
+  provider: "ai" | string;
   enabled: boolean;
   available: boolean;
+  running?: boolean;
+  status?: string;
   google_search_enabled?: boolean;
+  web_search_enabled?: boolean;
+  model_attempt_count?: number;
   rows_per_request: number;
+  requested_row_count?: number;
+  submitted_chunk_count?: number;
+  completed_chunk_count?: number;
+  failed_chunk_count?: number;
+  token_usage?: GLAccountReviewAiTokenUsage;
   company_context?: GLAccountReviewCompanyContext | null;
   max_rows?: number | null;
   scope_note?: string | null;
@@ -240,10 +267,15 @@ export type GLAccountReviewAi = {
   chunks: GLAccountReviewAiChunk[];
   suggestions: GLAccountReviewAiSuggestion[];
   escalation?: {
-    provider: "gemini" | string;
-    model: string;
+    provider: "ai" | string;
+    status?: string;
+    running?: boolean;
     reviewed_row_count: number;
     suggestion_count: number;
+    submitted_chunk_count?: number;
+    completed_chunk_count?: number;
+    failed_chunk_count?: number;
+    token_usage?: GLAccountReviewAiTokenUsage;
     error: string | null;
     chunks: GLAccountReviewAiChunk[];
   } | null;
@@ -512,6 +544,14 @@ export type ApplySuggestedTargetResponse = {
   preview: ImportPreview;
 };
 
+export type ApplySuggestedTargetsResponse = {
+  status: "applied";
+  applied_count: number;
+  error_count: number;
+  applied_changes: ApplySuggestedTargetResponse["applied_change"][];
+  errors: Array<{ row_number?: number; error: string }>;
+  preview: ImportPreview;
+};
 export type UnapplySuggestedTargetRequest = {
   company_id: number;
   row_number: number;
