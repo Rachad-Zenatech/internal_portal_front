@@ -1,16 +1,38 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { BankFeedRule } from "../../types/bankFeedRule";
 import { useBankFeedRules, useUploadBankFeedRules } from "../../hooks/useBankFeedRule";
-import { Search, Upload, AlertTriangle } from "lucide-react";
+import { Search, Upload, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Select as UISelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+} from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from "@tanstack/react-table";
 
 const formatConditionValue = (type: number, value: any) => {
   if (type === 10) {
@@ -31,13 +53,10 @@ const formatActionValue = (value: any) => {
 
 export default function BankFeedRules() {
   const { addJob } = useGlobalProgress();
-  const { data: rules, isPending: loadingRules } = useBankFeedRules();
+  const { data: rules = [], isPending: loadingRules } = useBankFeedRules();
   const { mutateAsync: uploadRules, isPending: isUploading } = useUploadBankFeedRules();
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedRule, setSelectedRule] = useState<BankFeedRule | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const filteredRules = rules?.filter(r => r.rule_name.toLowerCase().includes(searchQuery.toLowerCase())) || [];
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -60,6 +79,69 @@ export default function BankFeedRules() {
     }
   };
 
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  const columns = useMemo<ColumnDef<BankFeedRule>[]>(() => [
+    {
+      accessorKey: "rule_name",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold text-slate-700" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Rule Name
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-medium text-slate-900">{row.original.rule_name}</span>,
+    },
+    {
+      id: "conditions",
+      accessorFn: (row) => row.conditions.length,
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold text-slate-700" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Conditions
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="text-slate-600">{row.original.conditions.length} condition(s)</span>,
+    },
+    {
+      accessorKey: "is_and_rule",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold text-slate-700" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Match
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="text-slate-600">{row.original.is_and_rule ? "All" : "Any"}</span>,
+    }
+  ], []);
+
+  const table = useReactTable({
+    data: rules,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const ruleName = (row.getValue("rule_name") as string)?.toLowerCase() || "";
+      return ruleName.includes(search);
+    },
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      globalFilter,
+    },
+    onGlobalFilterChange: setGlobalFilter,
+  });
+
   return (
     <div className="w-full h-full flex flex-col space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <div className="flex items-center justify-between shrink-0">
@@ -76,15 +158,37 @@ export default function BankFeedRules() {
             <Input 
               placeholder="Search rules..." 
               className="pl-9 bg-white" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
             />
           </div>
-          <p className="text-sm text-slate-500 pl-1">
-            Total rules: {rules?.length || 0}
-          </p>
         </div>
-        <div className="pt-0.5">
+        <div className="flex items-center gap-4">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    >
+                      {column.id.replace(/_/g, " ")}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <input 
             type="file" 
             accept=".xls,.xlsx,.csv" 
@@ -140,13 +244,22 @@ export default function BankFeedRules() {
       </div>
 
       <Card className="flex-1 min-h-0 overflow-hidden border-slate-200 shadow-sm p-0 flex flex-col">
-        <Table containerClassName="flex-1 overflow-auto">
+        <Table containerClassName="flex-1 overflow-auto max-h-[calc(100vh-16rem)] relative">
           <TableHeader className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-            <TableRow>
-              <TableHead className="h-12 font-semibold text-slate-700">Rule Name</TableHead>
-              <TableHead className="h-12 font-semibold text-slate-700">Conditions</TableHead>
-              <TableHead className="h-12 font-semibold text-slate-700">Match</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="h-12">
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
             {loadingRules ? (
@@ -157,26 +270,102 @@ export default function BankFeedRules() {
                   <TableCell><Skeleton className="h-4 w-12" /></TableCell>
                 </TableRow>
               ))
-            ) : filteredRules.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={3} className="h-32 text-center text-slate-500">
-                  {searchQuery ? "No rules found matching your search." : "No bank feed rules have been created yet."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredRules.map((rule) => (
-                <TableRow key={rule.id} className="hover:bg-slate-50/50 transition-colors cursor-pointer" onClick={() => setSelectedRule(rule)}>
-                  <TableCell className="font-medium text-slate-900">{rule.rule_name}</TableCell>
-                  <TableCell className="text-slate-600">{rule.conditions.length} condition(s)</TableCell>
-                  <TableCell className="text-slate-600">
-                    {rule.is_and_rule ? "All" : "Any"}
-                  </TableCell>
+            ) : table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="hover:bg-slate-50/50 transition-colors cursor-pointer" 
+                  onClick={() => setSelectedRule(row.original)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-32 text-center text-slate-500">
+                  {globalFilter ? "No rules found matching your search." : "No bank feed rules have been created yet."}
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </Card>
+
+      {/* PAGINATION */}
+      <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
+        <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+          <div className="text-sm font-medium text-slate-600">
+            {table.getFilteredRowModel().rows.length} total rule(s).
+          </div>
+          <div className="flex items-center space-x-2">
+            <p className="text-sm font-medium text-slate-600">Rows per page</p>
+            <UISelect
+              value={`${table.getState().pagination.pageSize}`}
+              onValueChange={(value) => {
+                table.setPageSize(Number(value));
+              }}
+            >
+              <SelectTrigger className="h-8 w-[70px]">
+                <SelectValue placeholder={table.getState().pagination.pageSize} />
+              </SelectTrigger>
+              <SelectContent side="top">
+                {[10, 20, 30, 40, 50].map((pageSize) => (
+                  <SelectItem key={pageSize} value={`${pageSize}`}>
+                    {pageSize}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </UISelect>
+          </div>
+          <div className="flex w-[100px] items-center justify-center text-sm font-medium text-slate-600">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount() || 1}
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Go to first page</span>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <span className="sr-only">Go to previous page</span>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-8 w-8 p-0"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              <span className="sr-only">Go to next page</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              className="hidden h-8 w-8 p-0 lg:flex"
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+            >
+              <span className="sr-only">Go to last page</span>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <Dialog open={selectedRule !== null} onOpenChange={(open) => { if (!open) setSelectedRule(null); }}>
         <DialogContent className="sm:max-w-6xl w-[90vw] max-h-[90vh] bg-white p-0 overflow-hidden resize border-none shadow-2xl min-w-[300px] min-h-[300px] flex flex-col">

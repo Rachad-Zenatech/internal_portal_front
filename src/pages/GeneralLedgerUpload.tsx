@@ -6,7 +6,6 @@ import type {
   ApplySuggestedTargetResponse,
   GLAccountSuggestion,
   GLAccountSuggestionsResponse,
-  GLUploadQueueItem,
   GLXgboostTestTrainingResponse,
   ImportPreview,
   ImportPreviewAccount,
@@ -35,8 +34,17 @@ import {
   useSaveImportFromUpload,
   useSaveDryRunPreview,
 } from "@/hooks/useGL";
+import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSearchParams } from "react-router-dom";
 import { Label } from "@/components/ui/label";
@@ -45,7 +53,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Check, FileSpreadsheet, Move, RotateCcw, Sparkles, Trash2, UploadCloud, X } from "lucide-react";
+import { Check, FileSpreadsheet, Move, RotateCcw, Sparkles, UploadCloud, X } from "lucide-react";
 
 type ParseSummary = {
   company_id: number;
@@ -126,6 +134,7 @@ export default function GeneralLedgerUpload() {
   const [file, setFile] = useState<File | null>(null);
   const [useGeminiReview, setUseGeminiReview] = useState(true);
   const [trainXgboostTestModel, setTrainXgboostTestModel] = useState(false);
+  const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false);
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
   const [accountFilter, setAccountFilter] = useState("all");
@@ -516,6 +525,12 @@ export default function GeneralLedgerUpload() {
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
 
+    // Clear any locally selected file since we are loading a server preview
+    setFile(null);
+    if (glFileInputRef.current) {
+      glFileInputRef.current.value = "";
+    }
+
     try {
       const backgroundParse = await parseImportBackgroundMutation.mutateAsync({
         companyBookId: currentBook.book_id,
@@ -535,6 +550,7 @@ export default function GeneralLedgerUpload() {
       setBackgroundUploadMessage(
         "The backend worker is parsing this GL dry-run preview. You can leave this page and open the notification when it is ready."
       );
+      setIsUploadDrawerOpen(false); // Close drawer
       void refetchUploadQueue();
 
       if (trainXgboostTestModel) {
@@ -637,6 +653,7 @@ export default function GeneralLedgerUpload() {
       setActiveReviewFinder(null);
       setShowWorkbookPreview(false);
       setBackgroundUploadMessage(null);
+      
       window.history.replaceState(null, "", "/general-ledger/upload#import-review");
       scrollToImportReview();
     } catch (err) {
@@ -987,7 +1004,7 @@ export default function GeneralLedgerUpload() {
               current_split_account_number: response.unapplied_change.restored_account_number,
               current_split_account_name: response.unapplied_change.restored_account_name,
               suggested_split_account_number: response.unapplied_change.removed_account_number,
-              suggested_split_account_name: response.unapplied_change.removed_account_name,
+              suggested_split_account_name: response.unapplied_change.removed_account_number,
             };
           }
 
@@ -1123,20 +1140,38 @@ export default function GeneralLedgerUpload() {
         </section>
       )}
 
-      <GLUploadQueuePanel
-        jobs={uploadQueue}
-        isLoading={isUploadQueueLoading}
-        onRefresh={() => void refetchUploadQueue()}
-        onOpenPreview={(token) => handleDryRunPreviewPage(1, token)}
-        onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
-        cancelingJobId={cancelingQueueJobId}
-        onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
-        deletingJobId={deletingQueueJobId}
-      />
+      <Drawer open={isUploadDrawerOpen} onOpenChange={setIsUploadDrawerOpen} direction="right">
+        <GLUploadQueuePanel
+          jobs={uploadQueue}
+          isLoading={isUploadQueueLoading}
+          isPreviewLoading={isPreviewPageLoading}
+          onRefresh={() => void refetchUploadQueue()}
+          onOpenPreview={(token) => handleDryRunPreviewPage(1, token)}
+          onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
+          cancelingJobId={cancelingQueueJobId}
+          onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
+          deletingJobId={deletingQueueJobId}
+          headerAction={
+            <DrawerTrigger asChild>
+              <Button size="sm">
+                <UploadCloud className="mr-2 h-4 w-4" />
+                New Upload
+              </Button>
+            </DrawerTrigger>
+          }
+        />
 
-      <Card>
-        <CardContent className="p-6">
-          <div className="grid gap-4 md:grid-cols-2">
+        <DrawerContent className="sm:max-w-xl">
+          <div className="mx-auto w-full max-w-4xl p-6 pb-8">
+            <DrawerHeader className="px-0 pt-0">
+              <DrawerTitle>Upload General Ledger</DrawerTitle>
+              <DrawerDescription>
+                Select a company, upload a GL file, and configure your parse settings.
+              </DrawerDescription>
+            </DrawerHeader>
+            <Card className="border-0 shadow-none">
+              <CardContent className="p-0 mt-4">
+                <div className="flex flex-col gap-4">
             <div className="space-y-2">
               <Label>Company / Book</Label>
               <Select
@@ -1199,7 +1234,7 @@ export default function GeneralLedgerUpload() {
                 </Button>
                 <div className="min-w-0 flex-1 text-sm">
                   {file ? (
-                    <span className="block truncate" title={file.name}>
+                    <span className="block" title={file.name}>
                       {file.name}
                     </span>
                   ) : (
@@ -1220,7 +1255,7 @@ export default function GeneralLedgerUpload() {
                 )}
               </div>
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
+            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-4">
               <div>
                 <Label htmlFor="dry-run-preview">Dry-run preview</Label>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -1239,7 +1274,7 @@ export default function GeneralLedgerUpload() {
                 On
               </Button>
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
+            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-4">
               <div>
                 <Label htmlFor="gemini-review">AI review</Label>
               </div>
@@ -1259,7 +1294,7 @@ export default function GeneralLedgerUpload() {
                 {useGeminiReview ? "On" : "Off"}
               </Button>
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-3 md:col-span-2">
+            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-4">
               <div>
                 <Label htmlFor="xgboost-test-training">XGBoost test training</Label>
               </div>
@@ -1304,7 +1339,7 @@ export default function GeneralLedgerUpload() {
                 </>
               )}
               {xgboostTrainingResult.training?.cleanup_files?.length ? (
-                <div className="mt-1 truncate font-mono text-xs" title={xgboostTrainingResult.training.cleanup_files.join(" | ")}>
+                <div className="mt-1 font-mono text-xs" title={xgboostTrainingResult.training.cleanup_files.join(" | ")}>
                   Cleanup: {xgboostTrainingResult.training.cleanup_files.join(" | ")}
                 </div>
               ) : null}
@@ -1329,6 +1364,9 @@ export default function GeneralLedgerUpload() {
           </div>
         </CardContent>
       </Card>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {selectedBook && (
         <Card className="bg-muted/30">
@@ -1743,190 +1781,6 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function GLUploadQueuePanel({
-  jobs,
-  isLoading,
-  onRefresh,
-  onOpenPreview,
-  onCancelJob,
-  cancelingJobId,
-  onDeleteJob,
-  deletingJobId,
-}: {
-  jobs: GLUploadQueueItem[];
-  isLoading: boolean;
-  onRefresh: () => void;
-  onOpenPreview: (token: string) => void;
-  onCancelJob: (jobId: number) => void;
-  cancelingJobId: number | null;
-  onDeleteJob: (jobId: number) => void;
-  deletingJobId: number | null;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-medium">Server GL Upload Queue</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Backend dry-run parses that continue while you use the site.
-            </p>
-          </div>
-          <Button type="button" variant="outline" size="sm" onClick={onRefresh}>
-            Refresh
-          </Button>
-        </div>
-
-        {isLoading && jobs.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            Loading upload queue...
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            No background GL uploads yet.
-          </div>
-        ) : (
-          <div className="divide-y rounded-md border">
-            {jobs.map((job) => (
-              <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {job.filename || `Upload job #${job.id}`}
-                    </span>
-                    <Badge variant={queueStatusVariant(job.status)}>
-                      {queueStatusLabel(job.status)}
-                    </Badge>
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {job.company_name ? `${job.company_name} · ` : ""}
-                    {job.gl_entry_lines != null
-                      ? `${job.gl_entry_lines.toLocaleString("en-US")} rows · `
-                      : ""}
-                    {job.status === "failed" ? job.error_message || "Failed" : queueProgressText(job)}
-                  </div>
-                  {shouldShowQueueProgress(job) && (
-                    <div
-                      className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
-                      aria-label={`${queueProgressPercent(job)}% complete`}
-                    >
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${queueProgressPercent(job)}%` }}
-                      />
-                    </div>
-                  )}
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Started {formatQueueDate(job.created_at)}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {job.can_cancel && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => onCancelJob(job.id)}
-                      disabled={cancelingJobId === job.id || job.status === "cancel_requested"}
-                      title={
-                        job.status === "cancel_requested"
-                          ? "Cancel request has been sent"
-                          : "Stop this GL upload"
-                      }
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      {cancelingJobId === job.id || job.status === "cancel_requested"
-                        ? "Canceling..."
-                        : "Cancel"}
-                    </Button>
-                  )}
-                  {job.preview_token ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => onOpenPreview(job.preview_token as string)}
-                    >
-                      Open Preview
-                    </Button>
-                  ) : (
-                    <Button type="button" size="sm" variant="outline" disabled>
-                      Preview pending
-                    </Button>
-                  )}
-                  {job.can_delete && (
-                    <Button
-                      type="button"
-                      size="icon-sm"
-                      variant="destructive"
-                      onClick={() => onDeleteJob(job.id)}
-                      disabled={deletingJobId === job.id}
-                      title="Delete this dry-run preview"
-                      aria-label="Delete this dry-run preview"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function queueStatusLabel(status: string) {
-  if (status === "queued" || status === "queued_local") return "Queued";
-  if (status === "processing") return "Backend processing";
-  if (status === "cancel_requested") return "Canceling";
-  if (status === "canceled") return "Canceled";
-  if (status === "discarded") return "Deleted";
-  if (status === "completed") return "Ready";
-  if (status === "failed") return "Failed";
-  return status || "Unknown";
-}
-
-function queueStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "completed") return "default";
-  if (status === "failed") return "destructive";
-  if (status === "processing" || status === "cancel_requested") return "secondary";
-  return "outline";
-}
-
-function queueProgressPercent(job: GLUploadQueueItem) {
-  if (job.status === "completed") return 100;
-  return Math.max(0, Math.min(100, Number(job.progress) || 0));
-}
-
-function queueProgressText(job: GLUploadQueueItem) {
-  if (job.status === "queued" || job.status === "queued_local") return "Waiting for backend worker";
-  if (job.status === "cancel_requested") return "Stopping upload...";
-  if (job.status === "canceled") return "Upload stopped";
-  if (job.status === "processing") {
-    const progress = queueProgressPercent(job);
-    return progress <= 1 ? "Backend worker starting..." : `${progress}% complete`;
-  }
-  if (job.status === "completed") return "Ready to open";
-  return `${queueProgressPercent(job)}% complete`;
-}
-
-function shouldShowQueueProgress(job: GLUploadQueueItem) {
-  return job.status === "processing" || job.status === "cancel_requested" || job.status === "completed";
-}
-
-function formatQueueDate(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 function ReviewFinderPanel({
   kind,
   rows,
@@ -1996,7 +1850,7 @@ function ReviewFinderPanel({
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="truncate text-sm font-medium">
+                    <div className="text-sm font-medium">
                       {index + 1}. {label}
                     </div>
                     <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
@@ -2151,7 +2005,7 @@ function ReviewAccountGroup({
       {transactions.length === 0 ? (
         <div className="p-6 text-sm text-center text-muted-foreground">No charges found.</div>
       ) : (
-        <Table containerClassName="max-h-[420px]">
+        <Table containerClassName="max-h-[420px]" className="[&_td]:whitespace-normal [&_td]:break-words [&_td]:min-w-[120px]">
             <TableHeader className="sticky top-0 bg-muted/50 z-10 shadow-sm">
               <TableRow>
                 <TableHead>Date</TableHead>
@@ -2193,11 +2047,11 @@ function ReviewAccountGroup({
                   className={rowIsFocused ? "bg-accent ring-2 ring-inset ring-ring" : undefined}
                   title={rowTitle}
                 >
-                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.entry_date)}>{txn.entry_date || "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.transaction_type)}>{txn.transaction_type || "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.transaction_number)}>{txn.transaction_number || "-"}</TableCell>
-                  <TableCell className="whitespace-nowrap" title={formatReviewText(txn.name)}>{txn.name || "-"}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={txn.memo || ""}>{txn.memo || "-"}</TableCell>
+                  <TableCell className="" title={formatReviewText(txn.entry_date)}>{txn.entry_date || "-"}</TableCell>
+                  <TableCell className="" title={formatReviewText(txn.transaction_type)}>{txn.transaction_type || "-"}</TableCell>
+                  <TableCell className="" title={formatReviewText(txn.transaction_number)}>{txn.transaction_number || "-"}</TableCell>
+                  <TableCell className="" title={formatReviewText(txn.name)}>{txn.name || "-"}</TableCell>
+                  <TableCell className="max-w-[200px]" title={txn.memo || ""}>{txn.memo || "-"}</TableCell>
                   <TableCell className="min-w-[220px] max-w-[260px]" title={currentTargetTitle}>
                     <AccountValue
                       number={
@@ -2233,7 +2087,7 @@ function ReviewAccountGroup({
                       <span className="text-muted-foreground">No change</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
+                  <TableCell className="text-right">
                     <ConfidenceValue
                       suggestion={suggestion}
                       review={previewReview}
@@ -2248,9 +2102,9 @@ function ReviewAccountGroup({
                     />
                     {txn.split_account_number ? `${txn.split_account_number} · ${txn.split_account_name || ""}` : "-"}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.debit)}>{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.credit)}>{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap" title={formatOptionalMoney(txn.balance_after)}>{txn.balance_after == null ? "-" : formatMoney(txn.balance_after)}</TableCell>
+                  <TableCell className="text-right" title={formatOptionalMoney(txn.debit)}>{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
+                  <TableCell className="text-right" title={formatOptionalMoney(txn.credit)}>{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
+                  <TableCell className="text-right" title={formatOptionalMoney(txn.balance_after)}>{txn.balance_after == null ? "-" : formatMoney(txn.balance_after)}</TableCell>
                   <TableCell className="text-right" title={formatReviewMarker(suggestion, previewReview)}>
                     <ReviewStatusStack
                       suggestion={suggestion}
@@ -2617,7 +2471,7 @@ function AccountSuggestionReview({
             Test row {emptyCurrentTargetRowNumber} has a blank transaction Name/payee and an empty current target. AI suggests {emptyCurrentTargetSuggestionLabel} from the memo/account context, but still requires manual review.
           </div>
           {emptyCurrentTargetMemo && (
-            <div className="mt-1 truncate font-mono text-xs" title={emptyCurrentTargetMemo}>
+            <div className="mt-1 font-mono text-xs" title={emptyCurrentTargetMemo}>
               Memo: {emptyCurrentTargetMemo}
             </div>
           )}
@@ -2643,7 +2497,7 @@ function AccountSuggestionReview({
       )}
 
       {!isLoading && previewRows.length > 0 && (
-        <Table containerClassName="max-h-[520px] rounded-md border">
+        <Table containerClassName="max-h-[520px] rounded-md border" className="[&_td]:whitespace-normal [&_td]:break-words [&_td]:min-w-[120px]">
             <TableHeader className="sticky top-0 z-10 bg-muted/50 shadow-sm">
               <TableRow>
                 <TableHead>Row</TableHead>
@@ -2704,7 +2558,7 @@ function AccountSuggestionReview({
 
                 return (
                 <TableRow key={`${suggestion.row_number}-${suggestion.target_field}`} title={rowTitle}>
-                  <TableCell className="whitespace-nowrap font-medium" title={`Row ${suggestion.row_number}`}>
+                  <TableCell className="font-medium" title={`Row ${suggestion.row_number}`}>
                     <div>{suggestion.row_number}</div>
                     {wasGeminiReviewed && (
                       <Badge variant="outline" className="mt-1 border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
@@ -2733,7 +2587,7 @@ function AccountSuggestionReview({
                     )}
                   </TableCell>
                   <TableCell className="max-w-[260px]" title={transactionTitle}>
-                    <div className="truncate" title={transactionTitle}>
+                    <div className="" title={transactionTitle}>
                       {suggestion.name || suggestion.memo || suggestion.transaction_type || "-"}
                     </div>
                     <div className="text-xs text-muted-foreground" title={transactionTitle}>
@@ -2742,7 +2596,7 @@ function AccountSuggestionReview({
                   </TableCell>
                   <TableCell className="max-w-[360px]" title={descriptionTitle}>
                     <div
-                      className="truncate text-sm"
+                      className="text-sm"
                       title={descriptionTitle}
                     >
                       {suggestion.memo || suggestion.name || "-"}
@@ -2753,14 +2607,14 @@ function AccountSuggestionReview({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-right whitespace-nowrap font-medium" title={formatMoney(suggestion.amount)}>
+                  <TableCell className="text-right font-medium" title={formatMoney(suggestion.amount)}>
                     {formatMoney(suggestion.amount)}
                   </TableCell>
-                  <TableCell className="max-w-[240px] truncate" title={currentTargetTitle}>
+                  <TableCell className="max-w-[240px]" title={currentTargetTitle}>
                     {currentTargetTitle}
                   </TableCell>
                   <TableCell className="max-w-[260px]" title={suggestedTargetTitle}>
-                    <div className="truncate" title={suggestedTargetTitle}>
+                    <div className="" title={suggestedTargetTitle}>
                       {suggestedTargetTitle}
                     </div>
                     {wasAiSuggestedManualReview && (
@@ -2899,7 +2753,7 @@ function DraggableWorkbookPreview({
         <div className="flex min-w-0 items-center gap-2">
           <Move className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{filename}</p>
+            <p className="text-sm font-medium">{filename}</p>
             <p className="text-xs text-muted-foreground">
               {rows.length.toLocaleString("en-US")} workbook rows
             </p>
@@ -2916,7 +2770,7 @@ function DraggableWorkbookPreview({
         </Button>
       </div>
 
-      <Table containerClassName="overflow-auto">
+      <Table containerClassName="overflow-auto" className="[&_td]:whitespace-normal [&_td]:break-words [&_td]:min-w-[120px]">
           <TableHeader className="sticky top-0 z-10 bg-background shadow-sm">
             <TableRow>
               <TableHead>Date</TableHead>
@@ -2941,15 +2795,15 @@ function DraggableWorkbookPreview({
                   row.txn.account_review
                 )}
               >
-                <TableCell className="whitespace-nowrap">{row.txn.entry_date || "-"}</TableCell>
-                <TableCell className="max-w-[220px] truncate">
+                <TableCell className="">{row.txn.entry_date || "-"}</TableCell>
+                <TableCell className="max-w-[220px]">
                   {formatAccountLabel(row.account)}
                 </TableCell>
-                <TableCell className="whitespace-nowrap">{row.txn.transaction_type || "-"}</TableCell>
-                <TableCell className="max-w-[220px] truncate" title={row.txn.name || ""}>
+                <TableCell className="">{row.txn.transaction_type || "-"}</TableCell>
+                <TableCell className="max-w-[220px]" title={row.txn.name || ""}>
                   {row.txn.name || "-"}
                 </TableCell>
-                <TableCell className="max-w-[260px] truncate" title={row.txn.memo || ""}>
+                <TableCell className="max-w-[260px]" title={row.txn.memo || ""}>
                   {row.txn.memo || "-"}
                 </TableCell>
                 <TableCell className="min-w-[220px] max-w-[260px]">
@@ -2987,10 +2841,10 @@ function DraggableWorkbookPreview({
                     <span className="text-muted-foreground">No change</span>
                   )}
                 </TableCell>
-                <TableCell className="text-right whitespace-nowrap">
+                <TableCell className="text-right">
                   {formatMoney(row.txn.amount)}
                 </TableCell>
-                <TableCell className="text-right whitespace-nowrap">
+                <TableCell className="text-right">
                   <ConfidenceValue
                     suggestion={row.suggestion ?? undefined}
                     review={row.txn.account_review}
@@ -3063,7 +2917,7 @@ function AccountValue({
 }) {
   return (
     <span
-      className={`min-w-0 truncate ${muted ? "text-muted-foreground" : "text-foreground"}`}
+      className={`min-w-0 ${muted ? "text-muted-foreground" : "text-foreground"}`}
       title={formatSuggestionAccount(number, name)}
     >
       {formatSuggestionAccount(number, name)}
@@ -3099,7 +2953,7 @@ function SuggestedAccountValue({
   return (
     <div className="min-w-0">
       <span
-        className="block min-w-0 truncate font-medium text-blue-700 dark:text-blue-300"
+        className="block min-w-0 font-medium text-blue-700 dark:text-blue-300"
         title={formatSuggestionAccount(
           suggestedNumber,
           suggestedName

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, RefreshCw, Mail, BellRing, Settings2 } from "lucide-react";
+import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, RefreshCw, Mail, BellRing, Settings2, CheckCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ import { useNavigate } from "react-router-dom";
 import ThemeSwitch from "./ThemeSwitch";
 import { useGlobalSearch } from "@/hooks/useSearch";
 import { useAuth } from "@/lib/AuthContext";
-import { useNotifications, useUnreadNotificationCount, useMarkNotificationAsRead, useClearReadNotifications } from "@/hooks/useNotifications";
+import { useNotifications, useUnreadNotificationCount, useMarkNotificationAsRead, useMarkAllNotificationsAsRead, useClearReadNotifications } from "@/hooks/useNotifications";
 
 
 export default function TopBar() {
@@ -70,6 +70,7 @@ export default function TopBar() {
   const { data: notifications = [] } = useNotifications();
   const { data: unreadCountData } = useUnreadNotificationCount();
   const { mutate: markAsRead } = useMarkNotificationAsRead();
+  const { mutate: markAllAsRead, isPending: isMarkingAll } = useMarkAllNotificationsAsRead();
   const { mutate: clearRead } = useClearReadNotifications();
   const unreadCount = unreadCountData?.count || 0;
   const hasReadNotifications = notifications.some(n => n.is_read);
@@ -248,19 +249,27 @@ export default function TopBar() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 p-0 rounded-xl overflow-hidden">
+            <DropdownMenuContent align="end" className="w-[420px] p-0 rounded-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 bg-muted/30 border-b">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">Notifications</span>
                   {unreadCount > 0 && (
-                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">{unreadCount} new</span>
+                    <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap">{unreadCount} new</span>
                   )}
                 </div>
-                {hasReadNotifications && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground hover:bg-muted" onClick={(e) => { e.preventDefault(); e.stopPropagation(); clearRead(); }}>
-                    Clear
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-colors whitespace-nowrap" onClick={(e) => { e.preventDefault(); e.stopPropagation(); markAllAsRead(); }} disabled={isMarkingAll}>
+                      <CheckCheck className={`h-3.5 w-3.5 mr-1 ${isMarkingAll ? "animate-pulse" : ""}`} />
+                      Mark all as read
+                    </Button>
+                  )}
+                  {hasReadNotifications && (
+                    <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors whitespace-nowrap" onClick={(e) => { e.preventDefault(); e.stopPropagation(); clearRead(); }}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="max-h-[300px] overflow-y-auto">
                 {notifications.length === 0 ? (
@@ -280,13 +289,13 @@ export default function TopBar() {
                           navigate(notification.link_url);
                         }
                       }}
-                      className={`p-4 border-b last:border-0 cursor-pointer transition-colors ${
+                      className={`p-4 border-b last:border-0 cursor-pointer transition-colors duration-500 ${
                         !notification.is_read ? "bg-blue-50/50 hover:bg-blue-50 dark:bg-blue-900/10 dark:hover:bg-blue-900/20" : "hover:bg-muted/50"
                       }`}
                     >
                       <div className="flex gap-3">
                         <div className="flex-1 space-y-1">
-                          <p className={`text-sm leading-snug ${!notification.is_read ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>
+                          <p className={`text-sm leading-snug transition-colors duration-500 ${!notification.is_read ? "font-semibold text-foreground" : "font-medium text-muted-foreground"}`}>
                             {notification.title}
                           </p>
                           <p className="text-xs text-muted-foreground line-clamp-2">
@@ -296,9 +305,7 @@ export default function TopBar() {
                             {new Date(notification.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
-                        {!notification.is_read && (
-                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 shrink-0 shadow-sm" />
-                        )}
+                        <div className={`w-2 h-2 rounded-full bg-blue-500 mt-1 shrink-0 shadow-sm transition-all duration-500 ${!notification.is_read ? "opacity-100 scale-100" : "opacity-0 scale-0"}`} />
                       </div>
                     </div>
                   ))

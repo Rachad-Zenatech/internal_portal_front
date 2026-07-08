@@ -29,6 +29,26 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
+function AutoResizeTextarea({ value, onChange, className }: { value: string; onChange: (val: string) => void; className?: string }) {
+  return (
+    <textarea
+      rows={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className={cn(
+        "resize-none overflow-hidden block w-full bg-transparent p-1 focus:outline-none focus:ring-1 focus:ring-primary rounded-md min-h-[30px]",
+        className
+      )}
+      ref={(el) => {
+        if (el) {
+          el.style.height = "auto";
+          el.style.height = `${el.scrollHeight}px`;
+        }
+      }}
+    />
+  );
+}
+
 const fmt = (n: number | null | undefined): string =>
   n == null ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: 2 });
 
@@ -733,7 +753,7 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
             )}
             {cols.includes("Paid To") && (
               <TableCell className="min-w-[200px] whitespace-normal break-words">
-                <textarea rows={1} value={r.paid_to ?? ""} onChange={e => onUpdate(r._id, "paid_to", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+                <AutoResizeTextarea value={r.paid_to ?? ""} onChange={val => onUpdate(r._id, "paid_to", val)} className={inputCls} />
               </TableCell>
             )}
             {cols.includes("Reference") && (
@@ -810,7 +830,7 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
             )}
             {cols.includes("Received From") && (
               <TableCell className="min-w-[200px] whitespace-normal break-words">
-                <textarea rows={1} value={r.received_from ?? ""} onChange={e => onUpdate(r._id, "received_from", e.target.value)} className={cn(inputCls, "resize-none overflow-hidden h-auto")} onInput={(e) => { e.currentTarget.style.height = "auto"; e.currentTarget.style.height = e.currentTarget.scrollHeight + "px"; }} />
+                <AutoResizeTextarea value={r.received_from ?? ""} onChange={val => onUpdate(r._id, "received_from", val)} className={inputCls} />
               </TableCell>
             )}
             {cols.includes("Reference") && (

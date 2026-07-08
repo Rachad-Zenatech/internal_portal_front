@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { BankAccount, BankAccountCreate } from "../../types/bank";
 import { useBankAccounts, useCompanies, useBanks, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from "../../hooks/useBank";
-import { Plus, Edit2, Trash2, Search, AlertTriangle } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,29 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Select as UISelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+} from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from "@tanstack/react-table";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Request failed";
@@ -24,8 +46,6 @@ export default function BankAccountSettings() {
   const deleteMutation = useDeleteBankAccount();
 
   const isLoading = isLoadingAccounts || isLoadingCompanies || isLoadingBanks;
-
-  const [searchQuery, setSearchQuery] = useState("");
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -82,12 +102,84 @@ export default function BankAccountSettings() {
     setAccountToDelete(null);
   };
 
-  const filteredAccounts = accounts.filter(a => 
-    a.company_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    a.bank_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    a.account_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (a.bank_type || "").toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  const columns = useMemo<ColumnDef<BankAccount>[]>(() => [
+    {
+      accessorKey: "company_name",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Company
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-medium">{row.original.company_name}</span>,
+    },
+    {
+      accessorKey: "bank_name",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Bank
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span>{row.original.bank_name}</span>,
+    },
+    {
+      accessorKey: "account_number",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Account Number
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-mono text-sm text-slate-600">{row.original.account_number}</span>,
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => (
+        <div className="text-right space-x-2">
+          <Button variant="outline" size="sm" onClick={() => handleOpenModal(row.original)}>
+            <Edit2 size={14} className="mr-1" /> Edit
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(row.original)}>
+            <Trash2 size={14} className="mr-1" /> Remove
+          </Button>
+        </div>
+      ),
+    }
+  ], []);
+
+  const table = useReactTable({
+    data: accounts,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const company = (row.getValue("company_name") as string)?.toLowerCase() || "";
+      const bank = (row.getValue("bank_name") as string)?.toLowerCase() || "";
+      const account = (row.getValue("account_number") as string)?.toLowerCase() || "";
+      const type = (row.original.bank_type)?.toLowerCase() || "";
+      return company.includes(search) || bank.includes(search) || account.includes(search) || type.includes(search);
+    },
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      globalFilter,
+    },
+    onGlobalFilterChange: setGlobalFilter,
+  });
 
   return (
     <div className="w-full space-y-8 pb-8 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
@@ -98,16 +190,6 @@ export default function BankAccountSettings() {
           <p className="text-slate-500 mt-1">Manage bank accounts linked to your companies and banks.</p>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <Input 
-              type="text" 
-              placeholder="Search accounts..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-64"
-            />
-          </div>
           <Button onClick={() => handleOpenModal()} className="gap-2">
             <Plus size={16} /> Add Account
           </Button>
@@ -115,48 +197,163 @@ export default function BankAccountSettings() {
       </div>
 
       {/* DATA TABLE */}
-      <Card className="overflow-hidden p-0">
-        <Table className="m-0 relative" containerClassName="max-h-[calc(100vh-16rem)]">
-          <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-sm">
-            <TableRow className="bg-slate-50 hover:bg-slate-50 border-t-0">
-                <TableHead className="h-12 w-[250px]">Company</TableHead>
-                <TableHead className="h-12 w-[250px]">Bank</TableHead>
-                <TableHead className="h-12">Account Number</TableHead>
-                <TableHead className="text-right h-12 w-[150px]">Actions</TableHead>
-              </TableRow>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <Input 
+              type="text" 
+              placeholder="Search accounts..." 
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="pl-10 w-64 sm:w-80"
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    >
+                      {column.id.replace(/_/g, " ")}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <Card className="overflow-hidden p-0">
+          <Table className="m-0 relative" containerClassName="max-h-[calc(100vh-16rem)]">
+            <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-sm">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="bg-slate-50 hover:bg-slate-50 border-t-0">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="h-12">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8">Loading...</TableCell></TableRow>
-              ) : filteredAccounts.length === 0 ? (
+                <TableRow><TableCell colSpan={columns.length} className="text-center py-8">Loading...</TableCell></TableRow>
+              ) : table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="p-12 text-center border-b-0">
+                  <TableCell colSpan={columns.length} className="p-12 text-center border-b-0">
                     <div className="flex flex-col items-center justify-center">
                       <h3 className="text-lg font-semibold text-foreground">No data</h3>
                       <p className="text-sm text-muted-foreground mt-1">No bank accounts found.</p>
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : (
-                filteredAccounts.map((a, index) => (
-                  <TableRow key={a.id} className={index === filteredAccounts.length - 1 ? "border-b-0" : ""}>
-                    <TableCell className="font-medium">{a.company_name}</TableCell>
-                    <TableCell>{a.bank_name}</TableCell>
-                    <TableCell className="font-mono text-sm text-slate-600">{a.account_number}</TableCell>
-                    <TableCell className="text-right space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleOpenModal(a)}>
-                        <Edit2 size={14} className="mr-1" /> Edit
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(a)}>
-                        <Trash2 size={14} className="mr-1" /> Remove
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
               )}
             </TableBody>
           </Table>
-      </Card>
+        </Card>
+
+        {/* PAGINATION */}
+        <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
+          <div className="text-sm text-muted-foreground">
+            {table.getFilteredRowModel().rows.length} total account(s).
+          </div>
+          <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm font-medium">Rows per page</p>
+              <UISelect
+                value={`${table.getState().pagination.pageSize}`}
+                onValueChange={(value) => {
+                  table.setPageSize(Number(value));
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px]">
+                  <SelectValue placeholder={table.getState().pagination.pageSize} />
+                </SelectTrigger>
+                <SelectContent side="top">
+                  {[10, 20, 30, 40, 50].map((pageSize) => (
+                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                      {pageSize}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </UISelect>
+            </div>
+            <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount() || 1}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                className="hidden h-8 w-8 p-0 lg:flex"
+                onClick={() => table.setPageIndex(0)}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <span className="sr-only">Go to first page</span>
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 w-8 p-0"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <span className="sr-only">Go to previous page</span>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 w-8 p-0"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <span className="sr-only">Go to next page</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden h-8 w-8 p-0 lg:flex"
+                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                disabled={!table.getCanNextPage()}
+              >
+                <span className="sr-only">Go to last page</span>
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* EDIT MODAL */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

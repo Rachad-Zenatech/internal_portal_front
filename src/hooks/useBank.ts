@@ -224,6 +224,33 @@ export function useDeleteStatement() {
     onSuccess:  () => qc.invalidateQueries({ queryKey: ["statements"] }),
   });
 }
+
+export function useBankStatementQueue(limit: number = 20) {
+  return useQuery({
+    queryKey: ["bankStatementQueue", limit],
+    queryFn: () => statementService.getQueue(limit),
+    refetchInterval: (query) => {
+      const data = query.state?.data;
+      if (!data || !data.jobs) return 5000;
+      const hasActiveJobs = data.jobs.some(
+        (job: any) => job.status === "queued" || job.status === "queued_local" || job.status === "processing" || job.status === "cancel_requested"
+      );
+      return hasActiveJobs ? 5000 : false;
+    },
+  });
+}
+
+export function useCancelBankStatementQueueJob() {
+  return useMutation<{ message: string; canceled: boolean }, Error, { jobId: number }>({
+    mutationFn: ({ jobId }) => statementService.cancelQueueJob(jobId),
+  });
+}
+
+export function useDeleteBankStatementQueueJob() {
+  return useMutation<{ message: string; deleted: boolean }, Error, { jobId: number }>({
+    mutationFn: ({ jobId }) => statementService.deleteQueueJob(jobId),
+  });
+}
  
 export function useUploadStatement() {
   const qc = useQueryClient();

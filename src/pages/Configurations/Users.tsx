@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -28,12 +29,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Select as UISelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, KeyRound, ArrowUpDown, Power, Ban, Search } from "lucide-react";
+import { Plus, Edit, KeyRound, ArrowUpDown, Power, Ban, Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/AuthContext";
 import type { User } from "@/lib/AuthContext";
 import { useNavigate } from "react-router-dom";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+} from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from "@tanstack/react-table";
 
 export default function Users() {
   const { canAccessNavigationItem } = useAuth();
@@ -55,49 +78,10 @@ export default function Users() {
     is_super_admin: false,
   });
 
-  const { data: users, isLoading } = useQuery({
+  const { data: users = [], isLoading } = useQuery({
     queryKey: ["users"],
     queryFn: () => apiClient.get<User[]>("/api/configuration/users"),
   });
-
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'full_name', direction: 'asc' });
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const sortedUsers = useMemo(() => {
-    if (!users) return [];
-    let sortableItems = [...users];
-
-    if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      sortableItems = sortableItems.filter(u => 
-        (u.full_name && u.full_name.toLowerCase().includes(lowerQuery)) || 
-        u.email.toLowerCase().includes(lowerQuery)
-      );
-    }
-
-    if (sortConfig !== null) {
-      sortableItems.sort((a: any, b: any) => {
-        let aValue = a[sortConfig.key] || "";
-        let bValue = b[sortConfig.key] || "";
-        
-        // Handle boolean sorting natively
-        if (typeof aValue === 'boolean') aValue = aValue ? 1 : 0;
-        if (typeof bValue === 'boolean') bValue = bValue ? 1 : 0;
-        
-        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortableItems;
-  }, [users, sortConfig, searchQuery]);
-
-  const requestSort = (key: string) => {
-    setSortConfig({ key, direction: 'asc' });
-  };
 
   const createMutation = useMutation({
     mutationFn: (data: typeof formData) => apiClient.post("/api/configuration/users", data),
@@ -201,6 +185,135 @@ export default function Users() {
     setIsDialogOpen(true);
   };
 
+  const [sorting, setSorting] = useState<SortingState>([{ id: "full_name", desc: false }]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  const columns = useMemo<ColumnDef<User>[]>(() => [
+    {
+      accessorKey: "full_name",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Name
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-medium">{row.original.full_name || "-"}</span>,
+    },
+    {
+      accessorKey: "email",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Email
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span>{row.original.email}</span>,
+    },
+    {
+      accessorKey: "is_active",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Status
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const isActive = (row.original as any).is_active ?? true;
+        return isActive ? (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400">Active</Badge>
+        ) : (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400">Inactive</Badge>
+        );
+      },
+    },
+    {
+      id: "roles",
+      accessorFn: (row) => row.is_super_admin ? "Super Admin" : ((row as any).assigned_roles?.map((r: any) => r.name).join(", ") || ""),
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Roles
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const user = row.original as any;
+        if (user.is_super_admin) {
+          return <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 mb-1 mr-1">Super Admin</Badge>;
+        }
+        if (user.assigned_roles && user.assigned_roles.length > 0) {
+          return (
+            <div className="flex flex-wrap gap-1">
+              {user.assigned_roles.map((role: any) => (
+                <Badge key={role.id} variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400">
+                  {role.name}
+                </Badge>
+              ))}
+            </div>
+          );
+        }
+        return <span className="text-slate-500 text-sm italic">No Roles</span>;
+      },
+    },
+    {
+      id: "actions",
+      header: () => <div className="text-right">Actions</div>,
+      cell: ({ row }) => {
+        const user = row.original;
+        const isActive = (user as any).is_active ?? true;
+        return (
+          <div className="text-right space-x-2">
+            {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "VIEW") && (
+              <Button variant="outline" size="sm" onClick={() => navigate(`/configurations/user-role-assignment?userId=${user.id}`)}>
+                <KeyRound className="h-4 w-4 mr-1" /> Roles
+              </Button>
+            )}
+            {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
+              <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
+                <Edit className="h-4 w-4 text-blue-600" />
+              </Button>
+            )}
+            {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
+              <Button variant="ghost" size="icon" onClick={() => {
+                setUserToDeactivate(user);
+                setIsDeactivateDialogOpen(true);
+              }} title={isActive ? "Deactivate" : "Activate"}>
+                {isActive ? <Ban className="h-4 w-4 text-orange-600" /> : <Power className="h-4 w-4 text-green-600" />}
+              </Button>
+            )}
+          </div>
+        );
+      },
+    }
+  ], [canAccessNavigationItem, navigate]);
+
+  const table = useReactTable({
+    data: users,
+    columns,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const name = (row.getValue("full_name") as string)?.toLowerCase() || "";
+      const email = (row.getValue("email") as string)?.toLowerCase() || "";
+      const roles = (row.getValue("roles") as string)?.toLowerCase() || "";
+      return name.includes(search) || email.includes(search) || roles.includes(search);
+    },
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      globalFilter,
+    },
+    onGlobalFilterChange: setGlobalFilter,
+  });
+
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -209,15 +322,6 @@ export default function Users() {
           <p className="text-sm text-slate-500 dark:text-zinc-400">Manage system users and their access.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-zinc-400" />
-            <Input 
-              placeholder="Search users..." 
-              className="pl-9 bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 focus-visible:ring-blue-500/30"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
           {canAccessNavigationItem("CONFIG_USERS", "CREATE") && (
             <Button onClick={openCreateDialog} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Add User
@@ -226,94 +330,158 @@ export default function Users() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm flex flex-col">
-        <Table>
-          <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50">
-            <TableRow>
-              <TableHead onClick={() => requestSort("full_name")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                <div className="flex items-center">Name <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-              </TableHead>
-              <TableHead onClick={() => requestSort("email")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                <div className="flex items-center">Email <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-              </TableHead>
-              <TableHead onClick={() => requestSort("is_active")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                <div className="flex items-center">Status <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-              </TableHead>
-              <TableHead onClick={() => requestSort("assigned_roles")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                <div className="flex items-center">Roles <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-              </TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-slate-500">Loading users...</TableCell>
-              </TableRow>
-            ) : sortedUsers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-slate-500">No users found.</TableCell>
-              </TableRow>
-            ) : (
-              sortedUsers.map((user: any) => (
-                <TableRow key={user.id}>
-                  <TableCell className="font-medium">{user.full_name || "-"}</TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    {user.is_active ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400">Active</Badge>
-                    ) : (
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400">Inactive</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {user.is_super_admin ? (
-                      <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 mb-1 mr-1">Super Admin</Badge>
-                    ) : user.assigned_roles && user.assigned_roles.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {user.assigned_roles.map((role: any) => (
-                          <Badge key={role.id} variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400">
-                            {role.name}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-500 text-sm italic">No Roles</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right space-x-2">
-                    {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "VIEW") && (
-                      <Button variant="outline" size="sm" onClick={() => navigate(`/configurations/user-role-assignment?userId=${user.id}`)}>
-                        <KeyRound className="h-4 w-4 mr-1" /> Roles
-                      </Button>
-                    )}
-                    {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
-                      <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
-                        <Edit className="h-4 w-4 text-blue-600" />
-                      </Button>
-                    )}
-                    {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
-                      <Button variant="ghost" size="icon" onClick={() => {
-                        setUserToDeactivate(user);
-                        setIsDeactivateDialogOpen(true);
-                      }} title={user.is_active ? "Deactivate" : "Activate"}>
-                        {user.is_active ? <Ban className="h-4 w-4 text-orange-600" /> : <Power className="h-4 w-4 text-green-600" />}
-                      </Button>
-                    )}
-                    {/* {canAccessNavigationItem("CONFIG_USERS", "DELETE") && (
-                      <Button variant="ghost" size="icon" onClick={() => {
-                        setUserToDelete(user);
-                        setIsDeleteDialogOpen(true);
-                      }}>
-                        <Trash2 className="h-4 w-4 text-red-600" />
-                      </Button>
-                    )} */}
-                  </TableCell>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-zinc-400" />
+            <Input 
+              placeholder="Search users..." 
+              className="pl-9 w-64 sm:w-80 bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 focus-visible:ring-blue-500/30"
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="ml-auto">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                    >
+                      {column.id.replace(/_/g, " ")}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <Card className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm flex flex-col p-0">
+          <Table className="m-0 relative" containerClassName="max-h-[calc(100vh-16rem)]">
+            <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50 sticky top-0 z-10 shadow-sm border-b">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id} className="border-t-0">
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="h-12">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="text-center py-8 text-slate-500">Loading users...</TableCell>
+                </TableRow>
+              ) : table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={columns.length} className="text-center py-8 text-slate-500">No users found.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </Card>
+
+        {/* PAGINATION */}
+        <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
+          <div className="text-sm text-muted-foreground">
+            {table.getFilteredRowModel().rows.length} total user(s).
+          </div>
+          <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+            <div className="flex items-center space-x-2">
+              <p className="text-sm font-medium">Rows per page</p>
+              <UISelect
+                value={`${table.getState().pagination.pageSize}`}
+                onValueChange={(value) => {
+                  table.setPageSize(Number(value));
+                }}
+              >
+                <SelectTrigger className="h-8 w-[70px]">
+                  <SelectValue placeholder={table.getState().pagination.pageSize} />
+                </SelectTrigger>
+                <SelectContent side="top">
+                  {[10, 20, 30, 40, 50].map((pageSize) => (
+                    <SelectItem key={pageSize} value={`${pageSize}`}>
+                      {pageSize}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </UISelect>
+            </div>
+            <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount() || 1}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                className="hidden h-8 w-8 p-0 lg:flex"
+                onClick={() => table.setPageIndex(0)}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <span className="sr-only">Go to first page</span>
+                <ChevronsLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 w-8 p-0"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <span className="sr-only">Go to previous page</span>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-8 w-8 p-0"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <span className="sr-only">Go to next page</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="hidden h-8 w-8 p-0 lg:flex"
+                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                disabled={!table.getCanNextPage()}
+              >
+                <span className="sr-only">Go to last page</span>
+                <ChevronsRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

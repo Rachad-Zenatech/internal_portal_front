@@ -3,68 +3,44 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Search, ArrowUpDown, Loader2, ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Search, ArrowUpDown, Loader2, ShieldAlert, CheckCircle2, XCircle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  Select as UISelect,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  getPaginationRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+} from "@tanstack/react-table";
+import type {
+  ColumnDef,
+  SortingState,
+  ColumnFiltersState,
+  VisibilityState,
+} from "@tanstack/react-table";
 
 export default function AuditLog() {
-  const { data: auditLogs, isLoading: isAuditLoading } = useQuery({
+  const { data: auditLogs = [], isLoading: isAuditLoading } = useQuery({
     queryKey: ["auditLogs"],
     queryFn: () => apiClient.get<any[]>("/api/audit-logs"),
   });
 
-  const { data: loginActivities, isLoading: isLoginLoading } = useQuery({
+  const { data: loginActivities = [], isLoading: isLoginLoading } = useQuery({
     queryKey: ["loginActivities"],
     queryFn: () => apiClient.get<any[]>("/api/login-activities"),
   });
-
-  // Audit Logs State
-  const [auditSearchQuery, setAuditSearchQuery] = useState("");
-  const [auditSortConfig, setAuditSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
-
-  // Login Activities State
-  const [loginSearchQuery, setLoginSearchQuery] = useState("");
-  const [loginSortConfig, setLoginSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
-
-  // Audit Logs Logic
-  const sortedAuditLogs = useMemo(() => {
-    if (!auditLogs) return [];
-    
-    let filtered = auditLogs.filter(l => 
-      (l.actor_name || "").toLowerCase().includes(auditSearchQuery.toLowerCase()) ||
-      (l.action || "").toLowerCase().includes(auditSearchQuery.toLowerCase()) ||
-      (l.entity_type || "").toLowerCase().includes(auditSearchQuery.toLowerCase())
-    );
-
-    if (auditSortConfig) {
-      filtered.sort((a: any, b: any) => {
-        let valA = a[auditSortConfig.key];
-        let valB = b[auditSortConfig.key];
-        
-        if (auditSortConfig.key === 'created_at') {
-          valA = new Date(valA).getTime();
-          valB = new Date(valB).getTime();
-        }
-
-        if (valA < valB) {
-          return auditSortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (valA > valB) {
-          return auditSortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    return filtered;
-  }, [auditLogs, auditSortConfig, auditSearchQuery]);
-
-  const requestAuditSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (auditSortConfig && auditSortConfig.key === key && auditSortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setAuditSortConfig({ key, direction });
-  };
 
   const getActionBadgeColor = (action: string) => {
     const act = action.toUpperCase();
@@ -74,46 +50,223 @@ export default function AuditLog() {
     return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-zinc-800 dark:text-slate-300';
   };
 
-  // Login Activities Logic
-  const sortedLoginActivities = useMemo(() => {
-    if (!loginActivities) return [];
-    
-    let filtered = loginActivities.filter(l => 
-      (l.user_full_name || "").toLowerCase().includes(loginSearchQuery.toLowerCase()) ||
-      (l.email || "").toLowerCase().includes(loginSearchQuery.toLowerCase()) ||
-      (l.ip_address || "").toLowerCase().includes(loginSearchQuery.toLowerCase()) ||
-      (l.failure_reason || "").toLowerCase().includes(loginSearchQuery.toLowerCase())
-    );
+  // ---------------------------------------------------------------------------
+  // AUDIT LOGS TABLE
+  // ---------------------------------------------------------------------------
+  const [auditSorting, setAuditSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
+  const [auditColumnFilters, setAuditColumnFilters] = useState<ColumnFiltersState>([]);
+  const [auditColumnVisibility, setAuditColumnVisibility] = useState<VisibilityState>({});
+  const [auditGlobalFilter, setAuditGlobalFilter] = useState("");
 
-    if (loginSortConfig) {
-      filtered.sort((a: any, b: any) => {
-        let valA = a[loginSortConfig.key];
-        let valB = b[loginSortConfig.key];
-        
-        if (loginSortConfig.key === 'created_at') {
-          valA = new Date(valA).getTime();
-          valB = new Date(valB).getTime();
-        }
+  const auditColumns = useMemo<ColumnDef<any>[]>(() => [
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Date & Time
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-medium">{new Date(row.original.created_at).toLocaleString()}</span>,
+    },
+    {
+      accessorKey: "actor_name",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Actor
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-slate-900 dark:text-slate-100">{row.original.actor_name || 'System'}</span>
+          {row.original.actor_email && <span className="text-xs text-slate-500">{row.original.actor_email}</span>}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "action",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Action
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <Badge variant="outline" className={getActionBadgeColor(row.original.action)}>
+          {row.original.action}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "entity_type",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Entity Type
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.entity_type}</span>,
+    },
+    {
+      accessorKey: "entity_id",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Entity ID
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <span className="font-mono text-xs text-slate-500 max-w-[150px] truncate block" title={row.original.entity_id}>
+          {row.original.entity_id}
+        </span>
+      ),
+    },
+  ], []);
 
-        if (valA < valB) {
-          return loginSortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (valA > valB) {
-          return loginSortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    return filtered;
-  }, [loginActivities, loginSortConfig, loginSearchQuery]);
+  const auditTable = useReactTable({
+    data: auditLogs,
+    columns: auditColumns,
+    onSortingChange: setAuditSorting,
+    onColumnFiltersChange: setAuditColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setAuditColumnVisibility,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const actor = (row.getValue("actor_name") as string)?.toLowerCase() || "";
+      const action = (row.getValue("action") as string)?.toLowerCase() || "";
+      const entity = (row.getValue("entity_type") as string)?.toLowerCase() || "";
+      return actor.includes(search) || action.includes(search) || entity.includes(search);
+    },
+    state: {
+      sorting: auditSorting,
+      columnFilters: auditColumnFilters,
+      columnVisibility: auditColumnVisibility,
+      globalFilter: auditGlobalFilter,
+    },
+    onGlobalFilterChange: setAuditGlobalFilter,
+  });
 
-  const requestLoginSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (loginSortConfig && loginSortConfig.key === key && loginSortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setLoginSortConfig({ key, direction });
-  };
+
+  // ---------------------------------------------------------------------------
+  // LOGIN ACTIVITIES TABLE
+  // ---------------------------------------------------------------------------
+  const [loginSorting, setLoginSorting] = useState<SortingState>([{ id: "created_at", desc: true }]);
+  const [loginColumnFilters, setLoginColumnFilters] = useState<ColumnFiltersState>([]);
+  const [loginColumnVisibility, setLoginColumnVisibility] = useState<VisibilityState>({});
+  const [loginGlobalFilter, setLoginGlobalFilter] = useState("");
+
+  const loginColumns = useMemo<ColumnDef<any>[]>(() => [
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold w-[200px] justify-start" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Date & Time
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-medium whitespace-nowrap">{new Date(row.original.created_at).toLocaleString()}</span>,
+    },
+    {
+      accessorKey: "email",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Account
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-slate-900 dark:text-slate-100">{row.original.user_full_name || 'Unknown'}</span>
+          <span className="text-xs text-slate-500">{row.original.email}</span>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "success",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Status
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const log = row.original;
+        return log.success ? (
+          <div className="flex flex-col gap-1">
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 gap-1.5 w-fit">
+              <CheckCircle2 className="h-3 w-3" />
+              Success
+            </Badge>
+            {log.logout_at && (
+              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
+                Logged out: {new Date(log.logout_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-400 gap-1.5 w-fit">
+              <XCircle className="h-3 w-3" />
+              Failed
+            </Badge>
+            <span className="text-xs text-red-600 dark:text-red-400 font-medium truncate max-w-[200px]" title={log.failure_reason}>
+              {log.failure_reason}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "ip_address",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          IP Address
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.ip_address || 'N/A'}</span>,
+    },
+    {
+      accessorKey: "user_agent",
+      header: () => <div className="font-semibold w-[300px]">User Agent</div>,
+      cell: ({ row }) => (
+        <span className="text-xs text-slate-500 truncate max-w-[300px] block" title={row.original.user_agent}>
+          {row.original.user_agent || 'Unknown'}
+        </span>
+      ),
+    },
+  ], []);
+
+  const loginTable = useReactTable({
+    data: loginActivities,
+    columns: loginColumns,
+    onSortingChange: setLoginSorting,
+    onColumnFiltersChange: setLoginColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setLoginColumnVisibility,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const search = filterValue.toLowerCase();
+      const name = (row.original.user_full_name as string)?.toLowerCase() || "";
+      const email = (row.getValue("email") as string)?.toLowerCase() || "";
+      const ip = (row.getValue("ip_address") as string)?.toLowerCase() || "";
+      const reason = (row.original.failure_reason as string)?.toLowerCase() || "";
+      return name.includes(search) || email.includes(search) || ip.includes(search) || reason.includes(search);
+    },
+    state: {
+      sorting: loginSorting,
+      columnFilters: loginColumnFilters,
+      columnVisibility: loginColumnVisibility,
+      globalFilter: loginGlobalFilter,
+    },
+    onGlobalFilterChange: setLoginGlobalFilter,
+  });
 
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full gap-6 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6">
@@ -134,172 +287,320 @@ export default function AuditLog() {
         </TabsList>
         
         <TabsContent value="actions" className="flex-1 flex flex-col min-h-0 m-0 data-[state=active]:flex">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <Input 
-                type="text" 
-                placeholder="Search actions..." 
-                value={auditSearchQuery}
-                onChange={e => setAuditSearchQuery(e.target.value)}
-                className="pl-9 w-[280px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 rounded-xl"
-              />
+          <div className="space-y-4 flex-1 flex flex-col min-h-0">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Input 
+                  type="text" 
+                  placeholder="Search actions..." 
+                  value={auditGlobalFilter}
+                  onChange={(e) => setAuditGlobalFilter(e.target.value)}
+                  className="pl-10 w-[280px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 rounded-xl"
+                />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="ml-auto">
+                    Columns <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {auditTable
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide())
+                    .map((column) => {
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize"
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                        >
+                          {column.id.replace(/_/g, " ")}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
-          
-          <div className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-auto shadow-sm flex flex-col">
-            <Table>
-              <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50 sticky top-0 z-10">
-                <TableRow>
-                  <TableHead onClick={() => requestAuditSort("created_at")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Date & Time <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestAuditSort("actor_name")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Actor <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestAuditSort("action")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Action <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestAuditSort("entity_type")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Entity Type <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestAuditSort("entity_id")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Entity ID <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isAuditLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
-                    </TableCell>
-                  </TableRow>
-                ) : sortedAuditLogs.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">No logs found.</TableCell>
-                  </TableRow>
-                ) : (
-                  sortedAuditLogs.map((log: any) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-medium">
-                        {new Date(log.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900 dark:text-slate-100">{log.actor_name || 'System'}</span>
-                          {log.actor_email && <span className="text-xs text-slate-500">{log.actor_email}</span>}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={getActionBadgeColor(log.action)}>
-                          {log.action}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{log.entity_type}</TableCell>
-                      <TableCell className="font-mono text-xs text-slate-500 max-w-[150px] truncate" title={log.entity_id}>
-                        {log.entity_id}
+            
+            <Card className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm flex flex-col p-0">
+              <Table className="m-0 relative" containerClassName="max-h-[calc(100vh-16rem)]">
+                <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50 sticky top-0 z-10 shadow-sm border-b">
+                  {auditTable.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id} className="border-t-0">
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id} className="h-12">
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isAuditLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={auditColumns.length} className="text-center py-8">
+                        <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : auditTable.getRowModel().rows?.length ? (
+                    auditTable.getRowModel().rows.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        data-state={row.getIsSelected() && "selected"}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={auditColumns.length} className="text-center py-8 text-slate-500">No logs found.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {/* PAGINATION FOR ACTIONS */}
+            <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
+              <div className="text-sm text-muted-foreground">
+                {auditTable.getFilteredRowModel().rows.length} total action(s).
+              </div>
+              <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm font-medium">Rows per page</p>
+                  <UISelect
+                    value={`${auditTable.getState().pagination.pageSize}`}
+                    onValueChange={(value) => {
+                      auditTable.setPageSize(Number(value));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[70px]">
+                      <SelectValue placeholder={auditTable.getState().pagination.pageSize} />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                      {[10, 20, 30, 40, 50].map((pageSize) => (
+                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                          {pageSize}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </UISelect>
+                </div>
+                <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                  Page {auditTable.getState().pagination.pageIndex + 1} of{" "}
+                  {auditTable.getPageCount() || 1}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    className="hidden h-8 w-8 p-0 lg:flex"
+                    onClick={() => auditTable.setPageIndex(0)}
+                    disabled={!auditTable.getCanPreviousPage()}
+                  >
+                    <span className="sr-only">Go to first page</span>
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                    onClick={() => auditTable.previousPage()}
+                    disabled={!auditTable.getCanPreviousPage()}
+                  >
+                    <span className="sr-only">Go to previous page</span>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                    onClick={() => auditTable.nextPage()}
+                    disabled={!auditTable.getCanNextPage()}
+                  >
+                    <span className="sr-only">Go to next page</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="hidden h-8 w-8 p-0 lg:flex"
+                    onClick={() => auditTable.setPageIndex(auditTable.getPageCount() - 1)}
+                    disabled={!auditTable.getCanNextPage()}
+                  >
+                    <span className="sr-only">Go to last page</span>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </TabsContent>
         
         <TabsContent value="logins" className="flex-1 flex flex-col min-h-0 m-0 data-[state=active]:flex">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-              <Input 
-                type="text" 
-                placeholder="Search activities..." 
-                value={loginSearchQuery}
-                onChange={e => setLoginSearchQuery(e.target.value)}
-                className="pl-9 w-[280px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 rounded-xl"
-              />
+          <div className="space-y-4 flex-1 flex flex-col min-h-0">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                <Input 
+                  type="text" 
+                  placeholder="Search activities..." 
+                  value={loginGlobalFilter}
+                  onChange={(e) => setLoginGlobalFilter(e.target.value)}
+                  className="pl-10 w-[280px] bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 rounded-xl"
+                />
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="ml-auto">
+                    Columns <ChevronDown className="ml-2 h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {loginTable
+                    .getAllColumns()
+                    .filter((column) => column.getCanHide())
+                    .map((column) => {
+                      return (
+                        <DropdownMenuCheckboxItem
+                          key={column.id}
+                          className="capitalize"
+                          checked={column.getIsVisible()}
+                          onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                        >
+                          {column.id.replace(/_/g, " ")}
+                        </DropdownMenuCheckboxItem>
+                      );
+                    })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
-          
-          <div className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-auto shadow-sm flex flex-col">
-            <Table>
-              <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50 sticky top-0 z-10">
-                <TableRow>
-                  <TableHead onClick={() => requestLoginSort("created_at")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors w-[200px]">
-                    <div className="flex items-center">Date & Time <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestLoginSort("email")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Account <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestLoginSort("success")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">Status <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead onClick={() => requestLoginSort("ip_address")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                    <div className="flex items-center">IP Address <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                  </TableHead>
-                  <TableHead className="w-[300px]">
-                    User Agent
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoginLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
-                    </TableCell>
-                  </TableRow>
-                ) : sortedLoginActivities.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-slate-500">No login activities found.</TableCell>
-                  </TableRow>
-                ) : (
-                  sortedLoginActivities.map((log: any) => (
-                    <TableRow key={log.id}>
-                      <TableCell className="font-medium whitespace-nowrap">
-                        {new Date(log.created_at).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900 dark:text-slate-100">{log.user_full_name || 'Unknown'}</span>
-                          <span className="text-xs text-slate-500">{log.email}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {log.success ? (
-                          <div className="flex flex-col gap-1">
-                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 gap-1.5 w-fit">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Success
-                            </Badge>
-                            {log.logout_at && (
-                              <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
-                                Logged out: {new Date(log.logout_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col gap-1">
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-400 gap-1.5 w-fit">
-                              <XCircle className="h-3 w-3" />
-                              Failed
-                            </Badge>
-                            <span className="text-xs text-red-600 dark:text-red-400 font-medium truncate max-w-[200px]" title={log.failure_reason}>
-                              {log.failure_reason}
-                            </span>
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">{log.ip_address || 'N/A'}</TableCell>
-                      <TableCell className="text-xs text-slate-500 truncate max-w-[300px]" title={log.user_agent}>
-                        {log.user_agent || 'Unknown'}
+            
+            <Card className="flex-1 min-h-0 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm flex flex-col p-0">
+              <Table className="m-0 relative" containerClassName="max-h-[calc(100vh-16rem)]">
+                <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50 sticky top-0 z-10 shadow-sm border-b">
+                  {loginTable.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id} className="border-t-0">
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id} className="h-12">
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {isLoginLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={loginColumns.length} className="text-center py-8">
+                        <div className="flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : loginTable.getRowModel().rows?.length ? (
+                    loginTable.getRowModel().rows.map((row) => (
+                      <TableRow
+                        key={row.id}
+                        data-state={row.getIsSelected() && "selected"}
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <TableCell key={cell.id}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={loginColumns.length} className="text-center py-8 text-slate-500">No login activities found.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {/* PAGINATION FOR LOGINS */}
+            <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
+              <div className="text-sm text-muted-foreground">
+                {loginTable.getFilteredRowModel().rows.length} total activity(ies).
+              </div>
+              <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+                <div className="flex items-center space-x-2">
+                  <p className="text-sm font-medium">Rows per page</p>
+                  <UISelect
+                    value={`${loginTable.getState().pagination.pageSize}`}
+                    onValueChange={(value) => {
+                      loginTable.setPageSize(Number(value));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[70px]">
+                      <SelectValue placeholder={loginTable.getState().pagination.pageSize} />
+                    </SelectTrigger>
+                    <SelectContent side="top">
+                      {[10, 20, 30, 40, 50].map((pageSize) => (
+                        <SelectItem key={pageSize} value={`${pageSize}`}>
+                          {pageSize}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </UISelect>
+                </div>
+                <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+                  Page {loginTable.getState().pagination.pageIndex + 1} of{" "}
+                  {loginTable.getPageCount() || 1}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    className="hidden h-8 w-8 p-0 lg:flex"
+                    onClick={() => loginTable.setPageIndex(0)}
+                    disabled={!loginTable.getCanPreviousPage()}
+                  >
+                    <span className="sr-only">Go to first page</span>
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                    onClick={() => loginTable.previousPage()}
+                    disabled={!loginTable.getCanPreviousPage()}
+                  >
+                    <span className="sr-only">Go to previous page</span>
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                    onClick={() => loginTable.nextPage()}
+                    disabled={!loginTable.getCanNextPage()}
+                  >
+                    <span className="sr-only">Go to next page</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="hidden h-8 w-8 p-0 lg:flex"
+                    onClick={() => loginTable.setPageIndex(loginTable.getPageCount() - 1)}
+                    disabled={!loginTable.getCanNextPage()}
+                  >
+                    <span className="sr-only">Go to last page</span>
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </TabsContent>
       </Tabs>

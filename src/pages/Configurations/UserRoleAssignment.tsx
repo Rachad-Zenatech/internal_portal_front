@@ -4,15 +4,7 @@ import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Check, Loader2, ArrowUpDown, Search } from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Check, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/AuthContext";
 import type { User, Role } from "@/lib/AuthContext";
@@ -24,8 +16,8 @@ export default function UserRoleAssignment() {
   const [searchParams, setSearchParams] = useSearchParams();
   
   const [selectedUserId, setSelectedUserId] = useState<string | null>(searchParams.get("userId"));
-  const [selectedRoles, setSelectedRoles] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
 
   const { data: users, isLoading: loadingUsers } = useQuery({
     queryKey: ["users"],
@@ -43,80 +35,49 @@ export default function UserRoleAssignment() {
     enabled: !!selectedUserId,
   });
 
-  // When userRoles is fetched, populate the selectedRoles state
+  // When userRoles is fetched, populate the selectedRoleId state
   useEffect(() => {
-    if (userRoles) {
-      setSelectedRoles(new Set(userRoles.map(r => r.id)));
+    if (userRoles && userRoles.length > 0) {
+      setSelectedRoleId(userRoles[0].id);
     } else {
-      setSelectedRoles(new Set());
+      setSelectedRoleId(null);
     }
   }, [userRoles]);
 
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
-
-  const sortedRoles = useMemo(() => {
-    if (!allRoles) return [];
-    let sortableItems = [...allRoles.filter(r => r.is_active)];
-    
-    if (searchQuery.trim()) {
-      const lowerQuery = searchQuery.toLowerCase();
-      sortableItems = sortableItems.filter(r => 
-        r.name.toLowerCase().includes(lowerQuery) || 
-        (r.description && r.description.toLowerCase().includes(lowerQuery))
-      );
-    }
-
-    if (sortConfig !== null) {
-      sortableItems.sort((a: any, b: any) => {
-        let aValue = a[sortConfig.key] || "";
-        let bValue = b[sortConfig.key] || "";
-        
-        if (typeof aValue === 'string') aValue = aValue.toLowerCase();
-        if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-
-        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortableItems;
-  }, [allRoles, sortConfig, searchQuery]);
-
-  const requestSort = (key: string) => {
-    setSortConfig({ key, direction: 'asc' });
-  };
-
   const saveMutation = useMutation({
     mutationFn: () => apiClient.put(`/api/configuration/users/${selectedUserId}/roles`, {
-      role_ids: Array.from(selectedRoles)
+      role_ids: selectedRoleId ? [selectedRoleId] : []
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userRoles", selectedUserId] });
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      toast.success("Role assignments saved successfully");
+      toast.success("Role assignment saved successfully");
     },
-    onError: () => toast.error("Failed to save role assignments"),
+    onError: () => toast.error("Failed to save role assignment"),
   });
 
-  const toggleRole = (roleId: string) => {
-    const next = new Set(selectedRoles);
-    if (next.has(roleId)) {
-      next.delete(roleId);
+  const setRole = (roleId: string) => {
+    if (selectedRoleId === roleId) {
+      setSelectedRoleId(null); // Allow unselecting
     } else {
-      next.add(roleId);
+      setSelectedRoleId(roleId);
     }
-    setSelectedRoles(next);
   };
 
-  const handleUserSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = e.target.value;
-    setSelectedUserId(id || null);
-    if (id) {
-      setSearchParams({ userId: id });
-    } else {
-      setSearchParams({});
-    }
+  const handleUserSelect = (id: string) => {
+    setSelectedUserId(id);
+    setSearchParams({ userId: id });
   };
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    if (!userSearchQuery.trim()) return users;
+    const lower = userSearchQuery.toLowerCase();
+    return users.filter(u => 
+      (u.full_name && u.full_name.toLowerCase().includes(lower)) || 
+      u.email.toLowerCase().includes(lower)
+    );
+  }, [users, userSearchQuery]);
 
   if (loadingUsers || loadingRoles) {
     return (
@@ -128,123 +89,230 @@ export default function UserRoleAssignment() {
 
   const selectedUser = users?.find(u => u.id === selectedUserId);
   const isSuperAdmin = selectedUser?.is_super_admin === true;
+  const activeRoles = allRoles?.filter(r => r.is_active) || [];
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
-      <div className="flex flex-col gap-4">
+    <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
+      {/* Left Panel: Users List */}
+      <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-4 lg:border-r border-slate-200 dark:border-zinc-800 lg:pr-6 pb-6 lg:pb-0 border-b lg:border-b-0 min-h-0">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">User Role Assignment</h2>
-          <p className="text-sm text-slate-500 dark:text-zinc-400">Assign or remove security roles for specific users.</p>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">Users</h2>
+          <p className="text-sm text-slate-500 dark:text-zinc-400">Select a user to configure access.</p>
         </div>
-        <div className="w-full max-w-full sm:max-w-2xl xl:max-w-3xl">
-          <select 
-            value={selectedUserId || ""}
-            onChange={handleUserSelect}
-            className="w-full h-10 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-900 dark:text-zinc-100"
-          >
-            <option value="">-- Choose a user --</option>
-            {users?.map(user => (
-              <option key={user.id} value={user.id}>
-                {user.full_name || user.email} ({user.email}) {user.is_super_admin ? "[SUPER ADMIN]" : ""}
-              </option>
-            ))}
-          </select>
+        
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500 dark:text-zinc-400" />
+          <Input 
+            placeholder="Search users..." 
+            className="pl-9 h-10 bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 focus-visible:ring-blue-500/30 rounded-xl"
+            value={userSearchQuery}
+            onChange={(e) => setUserSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[300px]">
+          {filteredUsers.length === 0 ? (
+            <div className="text-center p-4 text-slate-500 text-sm">No users found.</div>
+          ) : (
+            filteredUsers.map(user => (
+              <button
+                key={user.id}
+                onClick={() => handleUserSelect(user.id)}
+                className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                  selectedUserId === user.id 
+                    ? 'bg-blue-50 border-blue-300 dark:bg-blue-900/20 dark:border-blue-700 ring-1 ring-blue-500/20'
+                    : 'bg-white border-slate-200 hover:border-blue-300 dark:bg-zinc-900 dark:border-zinc-800 dark:hover:border-zinc-700'
+                }`}
+              >
+                <div className="font-semibold text-slate-900 dark:text-zinc-100 truncate text-sm">
+                  {user.full_name || user.email.split('@')[0]}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-zinc-400 truncate mt-0.5">{user.email}</div>
+                {user.is_super_admin && (
+                  <Badge variant="secondary" className="mt-2 text-[9px] h-4 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 px-1.5 uppercase font-bold tracking-wider">
+                    Super Admin
+                  </Badge>
+                )}
+              </button>
+            ))
+          )}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 flex flex-col">
+      {/* Right Panel: Role Assignment */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-zinc-100">Role Assignment</h2>
+          <p className="text-sm text-slate-500 dark:text-zinc-400">
+            {selectedUser ? `Configuring permissions for ${selectedUser.full_name || selectedUser.email}` : "Select a user from the list to begin."}
+          </p>
+        </div>
+
         {selectedUserId ? (
-          <div className="flex-1 min-h-0 flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 w-full mt-2">
-            <div className="flex items-center justify-between">
-              <div className="relative w-full sm:w-72">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-500 dark:text-zinc-400" />
-                <Input 
-                  placeholder="Search roles..." 
-                  className="pl-9 bg-white dark:bg-zinc-950 border-slate-200 dark:border-zinc-800 focus-visible:ring-blue-500/30"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+          <div className="flex-1 min-h-0 flex flex-col mt-6 gap-4 relative">
+            {isSuperAdmin && (
+              <div className="p-4 rounded-xl bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 text-sm flex items-center mb-2">
+                <span className="font-semibold mr-2">Note:</span> This user is a Super Admin and inherently has all permissions. Role assignments are visual only.
               </div>
-              {loadingUserRoles && (
-                <div className="flex justify-end">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+            )}
+            
+            <div className={`flex-1 min-h-0 flex flex-col transition-opacity duration-200 ${loadingUserRoles || saveMutation.isPending || isSuperAdmin ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
+              
+              {/* Dropdown for role assignment */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div className="flex-1 max-w-sm">
+                  <label className="text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5 block uppercase tracking-wider">Quick Assign Role</label>
+                  <select 
+                    value={selectedRoleId || ""}
+                    onChange={(e) => {
+                      if (e.target.value) setRole(e.target.value);
+                    }}
+                    className="w-full h-10 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-900 dark:text-zinc-100 text-sm"
+                  >
+                    <option value="" disabled>-- Select a role --</option>
+                    {activeRoles.map(r => (
+                      <option key={r.id} value={r.id}>
+                        {selectedRoleId === r.id ? `✓ Selected: ${r.name}` : r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {loadingUserRoles && (
+                  <div className="flex items-center text-sm text-slate-500 mt-5">
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading assignments...
+                  </div>
+                )}
+              </div>
+
+              {/* Tree Diagram Rendering */}
+              <div className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-zinc-900/30 border border-slate-200 dark:border-zinc-800 rounded-xl p-6 relative flex flex-col items-start min-h-[300px]">
+                <RoleTree roles={activeRoles} selectedRoleId={selectedRoleId} setRole={setRole} />
+              </div>
+
+              {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && !isSuperAdmin && (
+                <div className="pt-6 flex justify-end">
+                  <Button 
+                    onClick={() => saveMutation.mutate()} 
+                    className="w-full sm:w-auto h-11 px-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20"
+                    disabled={saveMutation.isPending || loadingUserRoles}
+                  >
+                    {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Assignment
+                  </Button>
                 </div>
               )}
             </div>
-            
-            {isSuperAdmin && (
-              <div className="p-4 rounded-lg bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50 text-sm flex items-center">
-                <span className="font-semibold mr-2">Note:</span> This user is a Super Admin and inherently has all permissions. Role assignments are disabled.
-              </div>
-            )}
-
-            <div className={`flex-1 min-h-0 flex flex-col rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden transition-opacity duration-200 bg-white dark:bg-zinc-900 shadow-sm ${loadingUserRoles || saveMutation.isPending || isSuperAdmin ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-              <Table>
-                <TableHeader className="bg-slate-50/80 dark:bg-zinc-950/50">
-                  <TableRow>
-                    <TableHead className="w-16 text-center">Assigned</TableHead>
-                    <TableHead onClick={() => requestSort("name")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                      <div className="flex items-center">Role Name <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                    </TableHead>
-                    <TableHead onClick={() => requestSort("description")} className="cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors">
-                      <div className="flex items-center">Description <ArrowUpDown className="ml-2 h-4 w-4" /></div>
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedRoles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-slate-500">No active roles available.</TableCell>
-                    </TableRow>
-                  ) : (
-                    sortedRoles.map(role => {
-                      const isSelected = selectedRoles.has(role.id);
-                      return (
-                        <TableRow 
-                          key={role.id} 
-                          onClick={() => toggleRole(role.id)}
-                          className="cursor-pointer hover:bg-slate-50 dark:hover:bg-zinc-900/50"
-                        >
-                          <TableCell className="text-center">
-                            <div className={`mx-auto flex-shrink-0 h-5 w-5 rounded border flex items-center justify-center ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-zinc-600'}`}>
-                              {isSelected && <Check className="h-3.5 w-3.5" />}
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            <div className="flex items-center gap-2">
-                              {role.name}
-                              {role.is_system_role && <Badge variant="secondary" className="text-[10px] h-4 bg-purple-100 text-purple-700">System</Badge>}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-slate-500 text-sm">
-                            {role.description || "-"}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && !isSuperAdmin && (
-              <div className="pt-6 flex justify-end">
-                <Button 
-                  onClick={() => saveMutation.mutate()} 
-                  className="w-full md:w-auto h-11 px-8"
-                  disabled={saveMutation.isPending || loadingUserRoles}
-                >
-                  {saveMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Assignments
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
-          <div className="flex-1 min-h-0 flex items-center justify-center text-slate-500 border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-xl mt-4">
-             Select a user to configure assignments
+          <div className="flex-1 min-h-0 flex items-center justify-center mt-6">
+             <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-2xl bg-slate-50 dark:bg-zinc-900/20 text-center max-w-md mx-auto">
+               <div className="w-16 h-16 bg-slate-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
+                 <Check className="h-8 w-8 text-slate-300 dark:text-zinc-600" />
+               </div>
+               <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100 mb-2">No User Selected</h3>
+               <p className="text-sm text-slate-500 dark:text-zinc-400">Choose a user from the list on the left to view and modify their security role assignments.</p>
+             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Tree Diagram Component
+function RoleTree({ roles, selectedRoleId, setRole }: { roles: Role[], selectedRoleId: string | null, setRole: (id: string) => void }) {
+  const childrenMap = useMemo(() => {
+    const map = new Map<string | null, Role[]>();
+    
+    // Create a set of all valid role IDs to ensure parents exist
+    const allRoleIds = new Set(roles.map(r => r.id));
+
+    for (const r of roles) {
+      // If the parent ID doesn't exist in our active roles list, treat it as a root node!
+      let pid = r.parent_role_id;
+      if (!pid || !allRoleIds.has(pid)) {
+        pid = null;
+      }
+      
+      if (!map.has(pid)) map.set(pid, []);
+      map.get(pid)!.push(r);
+    }
+    
+    // Sort children by display_order, then by name
+    for (const arr of map.values()) {
+        arr.sort((a, b) => {
+            const aOrder = a.display_order ?? 0;
+            const bOrder = b.display_order ?? 0;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            return a.name.localeCompare(b.name);
+        });
+    }
+    
+    return map;
+  }, [roles]);
+
+  const renderNode = (role: Role, depth: number) => {
+    const children = childrenMap.get(role.id) || [];
+    const isSelected = selectedRoleId === role.id;
+    
+    return (
+      <div key={role.id} className="relative flex flex-col group">
+        {/* Node */}
+        <div className="flex items-center gap-4 py-2 relative z-10">
+          
+          {/* Horizontal line connecting to parent */}
+          {depth > 0 && (
+              <div className="absolute top-1/2 -left-6 w-6 h-px bg-slate-300 dark:bg-zinc-700 -translate-y-1/2"></div>
+          )}
+
+          <div 
+            onClick={() => setRole(role.id)}
+            className={`flex items-center gap-3 p-3 rounded-xl border shadow-sm transition-all cursor-pointer select-none min-w-[280px] max-w-sm hover:scale-[1.01] ${
+              isSelected 
+                ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
+                : 'bg-white border-slate-200 hover:border-blue-300 text-slate-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-100 dark:hover:border-blue-500'
+            }`}
+          >
+             <div className={`flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-md border transition-colors ${isSelected ? 'border-white/30 bg-blue-500/50' : 'border-slate-300 dark:border-zinc-700'}`}>
+               {isSelected && <Check className="h-3.5 w-3.5" />}
+             </div>
+             <div className="flex-1 min-w-0">
+               <div className="font-semibold text-sm truncate flex items-center gap-2">
+                 {role.name}
+                 {role.is_system_role && <Badge variant="secondary" className={`text-[9px] h-3.5 px-1 bg-purple-100 text-purple-700 border-0 ${isSelected ? 'bg-blue-400/30 text-white' : 'dark:bg-purple-900/30 dark:text-purple-400'}`}>SYS</Badge>}
+               </div>
+               {role.description && <div className={`text-[11px] leading-tight mt-0.5 truncate ${isSelected ? 'text-blue-100' : 'text-slate-500 dark:text-zinc-500'}`}>{role.description}</div>}
+             </div>
+          </div>
+        </div>
+        
+        {/* Children wrapper with connecting vertical line */}
+        {children.length > 0 && (
+          <div className="relative ml-8 flex flex-col">
+            {/* The vertical trunk line for this parent */}
+            <div className="absolute top-0 bottom-4 -left-6 w-px bg-slate-300 dark:bg-zinc-700"></div>
+            {children.map((child) => renderNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const rootRoles = childrenMap.get(null) || [];
+
+  if (roles.length === 0) {
+    return <div className="text-sm text-slate-500 italic p-4">No active roles available to assign.</div>;
+  }
+
+  if (rootRoles.length === 0) {
+    return <div className="text-sm text-red-500 italic p-4">Error: Could not render role hierarchy.</div>;
+  }
+
+  return (
+    <div className="flex flex-col w-full min-h-full pb-32">
+      <div className="relative z-10 flex flex-col">
+        {rootRoles.map((root) => renderNode(root, 0))}
       </div>
     </div>
   );

@@ -56,6 +56,13 @@ export const statementService = {
   updateStatement: (id: string, data: StatementUpdate) => apiClient.patch<BankStatement>(`/bank_statement/statements/${id}`, data),
   deleteStatement: (id: string) => apiClient.delete<null>(`/bank_statement/statements/${id}`),
   
+  getQueue: (limit?: number) => {
+    const url = limit ? `/api/bank-statements/queue?limit=${limit}` : `/api/bank-statements/queue`;
+    return apiClient.get<{ jobs: any[] }>(url);
+  },
+  cancelQueueJob: (jobId: number) => apiClient.post<{ message: string, canceled: boolean }>(`/api/bank-statements/queue/${jobId}/cancel`),
+  deleteQueueJob: (jobId: number) => apiClient.delete<{ message: string, deleted: boolean }>(`/api/bank-statements/queue/${jobId}`),
+  
   getStatementsByQuarter: (year: number, quarter: number, accountId?: number | null) => {
     let url = `/bank_statement/statements/by-quarter?year=${year}&quarter=${quarter}`;
     if (accountId) url += `&account_id=${accountId}`;

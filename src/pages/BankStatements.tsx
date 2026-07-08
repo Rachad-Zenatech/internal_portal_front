@@ -9,6 +9,9 @@ import StatementDetail from "@/components/Bank/StatementDetail";
 import SummaryPage     from "@/components/Bank/Summary";
 import UploadStatement from "@/components/Bank/UploadStatement";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
+import { BankStatementQueuePanel } from "@/components/Bank/BankStatementQueuePanel";
+import BankStatementPreviewWrapper from "@/components/Bank/BankStatementPreviewWrapper";
+import { useBankStatementQueue, useCancelBankStatementQueueJob, useDeleteBankStatementQueueJob } from "@/hooks/useBank";
 
 export default function BankStatements() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -18,22 +21,59 @@ export default function BankStatements() {
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
   const { addJob } = useGlobalProgress();
 
+  const { data: queueData, isLoading: isQueueLoading, refetch: refetchQueue } = useBankStatementQueue(10);
+  const queueJobs = queueData?.jobs ?? [];
+  const cancelQueueJobMutation = useCancelBankStatementQueueJob();
+  const deleteQueueJobMutation = useDeleteBankStatementQueueJob();
+  const [cancelingQueueJobId, setCancelingQueueJobId] = useState<number | null>(null);
+  const [deletingQueueJobId, setDeletingQueueJobId] = useState<number | null>(null);
+
+  async function handleCancelQueueJob(jobId: number) {
+    setCancelingQueueJobId(jobId);
+    try {
+      await cancelQueueJobMutation.mutateAsync({ jobId });
+      toast.success("Upload canceled");
+      void refetchQueue();
+    } catch (err) {
+      toast.error("Failed to cancel upload");
+    } finally {
+      setCancelingQueueJobId(null);
+    }
+  }
+
+  async function handleDeleteQueueJob(jobId: number) {
+    setDeletingQueueJobId(jobId);
+    try {
+      await deleteQueueJobMutation.mutateAsync({ jobId });
+      toast.success("Upload removed from queue");
+      void refetchQueue();
+    } catch (err) {
+      toast.error("Failed to delete upload from queue");
+    } finally {
+      setDeletingQueueJobId(null);
+    }
+  }
+
+  function handleOpenPreview(token: string) {
+    setIsDrawerOpen(false);
+    setActiveTab('statements');
+    setSelectedId(token);
+  }
+
   function handleTabChange(value: string) {
     setActiveTab(value);
     setSelectedId(null);
   }
 
   function handleUploadStart(file: File, promise: Promise<any>) {
-    addJob(file.name, promise, { description: "Processing Document...", type: "document" });
+    addJob(file.name, promise, { description: "Processing Bank Statement...", type: "document" });
     setIsDrawerOpen(false); // Close drawer immediately
 
     promise.then(() => {
       toast.success("Bank statement uploaded", {
         description: `Successfully uploaded ${file.name}. It is now processing in the background.`,
       });
-      // Return to statements view to see the new upload
-      setActiveTab("statements");
-      setSelectedId(null);
+      void refetchQueue();
     }).catch((err) => {
       toast.error("Upload failed", {
         description: err instanceof Error ? err.message : "Failed to start upload process",
@@ -82,8 +122,27 @@ export default function BankStatements() {
 
       {activeTab === 'statements' && (
         <div className="mt-0 outline-none transition-all duration-300 animate-in fade-in-30 slide-in-from-bottom-2">
+          {queueJobs.length > 0 && (
+            <div className="mb-6">
+              <BankStatementQueuePanel
+                jobs={queueJobs}
+                isLoading={isQueueLoading}
+                onRefresh={refetchQueue}
+                onOpenPreview={handleOpenPreview}
+                onCancelJob={handleCancelQueueJob}
+                cancelingJobId={cancelingQueueJobId}
+                onDeleteJob={handleDeleteQueueJob}
+                deletingJobId={deletingQueueJobId}
+              />
+            </div>
+          )}
           {selectedId == null ? (
             <StatementList onSelect={setSelectedId} />
+          ) : selectedId.length > 20 ? (
+            <BankStatementPreviewWrapper
+              statementId={selectedId}
+              onBack={() => setSelectedId(null)}
+            />
           ) : (
             <StatementDetail
               statementId={selectedId}
@@ -108,6 +167,7 @@ export default function BankStatements() {
               Select a target company and statement account, then deploy the document pipeline tracker.
             </SheetDescription>
           </SheetHeader>
+          
           <UploadStatement onUploadStart={handleUploadStart} isUploading={false} />
         </SheetContent>
       </Sheet>

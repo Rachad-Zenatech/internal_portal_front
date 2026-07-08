@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Shield, Power, Ban, ChevronRight, ChevronDown, FolderOpen, Folder, Users, Key } from "lucide-react";
+import { Plus, Edit, Trash2, Shield, Power, Ban, ChevronRight, ChevronDown, FolderOpen, Folder, Key, Loader2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/AuthContext";
 import type { Role } from "@/lib/AuthContext";
@@ -28,7 +28,8 @@ const TreeNode = ({
   selectedRole, 
   onSelect, 
   expandedNodes, 
-  toggleNode 
+  toggleNode,
+  onMoveRole
 }: { 
   role: Role; 
   level: number; 
@@ -36,37 +37,106 @@ const TreeNode = ({
   onSelect: (role: Role) => void;
   expandedNodes: Set<string>;
   toggleNode: (id: string, e: React.MouseEvent) => void;
+  onMoveRole: (draggedId: string, targetId: string) => void;
 }) => {
   const isExpanded = expandedNodes.has(role.id);
   const isSelected = selectedRole?.id === role.id;
   const hasChildren = role.children && role.children.length > 0;
+  
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("text/plain", role.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+  
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (dragCounter.current === 1) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "move";
+  };
+  
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDragEnd = () => {
+    dragCounter.current = 0;
+    setIsDragOver(false);
+  };
+  
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setIsDragOver(false);
+    const draggedId = e.dataTransfer.getData("text/plain");
+    if (draggedId && draggedId !== role.id) {
+      onMoveRole(draggedId, role.id);
+    }
+  };
 
   return (
     <div className="w-full">
       <div 
-        className={`flex items-center py-2 px-2 rounded-md cursor-pointer group transition-colors ${isSelected ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50 text-slate-700 dark:text-zinc-300'}`}
+        draggable={true}
+        onDragStart={handleDragStart}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDragEnd={handleDragEnd}
+        onDrop={handleDrop}
+        className={`relative flex items-center py-2 px-2 rounded-md cursor-pointer group transition-colors ${
+          isDragOver
+            ? 'bg-blue-100/50 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200' 
+            : isSelected 
+            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' 
+            : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50 text-slate-700 dark:text-zinc-300'
+        }`}
         style={{ paddingLeft: `${(level * 16) + 8}px` }}
         onClick={() => onSelect(role)}
       >
+        {isDragOver && (
+          <div 
+            className="absolute right-0 bottom-0 border-b-2 border-blue-500 z-10 pointer-events-none rounded-b-sm shadow-[0_1px_2px_rgba(59,130,246,0.3)]"
+            style={{ left: `${(level * 16) + 8 + 24}px` }}
+          ></div>
+        )}
+
         <div 
           className={`w-6 h-6 flex items-center justify-center mr-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 ${hasChildren ? 'cursor-pointer' : 'opacity-0'}`}
           onClick={(e) => {
             if (hasChildren) toggleNode(role.id, e);
           }}
         >
-          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          {isExpanded ? <ChevronDown className="w-4 h-4 pointer-events-none" /> : <ChevronRight className="w-4 h-4 pointer-events-none" />}
         </div>
         
         {isExpanded ? (
-          <FolderOpen className="w-4 h-4 mr-2 text-blue-500" />
+          <FolderOpen className="w-4 h-4 mr-2 text-blue-500 pointer-events-none" />
         ) : (
-          <Folder className="w-4 h-4 mr-2 text-blue-500" />
+          <Folder className="w-4 h-4 mr-2 text-blue-500 pointer-events-none" />
         )}
         
-        <span className="text-sm font-medium truncate flex-1">{role.name}</span>
+        <span className="text-sm font-medium truncate flex-1 pointer-events-none">{role.name}</span>
         
         {!role.is_active && (
-          <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 h-4 bg-slate-100 text-slate-500">Inactive</Badge>
+          <Badge variant="outline" className="ml-2 text-[10px] px-1.5 py-0 h-4 bg-slate-100 text-slate-500 pointer-events-none">Inactive</Badge>
         )}
       </div>
 
@@ -81,6 +151,7 @@ const TreeNode = ({
               onSelect={onSelect} 
               expandedNodes={expandedNodes} 
               toggleNode={toggleNode} 
+              onMoveRole={onMoveRole}
             />
           ))}
         </div>
@@ -96,6 +167,7 @@ export default function Roles() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [pendingMoves, setPendingMoves] = useState<Record<string, string | null>>({});
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
@@ -110,31 +182,70 @@ export default function Roles() {
     is_active: true,
   });
 
-  const { data: roleTree, isLoading: isLoadingTree } = useQuery({
-    queryKey: ["roles-tree"],
-    queryFn: () => apiClient.get<Role[]>("/api/configuration/roles/tree"),
-  });
-
-  // Fetch flat roles for the parent dropdown
-  const { data: flatRoles } = useQuery({
+  // Fetch flat roles
+  const { data: flatRoles, isLoading: isLoadingRoles } = useQuery({
     queryKey: ["roles"],
     queryFn: () => apiClient.get<Role[]>("/api/configuration/roles"),
   });
 
-  // Auto-expand all on load
+  const optimisticTree = useMemo(() => {
+    if (!flatRoles) return [];
+    
+    // Create deep clones
+    const clonedRoles: Record<string, Role> = {};
+    flatRoles.forEach(r => {
+      clonedRoles[r.id] = { ...r, children: [] };
+    });
+
+    // Apply pending moves locally
+    Object.keys(pendingMoves).forEach(roleId => {
+      if (clonedRoles[roleId]) {
+        clonedRoles[roleId].parent_role_id = pendingMoves[roleId];
+      }
+    });
+
+    const roots: Role[] = [];
+    
+    // Second pass to build tree
+    Object.values(clonedRoles).forEach(r => {
+      if (r.parent_role_id && clonedRoles[r.parent_role_id]) {
+        clonedRoles[r.parent_role_id].children!.push(r);
+      } else {
+        roots.push(r);
+      }
+    });
+
+    // Sort children
+    const sortRoles = (arr: Role[]) => {
+      arr.sort((a, b) => {
+        const aOrder = a.display_order ?? 0;
+        const bOrder = b.display_order ?? 0;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.name.localeCompare(b.name);
+      });
+      arr.forEach(r => {
+        if (r.children && r.children.length > 0) sortRoles(r.children);
+      });
+    };
+
+    sortRoles(roots);
+    return roots;
+  }, [flatRoles, pendingMoves]);
+
+  // Auto-expand all on load based on optimisticTree
   useEffect(() => {
-    if (roleTree) {
+    if (optimisticTree.length > 0 && expandedNodes.size === 0 && Object.keys(pendingMoves).length === 0) {
       const allIds = new Set<string>();
       const addIds = (nodes: Role[]) => {
         nodes.forEach(n => {
           allIds.add(n.id);
-          if (n.children) addIds(n.children);
+          if (n.children && n.children.length > 0) addIds(n.children);
         });
       };
-      addIds(roleTree);
+      addIds(optimisticTree);
       setExpandedNodes(allIds);
     }
-  }, [roleTree]);
+  }, [optimisticTree]);
 
   const toggleNode = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -176,6 +287,24 @@ export default function Roles() {
       setSelectedRole(updatedRole);
     },
     onError: (err: any) => toast.error(err.message || "Failed to update role"),
+  });
+
+  const bulkSaveHierarchyMutation = useMutation({
+    mutationFn: async () => {
+      const promises = Object.keys(pendingMoves).map(roleId => {
+        return apiClient.put(`/api/configuration/roles/${roleId}`, {
+          parent_role_id: pendingMoves[roleId]
+        });
+      });
+      return Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      toast.success("Hierarchy saved successfully");
+      setPendingMoves({});
+    },
+    onError: () => toast.error("Failed to save hierarchy changes"),
   });
 
   const deleteMutation = useMutation({
@@ -252,6 +381,43 @@ export default function Roles() {
     }
   };
 
+  const canDrop = (draggedId: string, targetId: string | null) => {
+    if (draggedId === targetId) return false;
+    if (targetId === null) return true; // root is always valid
+    
+    // Check against optimistic tree to handle pending moves
+    let curr = flatRoles?.find(r => r.id === targetId);
+    while (curr) {
+      // Use pending move if it exists, otherwise use database parent
+      const parentId = pendingMoves[curr.id] !== undefined ? pendingMoves[curr.id] : curr.parent_role_id;
+      if (parentId === draggedId) return false;
+      if (!parentId) break;
+      curr = flatRoles?.find(r => r.id === parentId);
+    }
+    return true;
+  };
+
+  const handleMoveRole = (draggedId: string, targetId: string | null) => {
+    if (!canDrop(draggedId, targetId)) {
+      toast.error("Cannot move a role into its own child (Cycle detected)");
+      return;
+    }
+    setPendingMoves(prev => ({
+      ...prev,
+      [draggedId]: targetId
+    }));
+    
+    // Auto-expand the target node so the user sees it dropped inside
+    if (targetId) {
+       setExpandedNodes(prev => new Set(prev).add(targetId));
+    }
+  };
+
+  const [isRootDragOver, setIsRootDragOver] = useState(false);
+  const rootDragCounter = useRef(0);
+
+  const hasPendingMoves = Object.keys(pendingMoves).length > 0;
+
   return (
     <div className="flex-1 min-h-0 flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out h-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -266,27 +432,78 @@ export default function Roles() {
         <div className="w-full md:w-1/3 flex flex-col rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-sm h-full">
           <div className="p-4 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-center bg-slate-50/50 dark:bg-zinc-950/50">
             <h3 className="font-semibold text-slate-800 dark:text-zinc-200">Role Hierarchy</h3>
-            {canAccessNavigationItem("CONFIG_ROLES", "CREATE") && (
-              <Button size="sm" variant="outline" onClick={handleAddRoot} className="h-8 text-xs">
-                <Plus className="mr-1 h-3 w-3" /> Root
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasPendingMoves && (
+                <div className="flex gap-2 mr-2">
+                   <Button size="sm" variant="outline" className="h-8 px-2" onClick={() => setPendingMoves({})}>
+                     <X className="h-3.5 w-3.5" />
+                   </Button>
+                   <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700 text-white" onClick={() => bulkSaveHierarchyMutation.mutate()} disabled={bulkSaveHierarchyMutation.isPending}>
+                     {bulkSaveHierarchyMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
+                     Save
+                   </Button>
+                </div>
+              )}
+              {!hasPendingMoves && canAccessNavigationItem("CONFIG_ROLES", "CREATE") && (
+                <Button size="sm" variant="outline" onClick={handleAddRoot} className="h-8 text-xs">
+                  <Plus className="mr-1 h-3 w-3" /> Root
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-2">
-            {isLoadingTree ? (
+          <div className="flex-1 overflow-y-auto p-2 relative">
+            {isLoadingRoles ? (
               <div className="p-4 text-center text-slate-500 text-sm">Loading tree...</div>
-            ) : roleTree && roleTree.length > 0 ? (
-              roleTree.map(rootRole => (
-                <TreeNode 
-                  key={rootRole.id} 
-                  role={rootRole} 
-                  level={0}
-                  selectedRole={selectedRole}
-                  onSelect={(r) => { setSelectedRole(r); setIsEditing(false); }}
-                  expandedNodes={expandedNodes}
-                  toggleNode={toggleNode}
-                />
-              ))
+            ) : optimisticTree && optimisticTree.length > 0 ? (
+              <div
+                className="min-h-full pb-32 relative"
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  rootDragCounter.current++;
+                  if (rootDragCounter.current === 1) setIsRootDragOver(true);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  rootDragCounter.current--;
+                  if (rootDragCounter.current === 0) setIsRootDragOver(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  rootDragCounter.current = 0;
+                  setIsRootDragOver(false);
+                  const draggedId = e.dataTransfer.getData("text/plain");
+                  if (draggedId) handleMoveRole(draggedId, null);
+                }}
+              >
+                {isRootDragOver && (
+                  <div className="absolute inset-0 bg-blue-50/50 dark:bg-blue-900/10 border-2 border-blue-400 border-dashed rounded-xl z-0 pointer-events-none transition-all flex items-center justify-center m-2">
+                    <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-lg font-medium text-sm shadow-sm animate-pulse">
+                      Drop here to make root level
+                    </span>
+                  </div>
+                )}
+                <div className="relative z-10 flex flex-col">
+                  {optimisticTree.map(rootRole => (
+                    <TreeNode 
+                      key={rootRole.id} 
+                      role={rootRole} 
+                      level={0}
+                      selectedRole={selectedRole}
+                      onSelect={(r) => { setSelectedRole(r); setIsEditing(false); }}
+                      expandedNodes={expandedNodes}
+                      toggleNode={toggleNode}
+                      onMoveRole={(draggedId, targetId) => handleMoveRole(draggedId, targetId)}
+                    />
+                  ))}
+                </div>
+              </div>
             ) : (
               <div className="p-4 text-center text-slate-500 text-sm">No roles found.</div>
             )}
@@ -298,160 +515,207 @@ export default function Roles() {
           {!selectedRole ? (
             <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-zinc-500 p-8 text-center flex-col">
               <Shield className="w-12 h-12 mb-4 opacity-20" />
-              <p>Select a role from the hierarchy to view details or edit.</p>
-            </div>
-          ) : isEditing ? (
-            // Form Editor
-            <div className="flex flex-col h-full">
-              <div className="p-4 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950/50 flex justify-between items-center">
-                <h3 className="font-semibold text-slate-800 dark:text-zinc-200">
-                  {selectedRole.id === "new" ? "Create New Role" : "Edit Role"}
-                </h3>
-              </div>
-              <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Role Name</label>
-                    <Input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="e.g. Senior Accountant" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Role Code</label>
-                    <Input required disabled={selectedRole.id !== "new"} value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase().replace(/\s+/g, '_')})} placeholder="e.g. SENIOR_ACCOUNTANT" />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Parent Role</label>
-                    <select 
-                      className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:focus-visible:ring-zinc-300"
-                      value={formData.parent_role_id}
-                      onChange={e => setFormData({...formData, parent_role_id: e.target.value})}
-                    >
-                      <option value="">-- None (Root Role) --</option>
-                      {flatRoles?.map(r => (
-                        <option key={r.id} value={r.id} disabled={r.id === selectedRole.id}>{r.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Department</label>
-                    <Input value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} placeholder="e.g. Finance" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Display Order</label>
-                    <Input type="number" required value={formData.display_order} onChange={e => setFormData({...formData, display_order: parseInt(e.target.value) || 0})} />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="Role responsibilities..." rows={3} />
-                </div>
-
-                <div className="flex items-center space-x-2 pt-2">
-                  <input type="checkbox" id="is_active" checked={formData.is_active} onChange={e => setFormData({...formData, is_active: e.target.checked})} className="rounded border-slate-300 w-4 h-4 text-blue-600 focus:ring-blue-500" />
-                  <label htmlFor="is_active" className="text-sm font-medium cursor-pointer">Active Role</label>
-                </div>
-
-                <div className="pt-6 flex gap-3 border-t border-slate-100 dark:border-zinc-800">
-                  <Button type="button" variant="outline" onClick={() => {
-                    if (selectedRole.id === "new") setSelectedRole(null);
-                    setIsEditing(false);
-                  }}>Cancel</Button>
-                  <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
-                    {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save Role"}
-                  </Button>
-                </div>
-              </form>
+              <p className="text-lg font-medium text-slate-600 dark:text-zinc-300">No Role Selected</p>
+              <p className="text-sm max-w-sm mt-2">Select a role from the hierarchy to view its details, or create a new root role to get started.</p>
             </div>
           ) : (
-            // View Details
-            <div className="flex flex-col h-full">
-              <div className="p-6 border-b border-slate-200 dark:border-zinc-800 flex justify-between items-start bg-slate-50/30 dark:bg-zinc-950/30">
+            <div className="flex flex-col h-full overflow-hidden">
+              <div className="p-6 border-b border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950/50 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-2xl font-bold text-slate-900 dark:text-zinc-100">{selectedRole.name}</h3>
-                    {selectedRole.is_system_role && <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"><Shield className="w-3 h-3 mr-1"/> System</Badge>}
-                    {selectedRole.is_active ? 
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400">Active</Badge> : 
-                      <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400">Inactive</Badge>
-                    }
+                    <h2 className="text-2xl font-bold text-slate-900 dark:text-zinc-100">
+                      {isEditing && selectedRole.id === "new" ? "Create New Role" : selectedRole.name}
+                    </h2>
+                    {!isEditing && selectedRole.id !== "new" && (
+                      <Badge variant={selectedRole.is_active ? "default" : "secondary"} className={selectedRole.is_active ? "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400" : ""}>
+                        {selectedRole.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-slate-500 dark:text-zinc-400 text-sm font-mono bg-slate-100 dark:bg-zinc-800 px-2 py-1 rounded inline-block">{selectedRole.code}</p>
+                  {!isEditing && selectedRole.id !== "new" && (
+                    <div className="flex items-center text-sm text-slate-500 dark:text-zinc-400 gap-4">
+                      <span className="flex items-center"><Key className="w-4 h-4 mr-1.5" /> Code: {selectedRole.code}</span>
+                      {selectedRole.is_system_role && <span className="flex items-center text-purple-600 dark:text-purple-400 font-medium"><Shield className="w-4 h-4 mr-1.5" /> System Role</span>}
+                    </div>
+                  )}
                 </div>
                 
-                <div className="flex gap-2">
-                  {canAccessNavigationItem("CONFIG_ROLES", "CREATE") && selectedRole.code !== "SUPER_ADMIN" && (
-                    <Button variant="outline" size="sm" onClick={handleAddChild}>
-                      <Plus className="w-4 h-4 mr-2" /> Add Child
-                    </Button>
-                  )}
-                  {canAccessNavigationItem("CONFIG_ROLES", "EDIT") && selectedRole.code !== "SUPER_ADMIN" && (
-                    <Button variant="default" size="sm" onClick={startEdit} className="bg-blue-600 hover:bg-blue-700 text-white">
-                      <Edit className="w-4 h-4 mr-2" /> Edit
-                    </Button>
-                  )}
-                </div>
+                {!isEditing && selectedRole.id !== "new" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canAccessNavigationItem("CONFIG_ROLES", "CREATE") && (
+                       <Button variant="outline" size="sm" onClick={handleAddChild} className="bg-white dark:bg-zinc-900">
+                         <Plus className="w-4 h-4 mr-2" /> Add Child
+                       </Button>
+                    )}
+                    {canAccessNavigationItem("CONFIG_ROLES", "EDIT") && !selectedRole.is_system_role && (
+                      <Button variant="outline" size="sm" onClick={startEdit} className="bg-white dark:bg-zinc-900 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-900/20">
+                        <Edit className="w-4 h-4 mr-2" /> Edit
+                      </Button>
+                    )}
+                    {canAccessNavigationItem("CONFIG_ROLES", "DELETE") && !selectedRole.is_system_role && (
+                      selectedRole.is_active ? (
+                        <Button variant="outline" size="sm" onClick={() => setIsDeactivateDialogOpen(true)} className="bg-white dark:bg-zinc-900 text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-900 dark:text-orange-400 dark:hover:bg-orange-900/20">
+                          <Ban className="w-4 h-4 mr-2" /> Deactivate
+                        </Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => setIsDeleteDialogOpen(true)} className="bg-white dark:bg-zinc-900 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-900/20">
+                          <Trash2 className="w-4 h-4 mr-2" /> Delete
+                        </Button>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div className="p-6 flex-1 overflow-y-auto">
-                <div className="grid grid-cols-2 gap-8 mb-8">
-                  <div>
-                    <h4 className="text-xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-1">Department</h4>
-                    <p className="text-slate-900 dark:text-zinc-200">{selectedRole.department || "—"}</p>
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-1">Display Order</h4>
-                    <p className="text-slate-900 dark:text-zinc-200">{selectedRole.display_order}</p>
-                  </div>
-                </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                {isEditing ? (
+                  <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl animate-in fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Role Name <span className="text-red-500">*</span></label>
+                        <Input 
+                          required 
+                          value={formData.name} 
+                          onChange={e => setFormData({...formData, name: e.target.value})} 
+                          placeholder="e.g. Senior Accountant"
+                          className="bg-white dark:bg-zinc-950"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Role Code <span className="text-red-500">*</span></label>
+                        <Input 
+                          required 
+                          value={formData.code} 
+                          onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} 
+                          placeholder="e.g. SNR_ACCT"
+                          className="bg-white dark:bg-zinc-950 uppercase"
+                        />
+                        <p className="text-[11px] text-slate-500">Unique identifier used for system mapping.</p>
+                      </div>
+                    </div>
 
-                <div className="mb-8">
-                  <h4 className="text-xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">Description</h4>
-                  <p className="text-slate-700 dark:text-zinc-300 text-sm bg-slate-50 dark:bg-zinc-900/50 p-4 rounded-lg border border-slate-100 dark:border-zinc-800">
-                    {selectedRole.description || <span className="italic text-slate-400">No description provided.</span>}
-                  </p>
-                </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Description</label>
+                      <Textarea 
+                        value={formData.description} 
+                        onChange={e => setFormData({...formData, description: e.target.value})} 
+                        placeholder="Describe the responsibilities and access level of this role..."
+                        rows={3}
+                        className="bg-white dark:bg-zinc-950 resize-none"
+                      />
+                    </div>
 
-                <div className="space-y-4">
-                  <h4 className="text-xs font-semibold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">Quick Actions</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Link to="/configurations/user-role-assignment" className="flex items-center p-4 rounded-lg border border-slate-200 dark:border-zinc-800 hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors group">
-                      <div className="bg-blue-100 dark:bg-blue-900/50 p-2 rounded-md mr-4 text-blue-600 dark:text-blue-400">
-                        <Users className="w-5 h-5" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Parent Role</label>
+                        <select 
+                          value={formData.parent_role_id}
+                          onChange={e => setFormData({...formData, parent_role_id: e.target.value})}
+                          className="w-full h-10 px-3 py-2 rounded-md border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-900 dark:text-zinc-100 text-sm"
+                        >
+                          <option value="">-- None (Root Role) --</option>
+                          {flatRoles?.filter(r => r.id !== selectedRole?.id).map(r => (
+                            <option key={r.id} value={r.id}>{r.name}</option>
+                          ))}
+                        </select>
                       </div>
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">Assign Users</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Manage user assignments</div>
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-slate-700 dark:text-zinc-300">Department</label>
+                        <Input 
+                          value={formData.department} 
+                          onChange={e => setFormData({...formData, department: e.target.value})} 
+                          placeholder="e.g. Finance"
+                          className="bg-white dark:bg-zinc-950"
+                        />
                       </div>
-                    </Link>
-                    
-                    <Link to="/configurations/role-navigation-permissions" className="flex items-center p-4 rounded-lg border border-slate-200 dark:border-zinc-800 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-colors group">
-                      <div className="bg-purple-100 dark:bg-purple-900/50 p-2 rounded-md mr-4 text-purple-600 dark:text-purple-400">
-                        <Key className="w-5 h-5" />
+                    </div>
+
+                    <div className="pt-6 mt-6 border-t border-slate-100 dark:border-zinc-800 flex justify-end gap-3">
+                      <Button type="button" variant="ghost" onClick={() => {
+                        setIsEditing(false);
+                        if (selectedRole?.id === "new") setSelectedRole(null);
+                      }}>
+                        Cancel
+                      </Button>
+                      <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white min-w-[120px]" disabled={createMutation.isPending || updateMutation.isPending}>
+                        {(createMutation.isPending || updateMutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Save Role
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="space-y-8 animate-in fade-in">
+                    <div>
+                      <h4 className="text-sm font-semibold text-slate-900 dark:text-zinc-100 mb-3 flex items-center">
+                        <FolderOpen className="w-4 h-4 mr-2 text-slate-400" /> Role Information
+                      </h4>
+                      <div className="bg-slate-50 dark:bg-zinc-950/50 rounded-xl p-5 border border-slate-100 dark:border-zinc-800/50 space-y-4">
+                        <div className="grid grid-cols-3 gap-4">
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-1">Department</p>
+                            <p className="text-sm text-slate-900 dark:text-zinc-300">{selectedRole.department || "—"}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-1">Parent Role</p>
+                            <p className="text-sm text-slate-900 dark:text-zinc-300">
+                              {selectedRole.parent_role_id ? flatRoles?.find(r => r.id === selectedRole.parent_role_id)?.name || "Unknown" : "None (Root)"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-1">System Status</p>
+                            <p className="text-sm text-slate-900 dark:text-zinc-300">{selectedRole.is_system_role ? "System Managed" : "Custom Role"}</p>
+                          </div>
+                        </div>
+                        
+                        {selectedRole.description && (
+                          <div className="pt-4 mt-4 border-t border-slate-200 dark:border-zinc-800/50">
+                            <p className="text-xs font-medium text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">Description</p>
+                            <p className="text-sm text-slate-700 dark:text-zinc-400 leading-relaxed">{selectedRole.description}</p>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <div className="font-medium text-slate-900 dark:text-zinc-100 group-hover:text-purple-600 dark:group-hover:text-purple-400">Navigation Permissions</div>
-                        <div className="text-xs text-slate-500 mt-0.5">Configure page access</div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <Link 
+                         to={`/configurations/role-navigation-permissions?roleId=${selectedRole.id}`}
+                         className="flex items-start p-4 rounded-xl border border-slate-200 dark:border-zinc-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all bg-white dark:bg-zinc-900 group"
+                       >
+                         <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 mr-4 group-hover:scale-110 transition-transform">
+                           <Shield className="w-5 h-5" />
+                         </div>
+                         <div>
+                           <h5 className="font-semibold text-slate-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Page Permissions</h5>
+                           <p className="text-xs text-slate-500 mt-1">Configure which pages and tabs this role can access.</p>
+                         </div>
+                       </Link>
+
+                       <Link 
+                         to={`/configurations/role-mcp-tool-permissions?roleId=${selectedRole.id}`}
+                         className="flex items-start p-4 rounded-xl border border-slate-200 dark:border-zinc-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all bg-white dark:bg-zinc-900 group"
+                       >
+                         <div className="p-2.5 rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 mr-4 group-hover:scale-110 transition-transform">
+                           <Power className="w-5 h-5" />
+                         </div>
+                         <div>
+                           <h5 className="font-semibold text-slate-900 dark:text-zinc-100 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">AI Tool Access</h5>
+                           <p className="text-xs text-slate-500 mt-1">Manage which MCP tools are available to this role.</p>
+                         </div>
+                       </Link>
+                    </div>
+
+                    {selectedRole.is_system_role && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl p-4 flex gap-3 text-amber-800 dark:text-amber-400">
+                        <Shield className="w-5 h-5 shrink-0" />
+                        <div className="text-sm">
+                          <p className="font-semibold mb-1">System Role</p>
+                          <p className="opacity-90">This role is managed by the system and cannot be renamed or deleted. You can still modify its permissions and assign it to users.</p>
+                        </div>
                       </div>
-                    </Link>
+                    )}
                   </div>
-                </div>
-
-                <div className="mt-12 pt-6 border-t border-slate-200 dark:border-zinc-800 flex justify-end gap-3">
-                  {canAccessNavigationItem("CONFIG_ROLES", "EDIT") && selectedRole.code !== "SUPER_ADMIN" && (
-                    <Button variant="outline" className={selectedRole.is_active ? "text-orange-600 hover:text-orange-700 hover:bg-orange-50" : "text-green-600 hover:text-green-700 hover:bg-green-50"} onClick={() => setIsDeactivateDialogOpen(true)}>
-                      {selectedRole.is_active ? <Ban className="w-4 h-4 mr-2" /> : <Power className="w-4 h-4 mr-2" />}
-                      {selectedRole.is_active ? "Deactivate Role" : "Activate Role"}
-                    </Button>
-                  )}
-                  {canAccessNavigationItem("CONFIG_ROLES", "DELETE") && !selectedRole.is_system_role && (
-                    <Button variant="outline" className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50" onClick={() => setIsDeleteDialogOpen(true)}>
-                      <Trash2 className="w-4 h-4 mr-2" /> Delete Role
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -461,15 +725,15 @@ export default function Roles() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this role?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Role</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the role and remove it from all assigned users.
+              Are you sure you want to completely delete the role "{selectedRole?.name}"? This action cannot be undone and will remove all associated permissions and user assignments.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} disabled={deleteMutation.isPending} className="bg-red-600 hover:bg-red-700 text-white">
-              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700 text-white">
+              Yes, delete role
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -478,17 +742,15 @@ export default function Roles() {
       <AlertDialog open={isDeactivateDialogOpen} onOpenChange={setIsDeactivateDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{selectedRole?.is_active ? "Deactivate Role" : "Activate Role"}</AlertDialogTitle>
+            <AlertDialogTitle>Deactivate Role</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedRole?.is_active 
-                ? "This will deactivate the role. Users with this role may lose access to associated permissions."
-                : "This will reactivate the role."}
+              Are you sure you want to deactivate "{selectedRole?.name}"? Users with this role will lose access to its associated permissions until it is reactivated.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={updateMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDeactivate} disabled={updateMutation.isPending} className={selectedRole?.is_active ? "bg-orange-600 hover:bg-orange-700 text-white" : "bg-green-600 hover:bg-green-700 text-white"}>
-              {updateMutation.isPending ? "Updating..." : (selectedRole?.is_active ? "Deactivate" : "Activate")}
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeactivate} className="bg-orange-600 hover:bg-orange-700 text-white">
+              Yes, deactivate role
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
