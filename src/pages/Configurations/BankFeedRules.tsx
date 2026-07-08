@@ -162,9 +162,6 @@ export default function BankFeedRules() {
               onChange={(e) => setGlobalFilter(e.target.value)}
             />
           </div>
-          <p className="text-sm text-slate-500 pl-1">
-            Total rules: {table.getFilteredRowModel().rows.length}
-          </p>
         </div>
         <div className="flex items-center gap-4">
           <DropdownMenu>
@@ -302,8 +299,11 @@ export default function BankFeedRules() {
       {/* PAGINATION */}
       <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
         <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+          <div className="text-sm font-medium text-slate-600">
+            {table.getFilteredRowModel().rows.length} total rule(s).
+          </div>
           <div className="flex items-center space-x-2">
-            <p className="text-sm font-medium">Rows per page</p>
+            <p className="text-sm font-medium text-slate-600">Rows per page</p>
             <UISelect
               value={`${table.getState().pagination.pageSize}`}
               onValueChange={(value) => {
@@ -322,7 +322,7 @@ export default function BankFeedRules() {
               </SelectContent>
             </UISelect>
           </div>
-          <div className="flex w-[100px] items-center justify-center text-sm font-medium">
+          <div className="flex w-[100px] items-center justify-center text-sm font-medium text-slate-600">
             Page {table.getState().pagination.pageIndex + 1} of{" "}
             {table.getPageCount() || 1}
           </div>
