@@ -286,7 +286,7 @@ export default function Users() {
         );
       },
     }
-  ], [canAccessNavigationItem, navigate]);
+  ], [hasPermission, navigate]);
 
   const table = useReactTable({
     data: users,
