@@ -104,10 +104,11 @@ export type SaveImportFromUploadResponse = {
 };
 
 export type GLAccountSuggestionsRequest = {
-  file: File;
+  file?: File | null;
+  previewToken?: string | null;
   companyId?: number | null;
   companyName?: string | null;
-  formatCode: string;
+  formatCode?: string | null;
   includeAll?: boolean;
   useXgboost?: boolean;
   xgboostMinConfidence?: number;
@@ -123,6 +124,28 @@ export type GLAccountSuggestionsRequest = {
   aiEscalationModel?: string | null;
   aiEscalationConfidence?: number;
   applyAiSuggestions?: boolean;
+};
+
+export type GLAccountSuggestionsBackgroundResponse = {
+  status: "queued" | string;
+  queued?: boolean;
+  jobId: string;
+  backgroundJobId?: string;
+  previewToken?: string | null;
+  progress?: number;
+};
+
+export type GLAccountSuggestionsJobResponse = {
+  id: number;
+  status: string;
+  progress: number;
+  previewToken?: string | null;
+  result?: GLAccountSuggestionsResponse | null;
+  error?: { message?: string; trace?: string } | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type GLXgboostTestTrainingRequest = {

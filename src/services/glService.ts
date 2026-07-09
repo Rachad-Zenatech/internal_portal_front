@@ -15,6 +15,8 @@ import type {
   UnapplySuggestedTargetRequest,
   UnapplySuggestedTargetResponse,
   GLAccountSuggestionsRequest,
+  GLAccountSuggestionsBackgroundResponse,
+  GLAccountSuggestionsJobResponse,
   GLAccountSuggestionsResponse,
   GLParseImportRequest,
   GLUploadQueueCancelResponse,
@@ -233,14 +235,22 @@ export const GLService = {
   },
   async getAccountSuggestions(params: GLAccountSuggestionsRequest): Promise<GLAccountSuggestionsResponse> {
     const formData = new FormData();
-    formData.append("file", params.file);
+    const hasPreviewToken = Boolean(params.previewToken);
+    if (!hasPreviewToken) {
+      if (!params.file) {
+        throw new Error("Account review requires an uploaded file or dry-run preview token.");
+      }
+      formData.append("file", params.file);
+    }
     if (params.companyId !== undefined && params.companyId !== null) {
       formData.append("company_id", String(params.companyId));
     }
     if (params.companyName) {
       formData.append("company_name", params.companyName);
     }
-    formData.append("format_code", params.formatCode);
+    if (params.formatCode) {
+      formData.append("format_code", params.formatCode);
+    }
     formData.append("include_all", String(params.includeAll ?? false));
     formData.append("use_xgboost", String(params.useXgboost ?? true));
     formData.append(
@@ -250,9 +260,10 @@ export const GLService = {
     const useAi = params.useAi === true;
     formData.append("use_ai", String(useAi));
     if (useAi) {
+      const aiRowsPerRequest = params.aiRowsPerRequest ?? 100;
       formData.append("ai_provider", params.aiProvider ?? "ai");
-      formData.append("ai_rows_per_request", "50");
-      formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 3));
+      formData.append("ai_rows_per_request", String(aiRowsPerRequest));
+      formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 5));
       formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
       formData.append("ai_review_all", String(params.aiReviewAll ?? true));
       if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
@@ -276,12 +287,17 @@ export const GLService = {
       formData.append("apply_ai_suggestions", "false");
     }
 
-    const endpoint = "/accounting/gl/exports/account-suggestions";
+    const endpoint = hasPreviewToken
+      ? `/accounting/gl/imports/dry-run-preview/${encodeURIComponent(
+          String(params.previewToken)
+        )}/account-suggestions`
+      : "/accounting/gl/exports/account-suggestions";
     console.log("[GL Account Suggestions] fetch", {
       url: `${BASE_URL}${endpoint}`,
       method: "POST",
-      fileName: params.file.name,
-      fileSize: params.file.size,
+      fileName: params.file?.name ?? null,
+      fileSize: params.file?.size ?? null,
+      previewToken: params.previewToken ?? null,
       companyId: params.companyId ?? null,
       companyName: params.companyName ?? null,
       formatCode: params.formatCode,
@@ -289,8 +305,8 @@ export const GLService = {
       useXgboost: params.useXgboost ?? true,
       useAi,
       aiReviewAll: useAi ? params.aiReviewAll ?? true : false,
-      aiRowsPerRequest: useAi ? 50 : null,
-      aiConcurrencyLimit: useAi ? params.aiConcurrencyLimit ?? 3 : null,
+      aiRowsPerRequest: useAi ? params.aiRowsPerRequest ?? 100 : null,
+      aiConcurrencyLimit: useAi ? params.aiConcurrencyLimit ?? 5 : null,
       aiMaxRows: useAi ? params.aiMaxRows ?? null : null,
     });
 
@@ -318,6 +334,78 @@ export const GLService = {
       });
       throw error;
     }
+  },
+
+  async queueAccountSuggestions(
+    params: GLAccountSuggestionsRequest
+  ): Promise<GLAccountSuggestionsBackgroundResponse> {
+    if (!params.previewToken) {
+      throw new Error("Background account review requires a dry-run preview token.");
+    }
+
+    const formData = new FormData();
+    if (params.companyId !== undefined && params.companyId !== null) {
+      formData.append("company_id", String(params.companyId));
+    }
+    if (params.companyName) {
+      formData.append("company_name", params.companyName);
+    }
+    if (params.formatCode) {
+      formData.append("format_code", params.formatCode);
+    }
+    formData.append("include_all", String(params.includeAll ?? true));
+    formData.append("use_xgboost", String(params.useXgboost ?? true));
+    formData.append(
+      "xgboost_min_confidence",
+      String(params.xgboostMinConfidence ?? 0.8)
+    );
+    const useAi = params.useAi === true;
+    formData.append("use_ai", String(useAi));
+    if (useAi) {
+      const aiRowsPerRequest = params.aiRowsPerRequest ?? 100;
+      formData.append("ai_provider", params.aiProvider ?? "ai");
+      formData.append("ai_rows_per_request", String(aiRowsPerRequest));
+      formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 5));
+      formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
+      formData.append("ai_review_all", String(params.aiReviewAll ?? true));
+      if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
+        formData.append("ai_max_rows", String(params.aiMaxRows));
+      }
+      formData.append("ai_enable_escalation", String(params.aiEnableEscalation ?? true));
+      formData.append(
+        "ai_escalation_confidence",
+        String(params.aiEscalationConfidence ?? 0.85)
+      );
+      formData.append("apply_ai_suggestions", String(params.applyAiSuggestions ?? true));
+      if (params.aiModel) {
+        formData.append("ai_model", params.aiModel);
+      }
+      if (params.aiEscalationModel) {
+        formData.append("ai_escalation_model", params.aiEscalationModel);
+      }
+    } else {
+      formData.append("ai_review_all", "false");
+      formData.append("ai_enable_escalation", "false");
+      formData.append("apply_ai_suggestions", "false");
+    }
+
+    const endpoint = `/accounting/gl/imports/dry-run-preview/${encodeURIComponent(
+      String(params.previewToken)
+    )}/account-suggestions-background`;
+    console.log("[GL Account Suggestions] queue", {
+      url: `${BASE_URL}${endpoint}`,
+      previewToken: params.previewToken,
+      companyId: params.companyId ?? null,
+      formatCode: params.formatCode,
+      useAi,
+    });
+    return apiClient.post<GLAccountSuggestionsBackgroundResponse>(endpoint, formData);
+  },
+
+  async getAccountSuggestionsJob(jobId: string | number): Promise<GLAccountSuggestionsJobResponse> {
+    return apiClient.get<GLAccountSuggestionsJobResponse>(
+      `/accounting/gl/imports/account-suggestions/jobs/${encodeURIComponent(String(jobId))}`
+    );
   },
 
   async trainXgboostTestModelFromGlExport(

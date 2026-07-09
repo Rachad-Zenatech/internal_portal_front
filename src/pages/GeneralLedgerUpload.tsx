@@ -5,6 +5,7 @@ import type {
   ApplySuggestedTargetRequest,
   ApplySuggestedTargetResponse,
   GLAccountSuggestion,
+  GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
   GLXgboostTestTrainingResponse,
   ImportPreview,
@@ -34,6 +35,7 @@ import {
   useSaveImportFromUpload,
   useSaveDryRunPreview,
 } from "@/hooks/useGL";
+import { GLService } from "@/services/glService";
 import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
@@ -107,12 +109,17 @@ type AccountReviewLogContext = {
   useGemini: boolean;
 };
 
-const AI_ROWS_PER_REQUEST = 50;
-const GEMINI_CONCURRENCY_LIMIT = 3;
+const AI_ROWS_PER_REQUEST = 100;
+const GEMINI_CONCURRENCY_LIMIT = 5;
 const DRY_RUN_PREVIEW_LIMIT = 5000;
 const AI_REVIEW_MAX_ROWS: number | null = null;
 const AI_USE_WEB_SEARCH = false;
 const AI_ENABLE_ESCALATION = false;
+const ACCOUNT_REVIEW_POLL_MS = 2000;
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
 
 const emptyManualEntry: ManualEntryForm = {
   ledger_account_code: "",
@@ -132,7 +139,7 @@ export default function GeneralLedgerUpload() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [useGeminiReview, setUseGeminiReview] = useState(true);
+  const useGeminiReview = true;
   const [trainXgboostTestModel, setTrainXgboostTestModel] = useState(false);
   const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false);
 
@@ -145,6 +152,8 @@ export default function GeneralLedgerUpload() {
     useState<GLAccountSuggestionsResponse | null>(null);
   const [accountReviewProgress, setAccountReviewProgress] =
     useState<AccountReviewProgress | null>(null);
+  const [accountReviewJobId, setAccountReviewJobId] = useState<string | null>(null);
+  const [isAccountReviewJobRunning, setIsAccountReviewJobRunning] = useState(false);
   const [applyingSuggestionKey, setApplyingSuggestionKey] = useState<string | null>(null);
   const [appliedSuggestionRows, setAppliedSuggestionRows] = useState<Set<number>>(
     () => new Set()
@@ -313,16 +322,15 @@ export default function GeneralLedgerUpload() {
   const reconciliationChecks = preview?.reconciliation?.checks ?? [];
   const hasReconciliationMismatch = reconciliationChecks.some((check) => check.status !== "match");
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
-  const isReviewingAccounts = accountSuggestionsMutation.isPending;
+  const isReviewingAccounts = accountSuggestionsMutation.isPending || isAccountReviewJobRunning;
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
   const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
   const isBackgroundParsing = parseImportBackgroundMutation.isPending;
   const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending || saveDryRunPreviewMutation.isPending;
   const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isTrainingXgboost || isReviewingAccounts || isSavingImport;
-  const canRunAccountReview = Boolean(summary && file && selectedBook && !isReviewingAccounts);
   const canSaveDryRun = Boolean(summary?.dry_run_preview_token || (selectedBook && file));
   const accountReviewProgressLabel = accountReviewProgress
-    ? formatAccountReviewProgress(accountReviewProgress)
+    ? formatAccountReviewProgress(accountReviewProgress, accountReviewJobId)
     : null;
   const hasAccountReviewProgress = accountReviewProgress !== null;
 
@@ -361,14 +369,17 @@ export default function GeneralLedgerUpload() {
 
 
   useEffect(() => {
-    if (!preview || !summary || !file || !selectedBook) return;
-    if (accountSuggestions || suggestionError || accountSuggestionsMutation.isPending) return;
+    if (!preview || !summary || !selectedBook) return;
+    const previewToken =
+      preview.pagination?.preview_token ?? summary.dry_run_preview_token ?? null;
+    if (!file && !previewToken) return;
+    if (accountSuggestions || suggestionError || isReviewingAccounts) return;
     if (isSavingImport || isPreviewPageLoading || isTrainingXgboost || parseImportMutation.isPending || isBackgroundParsing) return;
 
     const reviewKey = [
       summary.dry_run_preview_token ?? summary.source_file_id ?? "new-upload",
-      file.name,
-      file.size,
+      file?.name ?? previewToken ?? "server-preview",
+      file?.size ?? 0,
       summary.gl_entry_lines,
       selectedBook.book_id,
       useGeminiReview ? "ai" : "rules",
@@ -378,11 +389,12 @@ export default function GeneralLedgerUpload() {
 
     void reviewAccountSuggestions({
       file,
+      previewToken,
       formatCode: selectedBook.format_code,
       parseRunId: parseRunIdRef.current,
       rowCount: summary.gl_entry_lines,
       context: {
-        filename: file.name,
+        filename: file?.name ?? `dry-run-preview-${previewToken}`,
         companyId: selectedBook.company_id,
         companyName: selectedBook.company_name,
         formatCode: selectedBook.format_code,
@@ -392,10 +404,10 @@ export default function GeneralLedgerUpload() {
     });
   }, [
     accountSuggestions,
-    accountSuggestionsMutation.isPending,
     file,
     isBackgroundParsing,
     isPreviewPageLoading,
+    isReviewingAccounts,
     isSavingImport,
     isTrainingXgboost,
     parseImportMutation.isPending,
@@ -414,6 +426,8 @@ export default function GeneralLedgerUpload() {
     setShowWorkbookPreview(false);
     setAccountSuggestions(null);
     setAccountReviewProgress(null);
+    setAccountReviewJobId(null);
+    setIsAccountReviewJobRunning(false);
     setApplyingSuggestionKey(null);
     setAppliedSuggestionRows(new Set());
     setFocusedReviewRowId(null);
@@ -515,6 +529,8 @@ export default function GeneralLedgerUpload() {
     setShowWorkbookPreview(false);
     setAccountSuggestions(null);
     setAccountReviewProgress(null);
+    setAccountReviewJobId(null);
+    setIsAccountReviewJobRunning(false);
     setApplyingSuggestionKey(null);
     setAppliedSuggestionRows(new Set());
     setFocusedReviewRowId(null);
@@ -662,45 +678,53 @@ export default function GeneralLedgerUpload() {
     }
   }
 
-  async function handleReviewAccountSuggestions() {
-    if (!file || !selectedBook || !summary) return;
+  async function pollAccountReviewJob(
+    jobId: string,
+    parseRunId: number
+  ): Promise<GLAccountSuggestionsResponse> {
+    while (true) {
+      if (parseRunIdRef.current !== parseRunId) {
+        throw new Error("Account review was superseded by a newer upload.");
+      }
+      const job = await GLService.getAccountSuggestionsJob(jobId);
+      setAccountReviewProgress({
+        current: Math.min(99, Math.max(1, job.progress ?? 1)),
+        total: 100,
+      });
 
-    setSuggestionError(null);
-    setAccountSuggestions(null);
-    setApplyingSuggestionKey(null);
-    setAppliedSuggestionRows(new Set());
-    setAppliedSuggestionChanges(new Map());
+      if (job.status === "completed") {
+        if (!job.result) {
+          throw new Error("Account review finished without a result.");
+        }
+        setAccountReviewProgress({ current: 100, total: 100 });
+        return job.result;
+      }
+      if (["failed", "canceled", "discarded"].includes(job.status)) {
+        throw new Error(job.error?.message || `Account review ${job.status}.`);
+      }
 
-    await reviewAccountSuggestions({
-      file,
-      formatCode: selectedBook.format_code,
-      parseRunId: parseRunIdRef.current,
-      rowCount: summary.gl_entry_lines,
-      context: {
-        filename: file.name,
-        companyId: selectedBook.company_id,
-        companyName: selectedBook.company_name,
-        formatCode: selectedBook.format_code,
-        sourceFileId: summary.source_file_id,
-        useGemini: useGeminiReview,
-      },
-    });
+      await wait(ACCOUNT_REVIEW_POLL_MS);
+    }
   }
 
   async function reviewAccountSuggestions({
     file,
+    previewToken,
     formatCode,
     parseRunId,
     rowCount,
     context,
   }: {
-    file: File;
+    file?: File | null;
+    previewToken?: string | null;
     formatCode: string;
     parseRunId: number;
     rowCount: number;
     context: AccountReviewLogContext;
   }) {
-    if (context.useGemini) {
+    if (previewToken) {
+      setAccountReviewProgress({ current: 1, total: 100 });
+    } else if (context.useGemini) {
       const geminiReviewRowCount =
         AI_REVIEW_MAX_ROWS == null
           ? rowCount
@@ -716,8 +740,9 @@ export default function GeneralLedgerUpload() {
 
     try {
       const useGemini = context.useGemini;
-      const review = await accountSuggestionsMutation.mutateAsync({
+      const request: GLAccountSuggestionsRequest = {
         file,
+        previewToken,
         companyId: context.companyId,
         companyName: context.companyName,
         formatCode,
@@ -732,7 +757,21 @@ export default function GeneralLedgerUpload() {
         aiEnableEscalation: useGemini ? AI_ENABLE_ESCALATION : false,
         aiEscalationConfidence: useGemini ? 0.85 : undefined,
         applyAiSuggestions: useGemini,
-      });
+      };
+      let review: GLAccountSuggestionsResponse;
+      if (previewToken) {
+        setIsAccountReviewJobRunning(true);
+        const queued = await GLService.queueAccountSuggestions(request);
+        const queuedJobId = queued.backgroundJobId ?? queued.jobId;
+        setAccountReviewJobId(queuedJobId);
+        setAccountReviewProgress({
+          current: Math.min(99, Math.max(1, queued.progress ?? 1)),
+          total: 100,
+        });
+        review = await pollAccountReviewJob(queuedJobId, parseRunId);
+      } else {
+        review = await accountSuggestionsMutation.mutateAsync(request);
+      }
 
       const geminiIssues = logGeminiReviewIssues(review, context);
       if (parseRunIdRef.current !== parseRunId) return;
@@ -752,6 +791,8 @@ export default function GeneralLedgerUpload() {
     } finally {
       if (parseRunIdRef.current === parseRunId) {
         setAccountReviewProgress(null);
+        setAccountReviewJobId(null);
+        setIsAccountReviewJobRunning(false);
       }
     }
   }
@@ -1281,17 +1322,14 @@ export default function GeneralLedgerUpload() {
               <Button
                 id="gemini-review"
                 type="button"
-                variant={useGeminiReview ? "default" : "outline"}
+                variant="default"
                 size="sm"
-                onClick={() => setUseGeminiReview((enabled) => !enabled)}
-                disabled={isUploadBusy}
+                disabled
                 title={
-                  isUploadBusy
-                    ? "AI review setting is locked while this upload is running"
-                    : "Toggle AI review"
+                  "AI review runs automatically for production GL uploads"
                 }
               >
-                {useGeminiReview ? "On" : "Off"}
+                Auto
               </Button>
             </div>
             <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-4">
@@ -1357,7 +1395,7 @@ export default function GeneralLedgerUpload() {
                 ? "Queueing dry-run..."
                 : parseImportMutation.isPending
                 ? "Building dry-run..."
-                : accountSuggestionsMutation.isPending
+                : isReviewingAccounts
                   ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with AI..." : "Reviewing...")
                   : "Dry-run Preview"}
             </Button>
@@ -1590,27 +1628,24 @@ export default function GeneralLedgerUpload() {
                   <div>
                     <h3 className="font-medium">Account Suggestions</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Account review starts automatically after the preview loads. Use the button to rerun it.
+                      {accountReviewProgressLabel ??
+                        (suggestionError
+                          ? "Review failed"
+                          : accountSuggestions
+                            ? "Review complete"
+                            : "Review pending")}
                     </p>
                   </div>
-                  <Button
-                    variant={accountSuggestions ? "outline" : "default"}
-                    disabled={!canRunAccountReview}
-                    onClick={handleReviewAccountSuggestions}
-                  >
-                    {accountSuggestionsMutation.isPending
-                      ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with AI..." : "Reviewing...")
-                      : accountSuggestions
-                        ? "Run Review Again"
-                        : "Run Account Review"}
-                  </Button>
+                  <Badge variant={suggestionError ? "destructive" : accountSuggestions ? "default" : "outline"}>
+                    {isReviewingAccounts ? "Running" : suggestionError ? "Failed" : accountSuggestions ? "Complete" : "Pending"}
+                  </Badge>
                 </div>
               </div>
 
               <AccountSuggestionReview
                 suggestions={suggestions}
                 response={accountSuggestions}
-                isLoading={accountSuggestionsMutation.isPending}
+                isLoading={isReviewingAccounts}
                 progressLabel={accountReviewProgressLabel}
                 error={suggestionError}
                 onApplySuggestedTarget={!isDryRun && summary ? handleApplySuggestedTarget : undefined}
@@ -1969,6 +2004,7 @@ function ReviewAccountGroup({
 }) {
   const transactions = account.transactions ?? [];
   const closingBalance = getPreviewAccountClosingBalance(account);
+  const isCreditCardAccount = isCreditCardAccountType(account.account_type);
 
   return (
     <div className="overflow-hidden rounded-md border bg-card text-card-foreground shadow-sm">
@@ -1987,6 +2023,11 @@ function ReviewAccountGroup({
           {account.bank_lines > 0 && (
             <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 dark:bg-green-950/40 dark:text-green-200 dark:hover:bg-green-950/40">
               {account.bank_lines.toLocaleString("en-US")} bank
+            </Badge>
+          )}
+          {isCreditCardAccount && (
+            <Badge variant="secondary" className="bg-sky-100 text-sky-700 hover:bg-sky-100 dark:bg-sky-950/40 dark:text-sky-200 dark:hover:bg-sky-950/40">
+              Credit card
             </Badge>
           )}
           <span className="font-semibold text-muted-foreground">Debit {formatMoney(account.debits)}</span>
@@ -2156,7 +2197,20 @@ function estimateGeminiChunkCount(rowCount: number) {
   return Math.max(1, Math.ceil(rowCount / AI_ROWS_PER_REQUEST));
 }
 
-function formatAccountReviewProgress(progress: AccountReviewProgress) {
+function isCreditCardAccountType(accountType: string | null | undefined) {
+  const normalized = String(accountType || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  return normalized === "creditcard";
+}
+
+function formatAccountReviewProgress(progress: AccountReviewProgress, jobId?: string | null) {
+  if (progress.total === 100) {
+    const suffix = jobId ? ` (job ${jobId})` : "";
+    if (progress.current >= 100) return `AI review complete${suffix}`;
+    return `AI review ${progress.current.toLocaleString("en-US")}% complete${suffix}`;
+  }
+  if (progress.current >= progress.total) {
+    return `Finalizing AI review after ${progress.total.toLocaleString("en-US")} chunk${progress.total === 1 ? "" : "s"}...`;
+  }
   return `AI chunk ${progress.current.toLocaleString("en-US")} of ${progress.total.toLocaleString("en-US")}`;
 }
 
