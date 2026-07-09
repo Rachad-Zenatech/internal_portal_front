@@ -17,6 +17,7 @@ import Users from "./pages/Configurations/Users";
 import Roles from "./pages/Configurations/Roles";
 import UserRoleAssignment from "./pages/Configurations/UserRoleAssignment";
 import RoleNavigationPermissions from "./pages/Configurations/RoleNavigationPermissions";
+import RoleApiPermissions from "./pages/Configurations/RoleApiPermissions";
 import RoleMcpToolPermissions from "./pages/Configurations/RoleMcpToolPermissions";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
@@ -42,13 +43,13 @@ function App() {
             <Route path="/upload-files" element={<ProtectedRoute navigationCode="UPLOAD_FILES"><UploadFile /></ProtectedRoute>} />
             <Route path="/general-ledger" element={<ProtectedRoute navigationCode="GENERAL_LEDGER"><GeneralLedger /></ProtectedRoute>} />
             <Route path="/general-ledger/company" element={<Navigate to="/general-ledger" replace />} />
-            <Route path="/general-ledger/company/:companyId" element={<ProtectedRoute navigationCode="GENERAL_LEDGER"><CompanyGeneralLedger /></ProtectedRoute>} />
-            <Route path="/general-ledger/upload" element={<ProtectedRoute navigationCode="GENERAL_LEDGER" actionCode="IMPORT"><GeneralLedgerUpload /></ProtectedRoute>} />
+            <Route path="/general-ledger/company/:companyId" element={<ProtectedRoute navigationCode="GENERAL_LEDGER_COMPANY"><CompanyGeneralLedger /></ProtectedRoute>} />
+            <Route path="/general-ledger/upload" element={<ProtectedRoute navigationCode="GENERAL_LEDGER_UPLOAD"><GeneralLedgerUpload /></ProtectedRoute>} />
             <Route path="/trial-balance" element={<ProtectedRoute navigationCode="TRIAL_BALANCE"><TrialBalance /></ProtectedRoute>} />
             <Route path="/bank-statements" element={<ProtectedRoute navigationCode="BANK_STATEMENTS"><BankStatements /></ProtectedRoute>} />
-            <Route path="/bank-statements/:bankStatementId/preview" element={<ProtectedRoute navigationCode="BANK_STATEMENTS"><BankStatementPreview /></ProtectedRoute>} />
+            <Route path="/bank-statements/:bankStatementId/preview" element={<ProtectedRoute navigationCode="BANK_STATEMENT_PREVIEW"><BankStatementPreview /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
-            <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
+            <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE_MATRIX"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
 
             {/* Configuration Routes */}
             <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />
@@ -64,6 +65,7 @@ function App() {
             <Route path="/configurations/roles" element={<ProtectedRoute navigationCode="CONFIG_ROLES"><Roles /></ProtectedRoute>} />
             <Route path="/configurations/user-role-assignment" element={<ProtectedRoute navigationCode="CONFIG_USER_ROLE_ASSIGNMENT"><UserRoleAssignment /></ProtectedRoute>} />
             <Route path="/configurations/role-navigation-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_NAVIGATION_PERMISSIONS"><RoleNavigationPermissions /></ProtectedRoute>} />
+            <Route path="/configurations/role-api-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_API_PERMISSIONS"><RoleApiPermissions /></ProtectedRoute>} />
             <Route path="/configurations/role-mcp-tool-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_MCP_TOOL_PERMISSIONS"><RoleMcpToolPermissions /></ProtectedRoute>} />
 
             {/* Logs */}

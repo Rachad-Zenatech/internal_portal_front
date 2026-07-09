@@ -174,7 +174,7 @@ export const useGLUploadQueue = (limit: number = 20) => {
       const isProcessing = data.jobs.some((job) =>
         ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(job.status)
       );
-      return isProcessing ? 1500 : false;
+      return isProcessing ? 1500 : 5000;
     },
   });
 };

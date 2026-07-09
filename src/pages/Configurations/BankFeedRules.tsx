@@ -1,9 +1,10 @@
 import { useState, useRef, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogTrigger, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import type { BankFeedRule } from "../../types/bankFeedRule";
-import { useBankFeedRules, useUploadBankFeedRules } from "../../hooks/useBankFeedRule";
-import { Search, Upload, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
+import { useBankFeedRules, useUploadBankFeedRules, useCreateBankFeedRule, useUpdateBankFeedRule, useDeleteBankFeedRule } from "../../hooks/useBankFeedRule";
+import { Search, Upload, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Plus, Pencil, Trash2 } from "lucide-react";
+import BankFeedRuleForm from "../../components/Configurations/BankFeedRuleForm";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -34,29 +35,118 @@ import type {
   VisibilityState,
 } from "@tanstack/react-table";
 
-const formatConditionValue = (type: number, value: any) => {
-  if (type === 10) {
-    if (String(value) === "1") return "Money in / deposit";
-    if (String(value) === "-1") return "Money out / expense";
+const FIELD_NAMES: Record<number, string> = {
+  1: 'Description',
+  6: 'Bank text',
+  2: 'Amount',
+  10: 'For',
+};
+
+const ACTION_NAMES: Record<number, string> = {
+  0: 'Set category / account',
+  5: 'Set payee / vendor / customer',
+  1: 'Set description / memo',
+  9: 'Set memo',
+  2: 'Set class',
+  3: 'Set location',
+};
+
+const formatOperator = (op: string) => {
+  if (!op) return '';
+  const mapping: Record<string, string> = {
+    'contains': 'contains',
+    'does_not_contain': 'does not contain',
+    'equals': 'equals',
+    'not_equals': 'does not equal',
+    'greater_than': 'is greater than',
+    'less_than': 'is less than',
+    'greater_than_or_equal': 'is greater than or equal to',
+    'less_than_or_equal': 'is less than or equal to',
+  };
+  return mapping[op] || op.replace(/_/g, ' ');
+};
+
+const getConditionLabel = (type: number, value: any, ruleTypeName?: string) => {
+  const baseField = FIELD_NAMES[type] || ruleTypeName || `Field ${type}`;
+  if (typeof value === 'object' && value !== null && value.operator) {
+    return `${baseField} ${formatOperator(value.operator)}`.toUpperCase();
   }
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  return baseField.toUpperCase();
+};
+
+const formatConditionValue = (type: number, value: any) => {
+  let val = value;
+  if (typeof value === 'object' && value !== null && value.value !== undefined) {
+    val = value.value;
+  }
+  if (type === 10) {
+    if (String(val) === "1" || String(val) === "money_in") return "Money in / deposit";
+    if (String(val) === "-1" || String(val) === "money_out") return "Money out / expense";
+  }
+  if (typeof val === "boolean") return val ? "Yes" : "No";
+  if (typeof val === "object") return JSON.stringify(val);
+  return String(val);
+};
+
+const getActionLabel = (type: number, actionTypeName?: string) => {
+  return (ACTION_NAMES[type] || actionTypeName || `Action ${type}`).toUpperCase();
 };
 
 const formatActionValue = (value: any) => {
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (Array.isArray(value) && value.length === 0) return "";
-  if (typeof value === "object") return JSON.stringify(value);
-  return String(value);
+  let val = value;
+  if (typeof value === 'object' && value !== null && value.value !== undefined) {
+    val = value.value;
+  }
+  if (Array.isArray(val)) {
+    return val.join(", ");
+  }
+  if (typeof val === 'object' && val !== null) {
+    if (val.account_name) return val.account_name;
+    return JSON.stringify(val);
+  }
+  if (typeof val === "boolean") return val ? "Yes" : "No";
+  return String(val);
 };
 
 export default function BankFeedRules() {
   const { addJob } = useGlobalProgress();
   const { data: rules = [], isPending: loadingRules } = useBankFeedRules();
   const { mutateAsync: uploadRules, isPending: isUploading } = useUploadBankFeedRules();
+  const createRule = useCreateBankFeedRule();
+  const updateRule = useUpdateBankFeedRule();
+  const deleteRule = useDeleteBankFeedRule();
+  
   const [selectedRule, setSelectedRule] = useState<BankFeedRule | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<BankFeedRule | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveRule = async (data: any) => {
+    try {
+      if (editingRule) {
+        await updateRule.mutateAsync({ id: editingRule.id, rule: data });
+        toast.success("Rule updated successfully.");
+      } else {
+        await createRule.mutateAsync(data);
+        toast.success("Rule created successfully.");
+      }
+      setIsFormOpen(false);
+      setEditingRule(null);
+    } catch (e) {
+      toast.error("Failed to save rule.");
+      console.error(e);
+    }
+  };
+
+  const handleDeleteRule = async (id: number) => {
+    try {
+      await deleteRule.mutateAsync(id);
+      toast.success("Rule deleted successfully.");
+    } catch (e) {
+      toast.error("Failed to delete rule.");
+      console.error(e);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -115,6 +205,42 @@ export default function BankFeedRules() {
         </Button>
       ),
       cell: ({ row }) => <span className="text-slate-600">{row.original.is_and_rule ? "All" : "Any"}</span>,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <div className="flex items-center space-x-2">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingRule(row.original);
+              setIsFormOpen(true);
+            }}
+          >
+            <Pencil className="w-4 h-4 text-slate-500" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                <Trash2 className="w-4 h-4 text-red-500" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Rule</AlertDialogTitle>
+                <AlertDialogDescription>Are you sure you want to delete this rule? This cannot be undone.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleDeleteRule(row.original.id)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ),
     }
   ], []);
 
@@ -196,6 +322,16 @@ export default function BankFeedRules() {
             ref={fileInputRef} 
             onChange={handleFileUpload} 
           />
+          <Button 
+            onClick={() => {
+              setEditingRule(null);
+              setIsFormOpen(true);
+            }}
+            className="bg-[#18181b] hover:bg-[#27272a] text-white"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Create Rule
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button 
@@ -368,13 +504,13 @@ export default function BankFeedRules() {
       </div>
 
       <Dialog open={selectedRule !== null} onOpenChange={(open) => { if (!open) setSelectedRule(null); }}>
-        <DialogContent className="sm:max-w-6xl w-[90vw] max-h-[90vh] bg-white p-0 overflow-hidden resize border-none shadow-2xl min-w-[300px] min-h-[300px] flex flex-col">
-          <div className="bg-slate-50 border-b border-slate-200 px-6 py-5 shrink-0">
+        <DialogContent className="sm:max-w-6xl w-[90vw] max-h-[90vh] bg-background p-0 overflow-hidden resize border-border shadow-2xl min-w-[300px] min-h-[300px] flex flex-col">
+          <div className="bg-muted/50 border-b border-border px-6 py-5 shrink-0">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-slate-800">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {selectedRule?.rule_name}
               </DialogTitle>
-              <DialogDescription className="text-slate-500 mt-1">
+              <DialogDescription className="text-muted-foreground mt-1">
                 Rule configuration details for automatic matching.
               </DialogDescription>
             </DialogHeader>
@@ -382,54 +518,81 @@ export default function BankFeedRules() {
           
           <div className="px-6 py-6 overflow-y-auto space-y-8 flex-1">
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b pb-2">
-                <h3 className="text-sm font-semibold tracking-wide uppercase text-slate-500">Conditions</h3>
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Conditions</h3>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-secondary text-secondary-foreground">
                   Match {selectedRule?.is_and_rule ? 'All' : 'Any'}
                 </span>
               </div>
               
-              <div className="space-y-2.5">
+              <div className="space-y-0 rounded-lg border border-border bg-background overflow-hidden">
                 {selectedRule?.conditions
                   .filter((c) => !c.rule_type_name?.toLowerCase().includes("auto-add"))
                   .map((c, i) => (
-                  <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 bg-slate-50/80 border border-slate-100 p-3 rounded-lg text-sm">
-                    <span className="font-medium text-slate-600 sm:w-1/3 shrink-0">{c.rule_type_name || `Type ${c.rule_type}`}</span>
-                    <span className="text-slate-900 font-semibold break-words whitespace-normal flex-1">
+                  <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-4 border-b border-border last:border-0 text-sm hover:bg-muted/30 transition-colors">
+                    <span className="font-medium text-muted-foreground sm:w-1/3 shrink-0">{getConditionLabel(c.rule_type, c.value, c.rule_type_name)}</span>
+                    <span className="text-foreground font-semibold break-words whitespace-normal flex-1">
                       {formatConditionValue(c.rule_type, c.value)}
                     </span>
                   </div>
                 ))}
                 {(!selectedRule?.conditions || selectedRule.conditions.filter((c) => !c.rule_type_name?.toLowerCase().includes("auto-add")).length === 0) && (
-                  <div className="text-sm text-slate-500 italic p-3 text-center bg-slate-50/50 rounded-lg">No conditions set.</div>
+                  <div className="text-sm text-muted-foreground italic p-4 text-center">No conditions set.</div>
                 )}
               </div>
             </div>
             
             <div className="space-y-4">
-              <div className="border-b pb-2">
-                <h3 className="text-sm font-semibold tracking-wide uppercase text-slate-500">Actions</h3>
+              <div className="border-b border-border pb-2">
+                <h3 className="text-sm font-semibold tracking-wide uppercase text-muted-foreground">Actions</h3>
               </div>
               
-              <div className="space-y-2.5">
+              <div className="space-y-0 rounded-lg border border-border bg-background overflow-hidden">
                 {selectedRule?.actions
                   .filter((a) => !a.action_type_name?.toLowerCase().includes("auto-add"))
                   .map((a, i) => {
                   if (Array.isArray(a.value) && a.value.length === 0) return null;
                   return (
-                    <div key={i} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-4 bg-blue-50/30 border border-blue-100/50 p-3 rounded-lg text-sm">
-                      <span className="font-medium text-slate-600 sm:w-1/3 shrink-0">{a.action_type_name || `Action ${a.action_type}`}</span>
-                      <span className="text-slate-900 font-semibold break-words whitespace-normal flex-1">
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-4 border-b border-border last:border-0 text-sm hover:bg-muted/30 transition-colors">
+                      <span className="font-medium text-muted-foreground sm:w-1/3 shrink-0">{getActionLabel(a.action_type, a.action_type_name)}</span>
+                      <span className="text-foreground font-semibold break-words whitespace-normal flex-1">
                         {formatActionValue(a.value)}
                       </span>
                     </div>
                   );
                 })}
                 {(!selectedRule?.actions || selectedRule.actions.filter((a) => !a.action_type_name?.toLowerCase().includes("auto-add")).length === 0) && (
-                  <div className="text-sm text-slate-500 italic p-3 text-center bg-slate-50/50 rounded-lg">No actions set.</div>
+                  <div className="text-sm text-muted-foreground italic p-4 text-center">No actions set.</div>
                 )}
               </div>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent className="sm:max-w-4xl w-[95vw] h-[85vh] p-0 overflow-hidden border-border shadow-2xl bg-background flex flex-col">
+          <div className="bg-background border-b border-border px-6 py-5 shrink-0 flex justify-between items-center">
+            <DialogHeader className="p-0">
+              <DialogTitle className="text-xl font-bold text-foreground">
+                {editingRule ? 'Edit Rule' : 'Create New Rule'}
+              </DialogTitle>
+              <DialogDescription className="text-muted-foreground mt-1">
+                Configure conditions to automatically categorize matching transactions.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          
+          <div className="flex-1 overflow-hidden">
+            <BankFeedRuleForm 
+              initialData={editingRule} 
+              onSave={handleSaveRule} 
+              onCancel={() => {
+                setIsFormOpen(false);
+                setEditingRule(null);
+              }}
+              isSaving={createRule.isPending || updateRule.isPending}
+            />
           </div>
         </DialogContent>
       </Dialog>

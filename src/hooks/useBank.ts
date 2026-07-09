@@ -235,7 +235,7 @@ export function useBankStatementQueue(limit: number = 20) {
       const hasActiveJobs = data.jobs.some(
         (job: any) => job.status === "queued" || job.status === "queued_local" || job.status === "processing" || job.status === "cancel_requested"
       );
-      return hasActiveJobs ? 5000 : false;
+      return hasActiveJobs ? 1500 : 5000;
     },
   });
 }

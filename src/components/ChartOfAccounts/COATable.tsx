@@ -1,15 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import type { ChartOfAccount, ChartOfAccounts } from "@/types/chartOfAccount";
 import { useDeleteChartOfAccount, useUpdateChartOfAccount } from "@/hooks/useChartOfAccount";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Pencil, Trash2, Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
+import { AlertTriangle, Trash2, Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Info } from "lucide-react";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   Select as UISelect,
@@ -34,6 +35,25 @@ import type {
   VisibilityState,
 } from "@tanstack/react-table";
 
+const detailTypePlaceholder = `Purpose: Used for day-to-day operating computer costs.
+Typical transactions:
+- Mouse
+- Keyboard
+- Laptop charger
+- Antivirus subscription
+- Adobe subscription
+- Microsoft Office
+- Internet bill
+- Network repair
+- Small computer accessories
+Do NOT use for:
+- Purchasing new computers
+- Servers
+- Capital equipment
+- Fixed assets
+Keywords: software, subscription, internet, repair, accessories, supplies, maintenance
+Capitalization: Expense immediately.`;
+
 interface COATableProps {
   result: ChartOfAccounts | undefined;
   loadingData: boolean;
@@ -45,6 +65,32 @@ export default function COATable({ result, loadingData }: COATableProps) {
 
   // Edit State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const dragRef = useRef<HTMLDivElement>(null);
+
+  // Custom Dragging State
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0 });
+  const currentPos = useRef({ x: 0, y: 0 });
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isDragging.current = true;
+    dragStart.current = { x: e.clientX - currentPos.current.x, y: e.clientY - currentPos.current.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isDragging.current && dragRef.current) {
+      currentPos.current = { x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y };
+      dragRef.current.style.transform = `translate(${currentPos.current.x}px, ${currentPos.current.y}px)`;
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    isDragging.current = false;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
   const [editForm, setEditForm] = useState<ChartOfAccount>({
     id: 0, account_number: "", account_type: "", detail_type: "", account_name: "",
   });
@@ -135,10 +181,6 @@ export default function COATable({ result, loadingData }: COATableProps) {
       header: () => <div className="text-right">Actions</div>,
       cell: ({ row }) => (
         <div className="text-right space-x-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => handleEditClick(row.original)}>
-            <Pencil className="h-3.5 w-3.5" />
-            Edit
-          </Button>
           <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => handleDeleteClick(row.original)}>
             <Trash2 className="h-3.5 w-3.5" />
             Remove
@@ -249,6 +291,12 @@ export default function COATable({ result, loadingData }: COATableProps) {
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
+                    className="cursor-pointer hover:bg-slate-50/50"
+                    onClick={(e) => {
+                      // Prevent firing if clicking on actions button
+                      if ((e.target as HTMLElement).closest('button')) return;
+                      handleEditClick(row.original);
+                    }}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
@@ -345,15 +393,46 @@ export default function COATable({ result, loadingData }: COATableProps) {
 
       {/* EDIT MODAL */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader><DialogTitle>Edit Account</DialogTitle></DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Account #</Label><Input value={editForm.account_number} onChange={(e) => setEditForm({ ...editForm, account_number: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Type</Label><Input value={editForm.account_type} onChange={(e) => setEditForm({ ...editForm, account_type: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Detail</Label><Input value={editForm.detail_type} onChange={(e) => setEditForm({ ...editForm, detail_type: e.target.value })} className="col-span-3" /></div>
-            <div className="grid grid-cols-4 items-center gap-4"><Label className="text-right">Name</Label><Input value={editForm.account_name} onChange={(e) => setEditForm({ ...editForm, account_name: e.target.value })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-start gap-4"><Label className="text-right mt-2">Account #</Label><Input value={editForm.account_number} onChange={(e) => setEditForm({ ...editForm, account_number: e.target.value })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-start gap-4"><Label className="text-right mt-2">Type</Label><Input value={editForm.account_type} onChange={(e) => setEditForm({ ...editForm, account_type: e.target.value })} className="col-span-3" /></div>
+            <div className="grid grid-cols-4 items-start gap-4">
+              <div className="flex items-center justify-end gap-2 mt-2">
+                <span className="text-sm font-medium">Detail</span>
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 rounded-full" onClick={() => setInfoOpen(true)}>
+                  <Info className="h-4 w-4 text-slate-500" />
+                </Button>
+              </div>
+              <Textarea placeholder={detailTypePlaceholder} value={editForm.detail_type} onChange={(e) => setEditForm({ ...editForm, detail_type: e.target.value })} className="col-span-3 min-h-[120px]" />
+            </div>
+            <div className="grid grid-cols-4 items-start gap-4"><Label className="text-right mt-2">Name</Label><Input value={editForm.account_name} onChange={(e) => setEditForm({ ...editForm, account_name: e.target.value })} className="col-span-3" /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSaveClick}>Save changes</Button></DialogFooter>
+          
+          {infoOpen && (
+            <div ref={dragRef} className="fixed z-[100] w-[500px] shadow-2xl bg-white border border-slate-200 rounded-lg top-[20%] left-[60%] flex flex-col pointer-events-auto" style={{ transform: `translate(${currentPos.current.x}px, ${currentPos.current.y}px)` }}>
+              <div 
+                className="cursor-move bg-slate-100 rounded-t-lg py-3 px-4 border-b flex items-center justify-between"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+              >
+                <h3 className="text-base font-semibold">Detail Type Template</h3>
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setInfoOpen(false)}>
+                  <span className="sr-only">Close</span>
+                  <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4"><path d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path></svg>
+                </Button>
+              </div>
+              <div className="p-4">
+                <div className="text-sm text-slate-600 whitespace-pre-wrap bg-slate-50 p-4 rounded-md border">{detailTypePlaceholder}</div>
+                <div className="flex justify-end mt-4">
+                  <Button type="button" onClick={() => setInfoOpen(false)}>Close</Button>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
