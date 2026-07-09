@@ -50,14 +50,14 @@ export default function Login() {
           if (idToken) {
             localStorage.setItem("ms_id_token", idToken);
           }
-          
+
           await refreshPermissions();
-          
+
           toast.success("Successfully logged in");
-          
+
           // Clear URL params
           window.history.replaceState({}, document.title, window.location.pathname);
-          
+
           navigate("/");
         } catch (error) {
           console.error("Failed to process SSO login", error);
@@ -80,7 +80,7 @@ export default function Login() {
   const handleMockLogin = () => {
     // Redirect to mock endpoint for local testing
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    window.location.href = `${baseUrl}/api/auth/mock/login?email=test@zenatech.com`;
+    window.location.href = `${baseUrl}/api/auth/mock/login?email=user2@zenatech.com`;
   };
 
   return (
@@ -107,7 +107,7 @@ export default function Login() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button 
+            <Button
               onClick={handleLogin}
               className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-md hover:shadow-lg transition-all mb-3"
               disabled={isLoading}
@@ -121,9 +121,9 @@ export default function Login() {
                 "Sign in with Microsoft"
               )}
             </Button>
-            
+
             {import.meta.env.DEV && (
-              <Button 
+              <Button
                 onClick={handleMockLogin}
                 variant="outline"
                 className="w-full h-12 rounded-xl font-semibold shadow-sm transition-all"

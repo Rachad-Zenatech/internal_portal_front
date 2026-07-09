@@ -571,12 +571,6 @@ export default function GeneralLedgerUpload() {
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
 
-    // Clear any locally selected file since we are loading a server preview
-    setFile(null);
-    if (glFileInputRef.current) {
-      glFileInputRef.current.value = "";
-    }
-
     try {
       const backgroundParse = await parseImportBackgroundMutation.mutateAsync({
         companyBookId: currentBook.book_id,
@@ -1310,7 +1304,7 @@ export default function GeneralLedgerUpload() {
                 </Button>
                 <div className="min-w-0 flex-1 text-sm">
                   {file ? (
-                    <span className="block" title={file.name}>
+                    <span className="block break-all whitespace-normal" title={file.name}>
                       {file.name}
                     </span>
                   ) : (

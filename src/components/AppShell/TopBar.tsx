@@ -13,6 +13,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogDescription,
   DialogFooter,
@@ -443,36 +444,32 @@ export default function TopBar() {
       </Dialog>
 
       <Dialog open={isLogoutOpen} onOpenChange={setIsLogoutOpen}>
-        <DialogContent className="sm:max-w-[400px] border-border/50 shadow-2xl rounded-2xl p-0 overflow-hidden">
-          <div className="p-8 text-center flex flex-col items-center">
-            <div className="h-16 w-16 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-6 shadow-sm ring-8 ring-red-50 dark:ring-red-500/10">
+        <DialogContent className="sm:max-w-[425px] outline-none">
+          <DialogHeader className="flex flex-col items-center space-y-4 pt-4">
+            <div className="h-16 w-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center">
               <LogOut className="h-8 w-8 ml-1" />
             </div>
-            
-            <div className="mb-2 w-full flex flex-col items-center text-center space-y-1.5">
-              <DialogTitle className="text-2xl font-bold text-center">Logout Confirmation</DialogTitle>
-            </div>
-            
-            <p className="text-muted-foreground text-center text-base mb-8 px-2">
-              Are you sure you want to do logout?
-            </p>
+            <DialogTitle className="text-xl text-center">Log Out</DialogTitle>
+            <DialogDescription className="text-center px-2">
+              Are you sure you want to log out of your account? You will need to sign back in to access the portal.
+            </DialogDescription>
+          </DialogHeader>
 
-            <DialogFooter className="flex w-full gap-3 sm:justify-center">
-              <Button variant="outline" onClick={() => setIsLogoutOpen(false)} className="flex-1 rounded-xl h-11 font-semibold">
-                Cancel
-              </Button>
-              <Button 
-                variant="destructive" 
-                onClick={() => {
-                  setIsLogoutOpen(false);
-                  logout();
-                }} 
-                className="flex-1 rounded-xl h-11 bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all border-none font-semibold"
-              >
-                Confirm
-              </Button>
-            </DialogFooter>
-          </div>
+          <DialogFooter className="flex gap-3 sm:justify-center mt-4 pb-2 px-2">
+            <Button variant="outline" onClick={() => setIsLogoutOpen(false)} className="flex-1 rounded-xl h-11 font-semibold">
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                setIsLogoutOpen(false);
+                logout();
+              }} 
+              className="flex-1 rounded-xl h-11 bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all font-semibold"
+            >
+              Log Out
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </header>
