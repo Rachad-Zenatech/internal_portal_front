@@ -93,7 +93,7 @@ type WorkbookPreviewRow = {
   suggestion: GLAccountSuggestion | null;
 };
 
-type ReviewFinderKind = "quickbooks_rule" | "xgboost" | "ai" | "human_review";
+type ReviewFinderKind = "quickbooks_rule" | "xgboost" | "ai" | "ai_changed" | "human_review";
 
 type AccountReviewProgress = {
   current: number;
@@ -145,6 +145,7 @@ export default function GeneralLedgerUpload() {
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
   const [accountFilter, setAccountFilter] = useState("all");
+  const [reviewFilterKind, setReviewFilterKind] = useState<"all" | "ai" | "ai_changed">("all");
   const [manualEntry, setManualEntry] = useState<ManualEntryForm>(emptyManualEntry);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [showWorkbookPreview, setShowWorkbookPreview] = useState(false);
@@ -300,6 +301,10 @@ export default function GeneralLedgerUpload() {
     () => workbookRows.filter(isWorkbookAiReviewRow),
     [workbookRows]
   );
+  const aiChangedWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookAiChangedReviewRow),
+    [workbookRows]
+  );
   const humanReviewWorkbookRows = useMemo(
     () => workbookRows.filter(isWorkbookHumanReviewRow),
     [workbookRows]
@@ -307,11 +312,13 @@ export default function GeneralLedgerUpload() {
   const activeReviewFinderRows = useMemo(() => {
     if (activeReviewFinder === "quickbooks_rule") return qbRuleWorkbookRows;
     if (activeReviewFinder === "ai") return aiReviewWorkbookRows;
+    if (activeReviewFinder === "ai_changed") return aiChangedWorkbookRows;
     if (activeReviewFinder === "xgboost") return xgboostWorkbookRows;
     if (activeReviewFinder === "human_review") return humanReviewWorkbookRows;
     return [];
   }, [
     activeReviewFinder,
+    aiChangedWorkbookRows,
     aiReviewWorkbookRows,
     humanReviewWorkbookRows,
     qbRuleWorkbookRows,
@@ -338,9 +345,32 @@ export default function GeneralLedgerUpload() {
   const previewPagination = preview?.pagination ?? null;
   const visibleReviewAccounts = useMemo(() => {
     if (!preview) return [];
-    if (accountFilter === "all") return preview.accounts ?? [];
-    return (preview.accounts ?? []).filter((account) => account.account_key === accountFilter);
-  }, [accountFilter, preview]);
+
+    const accounts = accountFilter === "all"
+      ? (preview.accounts ?? [])
+      : (preview.accounts ?? []).filter((account) => account.account_key === accountFilter);
+
+    if (reviewFilterKind === "all") return accounts;
+
+    return accounts
+      .map((account) => {
+        const filteredTransactions = (account.transactions ?? []).filter((txn) => {
+          const row = {
+            account,
+            txn,
+            suggestion: suggestionByTransaction.get(suggestionKeyFromPreview(account, txn)) ?? null,
+          };
+          return reviewFilterKind === "ai"
+            ? isWorkbookAiReviewRow(row)
+            : isWorkbookAiChangedReviewRow(row);
+        });
+
+        return filteredTransactions.length > 0
+          ? { ...account, transactions: filteredTransactions }
+          : null;
+      })
+      .filter((account): account is ImportPreviewAccount => account !== null);
+  }, [accountFilter, preview, reviewFilterKind, suggestionByTransaction]);
 
   useEffect(() => {
     if (!preview || !pendingImportReviewScrollRef.current) return;
@@ -669,7 +699,7 @@ export default function GeneralLedgerUpload() {
       setActiveReviewFinder(null);
       setShowWorkbookPreview(false);
       setBackgroundUploadMessage(null);
-      
+
       window.history.replaceState(null, "", "/general-ledger/upload#import-review");
       scrollToImportReview();
     } catch (err) {
@@ -738,6 +768,7 @@ export default function GeneralLedgerUpload() {
       });
     }
 
+    let reviewCompleted = false;
     try {
       const useGemini = context.useGemini;
       const request: GLAccountSuggestionsRequest = {
@@ -776,6 +807,8 @@ export default function GeneralLedgerUpload() {
       const geminiIssues = logGeminiReviewIssues(review, context);
       if (parseRunIdRef.current !== parseRunId) return;
       setAccountSuggestions(review);
+      setAccountReviewProgress({ current: 100, total: 100 });
+      reviewCompleted = true;
       if (geminiIssues.length > 0) {
         setSuggestionError(formatGeminiReviewIssueNotice(geminiIssues));
       }
@@ -790,9 +823,11 @@ export default function GeneralLedgerUpload() {
       }
     } finally {
       if (parseRunIdRef.current === parseRunId) {
-        setAccountReviewProgress(null);
-        setAccountReviewJobId(null);
         setIsAccountReviewJobRunning(false);
+        if (!reviewCompleted) {
+          setAccountReviewProgress(null);
+          setAccountReviewJobId(null);
+        }
       }
     }
   }
@@ -1508,7 +1543,7 @@ export default function GeneralLedgerUpload() {
               </div>
 
               {preview.account_review_summary && (
-                <div className="grid border-b bg-background md:grid-cols-6 md:divide-x">
+                <div className="grid border-b bg-background md:grid-cols-7 md:divide-x">
                   <ReviewStat
                     label="Bank Txns"
                     value={preview.account_review_summary.bank_transaction_count.toLocaleString("en-US")}
@@ -1554,6 +1589,21 @@ export default function GeneralLedgerUpload() {
                       aiReviewWorkbookRows.length > 0
                         ? "Open AI reviewed transaction finder"
                         : "No AI-reviewed transactions in this preview"
+                    }
+                  />
+                  <ReviewStat
+                    label="AI Changed"
+                    value={aiChangedWorkbookRows.length.toLocaleString("en-US")}
+                    tone={aiChangedWorkbookRows.length > 0 ? "warning" : "default"}
+                    onClick={
+                      aiChangedWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("ai_changed", aiChangedWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      aiChangedWorkbookRows.length > 0
+                        ? "Open AI changed transaction finder"
+                        : "No AI-changed transactions in this preview"
                     }
                   />
                   <ReviewStat
@@ -1662,19 +1712,47 @@ export default function GeneralLedgerUpload() {
                       Accounts are shown as section titles with their charges underneath.
                     </p>
                   </div>
-                  <Select value={accountFilter} onValueChange={setAccountFilter}>
-                    <SelectTrigger className="w-[250px]">
-                      <SelectValue placeholder="All accounts" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All accounts</SelectItem>
-                      {previewAccounts.map((account) => (
-                        <SelectItem key={account.account_key} value={account.account_key}>
-                          {formatAccountLabel(account)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2 rounded-md border bg-background p-1">
+                      <Button
+                        type="button"
+                        variant={reviewFilterKind === "all" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setReviewFilterKind("all")}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={reviewFilterKind === "ai" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setReviewFilterKind("ai")}
+                      >
+                        AI Review
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={reviewFilterKind === "ai_changed" ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setReviewFilterKind("ai_changed")}
+                      >
+                        AI Changed
+                      </Button>
+                    </div>
+                    <Select value={accountFilter} onValueChange={setAccountFilter}>
+                      <SelectTrigger className="w-[250px]">
+                        <SelectValue placeholder="All accounts" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All accounts</SelectItem>
+                        {previewAccounts.map((account) => (
+                          <SelectItem key={account.account_key} value={account.account_key}>
+                            {formatAccountLabel(account)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
 
                 {visibleReviewAccounts.length === 0 ? (
@@ -1831,6 +1909,12 @@ function ReviewFinderPanel({
 }) {
   const title = reviewFinderTitle(kind);
   const emptyText = reviewFinderEmptyText(kind);
+  const [aiFinderFilter, setAiFinderFilter] = useState<"all" | "suggested">("suggested");
+  const filteredRows = useMemo(() => {
+    if (kind !== "ai") return rows;
+    if (aiFinderFilter === "all") return rows;
+    return rows.filter(hasSuggestedTargetForReviewFinder);
+  }, [aiFinderFilter, kind, rows]);
 
   return (
     <div className="fixed right-4 top-20 z-50 flex max-h-[min(620px,calc(100vh-6rem))] w-[min(460px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border bg-background shadow-2xl">
@@ -1838,28 +1922,51 @@ function ReviewFinderPanel({
         <div>
           <div className="text-sm font-medium">{title}</div>
           <div className="mt-1 text-xs text-muted-foreground">
-            {rows.length.toLocaleString("en-US")} reviewed transactions
+            {filteredRows.length.toLocaleString("en-US")} {reviewFinderCountLabel(kind)}
+            {kind === "ai" ? ` (${aiFinderFilter === "suggested" ? "suggested only" : "all"})` : ""}
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-8 w-8 p-0"
-          onClick={onClose}
-          title={`Close ${title}`}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {kind === "ai" ? (
+            <div className="inline-flex rounded-md border bg-background p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={aiFinderFilter === "all" ? "default" : "ghost"}
+                onClick={() => setAiFinderFilter("all")}
+              >
+                All
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={aiFinderFilter === "suggested" ? "default" : "ghost"}
+                onClick={() => setAiFinderFilter("suggested")}
+              >
+                Suggested only
+              </Button>
+            </div>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={onClose}
+            title={`Close ${title}`}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {rows.length === 0 ? (
+      {filteredRows.length === 0 ? (
         <div className="p-4 text-sm text-muted-foreground">
           {emptyText}
         </div>
       ) : (
         <div className="overflow-auto p-2">
-          {rows.map((row, index) => {
+          {filteredRows.map((row, index) => {
             const rowId = previewRowDomId(row.account, row.txn);
             const isFocused = focusedReviewRowId === rowId;
             const label = row.txn.name || row.txn.memo || row.txn.transaction_type || "Transaction";
@@ -1917,8 +2024,14 @@ function ReviewFinderPanel({
 function reviewFinderTitle(kind: ReviewFinderKind) {
   if (kind === "quickbooks_rule") return "QB Rules finder";
   if (kind === "ai") return "AI Review finder";
+  if (kind === "ai_changed") return "AI Changed finder";
   if (kind === "human_review") return "Human review finder";
   return "XGBoost finder";
+}
+
+function reviewFinderCountLabel(kind: ReviewFinderKind) {
+  if (kind === "ai_changed") return "changed transactions";
+  return "reviewed transactions";
 }
 
 function reviewFinderEmptyText(kind: ReviewFinderKind) {
@@ -1927,6 +2040,9 @@ function reviewFinderEmptyText(kind: ReviewFinderKind) {
   }
   if (kind === "ai") {
     return "No AI-reviewed transactions are available in this preview.";
+  }
+  if (kind === "ai_changed") {
+    return "No AI-changed transactions are available in this preview.";
   }
   if (kind === "human_review") {
     return "No Human review transactions are available in this preview.";
@@ -2219,11 +2335,7 @@ function applySuggestionKey(suggestion: Pick<GLAccountSuggestion, "row_number" |
 }
 
 function countChangedSuggestions(suggestions: GLAccountSuggestion[]) {
-  return suggestions.filter((suggestion) => {
-    const suggestedCode = getVisibleSuggestedTargetNumber(suggestion);
-    const currentCode = suggestion.current_target_account_number;
-    return Boolean(suggestedCode && suggestedCode !== currentCode);
-  }).length;
+  return suggestions.filter(isChangedSuggestion).length;
 }
 
 function getGeminiReviewedRowNumbers(
@@ -3165,6 +3277,16 @@ function isMarkedSuggestedChange(suggestion: GLAccountSuggestion) {
   );
 }
 
+function isChangedSuggestion(suggestion: GLAccountSuggestion) {
+  const suggestedCode = getVisibleSuggestedTargetNumber(suggestion)?.trim();
+  const currentCode = (suggestion.current_target_account_number ?? "").trim();
+  return Boolean(
+    suggestedCode &&
+      suggestedCode !== "MANUAL_REVIEW" &&
+      suggestedCode !== currentCode
+  );
+}
+
 function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
   if (review.source === "xgboost") {
     return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">XGBoost</Badge>;
@@ -3248,6 +3370,33 @@ function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
   return row.txn.account_review?.source === "quickbooks_rule";
 }
 
+function hasSuggestedTargetForReviewFinder(row: WorkbookPreviewRow) {
+  if (row.suggestion) {
+    const suggestedCode = getVisibleSuggestedTargetNumber(row.suggestion)?.trim();
+    const suggestedName = getVisibleSuggestedTargetName(row.suggestion)?.trim();
+    const currentCode = (row.suggestion.current_target_account_number ?? "").trim();
+    const currentName = (row.suggestion.current_target_account_name ?? "").trim();
+
+    if (!suggestedCode && !suggestedName) return false;
+    if (suggestedCode === "MANUAL_REVIEW" || suggestedName === "MANUAL_REVIEW") return false;
+    if (suggestedCode && currentCode && suggestedCode === currentCode) return false;
+    if (!suggestedCode && suggestedName && currentName && suggestedName === currentName) return false;
+    return true;
+  }
+
+  const review = row.txn.account_review;
+  const suggestedCode = review?.suggested_account_number?.trim();
+  const suggestedName = review?.suggested_account_name?.trim();
+  const currentCode = (review?.current_target_account_number ?? "").trim();
+  const currentName = (review?.current_target_account_name ?? "").trim();
+
+  if (!suggestedCode && !suggestedName) return false;
+  if (suggestedCode === "MANUAL_REVIEW" || suggestedName === "MANUAL_REVIEW") return false;
+  if (suggestedCode && currentCode && suggestedCode === currentCode) return false;
+  if (!suggestedCode && suggestedName && currentName && suggestedName === currentName) return false;
+  return true;
+}
+
 function isWorkbookAiReviewRow(row: WorkbookPreviewRow) {
   return Boolean(
     (row.suggestion &&
@@ -3257,6 +3406,23 @@ function isWorkbookAiReviewRow(row: WorkbookPreviewRow) {
       row.txn.account_review?.requires_ai_review ||
       row.txn.account_review?.source === "gemini" ||
       row.txn.account_review?.source === "ai"
+  );
+}
+
+function isWorkbookAiChangedReviewRow(row: WorkbookPreviewRow) {
+  if (row.suggestion) {
+    return isWorkbookAiReviewRow(row) && isChangedSuggestion(row.suggestion);
+  }
+
+  const review = row.txn.account_review;
+  const suggestedCode = review?.suggested_account_number?.trim();
+  const currentCode = (review?.current_target_account_number ?? "").trim();
+  return Boolean(
+    review &&
+      isWorkbookAiReviewRow(row) &&
+      suggestedCode &&
+      suggestedCode !== "MANUAL_REVIEW" &&
+      suggestedCode !== currentCode
   );
 }
 
@@ -3270,6 +3436,18 @@ function isWorkbookHumanReviewRow(row: WorkbookPreviewRow) {
 
 function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRow) {
   const review = row.txn.account_review;
+  if (kind === "ai_changed") {
+    const current = formatReviewCurrentTarget(
+      row.txn,
+      row.suggestion ?? undefined,
+      review
+    );
+    const suggested = formatReviewSuggestedTarget(
+      row.suggestion ?? undefined,
+      review
+    );
+    return `AI changed: ${current} -> ${suggested}`;
+  }
   if (kind === "quickbooks_rule" && review?.source === "quickbooks_rule") {
     return `review_source: ${review.source} | review_status: ${review.status}`;
   }
