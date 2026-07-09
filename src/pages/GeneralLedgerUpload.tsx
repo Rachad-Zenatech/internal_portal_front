@@ -1465,7 +1465,7 @@ export default function GeneralLedgerUpload() {
               Loading preview...
             </div>
           ) : preview ? (
-            <Card id="import-review" className="scroll-mt-6 overflow-hidden">
+            <Card id="import-review" className="scroll-mt-6 overflow-visible">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b p-4 bg-muted/20">
                 <div>
                   <h2 className="text-lg font-medium">Import Review</h2>
@@ -1543,7 +1543,7 @@ export default function GeneralLedgerUpload() {
               </div>
 
               {preview.account_review_summary && (
-                <div className="grid border-b bg-background md:grid-cols-7 md:divide-x">
+                <div className="sticky top-0 z-40 grid border-b bg-background md:grid-cols-7 md:divide-x shadow-sm">
                   <ReviewStat
                     label="Bank Txns"
                     value={preview.account_review_summary.bank_transaction_count.toLocaleString("en-US")}
@@ -1704,7 +1704,7 @@ export default function GeneralLedgerUpload() {
                 appliedSuggestionRows={appliedSuggestionRows}
               />
 
-              <div className="border-b p-6">
+              <div className="sticky top-0 z-30 border-b bg-background/95 p-6 backdrop-blur-sm shadow-sm">
                 <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <h3 className="font-medium text-lg">Chart of Accounts Review</h3>
@@ -1752,6 +1752,53 @@ export default function GeneralLedgerUpload() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant={activeReviewFinder === "quickbooks_rule" ? "default" : "outline"}
+                      size="sm"
+                      disabled={qbRuleWorkbookRows.length === 0}
+                      onClick={() => toggleReviewFinder("quickbooks_rule", qbRuleWorkbookRows)}
+                    >
+                      QB Rules
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={activeReviewFinder === "xgboost" ? "default" : "outline"}
+                      size="sm"
+                      disabled={xgboostWorkbookRows.length === 0}
+                      onClick={() => toggleReviewFinder("xgboost", xgboostWorkbookRows)}
+                    >
+                      XGBoost
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={activeReviewFinder === "ai" ? "default" : "outline"}
+                      size="sm"
+                      disabled={aiReviewWorkbookRows.length === 0}
+                      onClick={() => toggleReviewFinder("ai", aiReviewWorkbookRows)}
+                    >
+                      AI Review
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={activeReviewFinder === "ai_changed" ? "default" : "outline"}
+                      size="sm"
+                      disabled={aiChangedWorkbookRows.length === 0}
+                      onClick={() => toggleReviewFinder("ai_changed", aiChangedWorkbookRows)}
+                    >
+                      AI Changed
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={activeReviewFinder === "human_review" ? "default" : "outline"}
+                      size="sm"
+                      disabled={humanReviewWorkbookRows.length === 0}
+                      onClick={() => toggleReviewFinder("human_review", humanReviewWorkbookRows)}
+                    >
+                      Human Review
+                    </Button>
                   </div>
                 </div>
 
