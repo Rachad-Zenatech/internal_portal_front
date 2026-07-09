@@ -12,7 +12,7 @@ import { useSearchParams } from "react-router-dom";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function RoleMcpToolPermissions() {
-  const { canAccessNavigationItem } = useAuth();
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -252,7 +252,7 @@ export default function RoleMcpToolPermissions() {
                               type="checkbox"
                               checked={permissions[tool.id] || false}
                               onChange={() => togglePermission(tool.id)}
-                              disabled={!canAccessNavigationItem("CONFIG_ROLE_MCP_PERMISSIONS", "EDIT")}
+                              disabled={!hasPermission("CONFIG_ROLE_MCP_PERMISSIONS_UPDATE")}
                               className="w-4 h-4 text-blue-600 bg-slate-100 border-slate-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-slate-800 focus:ring-2 dark:bg-slate-700 dark:border-slate-600 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                           </TableCell>
@@ -274,7 +274,7 @@ export default function RoleMcpToolPermissions() {
               </div>
             </div>
 
-            {canAccessNavigationItem("CONFIG_ROLE_MCP_PERMISSIONS", "EDIT") && (
+            {hasPermission("CONFIG_ROLE_MCP_PERMISSIONS_UPDATE") && (
               <div className="pt-4 flex justify-end">
                 <Button 
                   onClick={() => saveMutation.mutate()} 

@@ -11,7 +11,7 @@ import type { User, Role } from "@/lib/AuthContext";
 import { useSearchParams } from "react-router-dom";
 
 export default function UserRoleAssignment() {
-  const { canAccessNavigationItem } = useAuth();
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -190,7 +190,7 @@ export default function UserRoleAssignment() {
                 <RoleTree roles={activeRoles} selectedRoleId={selectedRoleId} setRole={setRole} />
               </div>
 
-              {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "EDIT") && !isSuperAdmin && (
+              {hasPermission("CONFIG_USER_ROLE_ASSIGNMENT_UPDATE") && !isSuperAdmin && (
                 <div className="pt-6 flex justify-end">
                   <Button 
                     onClick={() => saveMutation.mutate()} 

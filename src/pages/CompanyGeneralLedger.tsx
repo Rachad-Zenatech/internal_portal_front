@@ -40,7 +40,10 @@ function getAccountClosingBalance(account: GLAccountGroup) {
   return account.total_amount;
 }
 
+import { useAuth } from "@/lib/AuthContext";
+
 export default function CompanyGeneralLedger() {
+  const { hasPermission } = useAuth();
   const { companyId: idParam } = useParams<{ companyId: string }>();
   const companyId = Number(idParam);
 
@@ -139,16 +142,18 @@ export default function CompanyGeneralLedger() {
           </p>
         </div>
 
-        <Button
-          disabled={!data}
-          onClick={() =>
-            window.location.assign(
-              `/general-ledger/upload?company_id=${data?.company_id}`
-            )
-          }
-        >
-          Upload GL for Company
-        </Button>
+        {hasPermission("GENERAL_LEDGER_UPLOAD_CREATE") && (
+          <Button
+            disabled={!data}
+            onClick={() =>
+              window.location.assign(
+                `/general-ledger/upload?company_id=${data?.company_id}`
+              )
+            }
+          >
+            Upload GL for Company
+          </Button>
+        )}
       </header>
 
       <section className="grid gap-4 md:grid-cols-4">

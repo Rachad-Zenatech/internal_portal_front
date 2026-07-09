@@ -35,6 +35,7 @@ interface AuthContextType {
   roles: Role[];
   isLoading: boolean;
   canAccessNavigationItem: (navigationCode: string, actionCode?: string) => boolean;
+  hasPermission: (permissionCode: string) => boolean;
   canUseMcpTool: (toolCode: string) => boolean;
   hasRole: (roleCode: string) => boolean;
   logout: () => Promise<void>;
@@ -79,6 +80,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!pageActions) return false;
     
     return pageActions.includes(actionCode);
+  };
+
+  const hasPermission = (permissionCode: string) => {
+    if (!permissions) return false;
+    if (permissions.user.is_super_admin) return true;
+    if (permissions.roles.some((r) => r.code === 'SUPER_ADMIN')) return true;
+    
+    const lastUnderscoreIndex = permissionCode.lastIndexOf('_');
+    let navigationCode = permissionCode;
+    let actionCode = 'PAGE_ACCESS';
+    
+    if (lastUnderscoreIndex !== -1) {
+      navigationCode = permissionCode.substring(0, lastUnderscoreIndex);
+      actionCode = permissionCode.substring(lastUnderscoreIndex + 1);
+    }
+    
+    const actionMap: Record<string, string> = {
+      "READ": "VIEW",
+      "UPDATE": "UPDATE",
+      "CREATE": "CREATE",
+      "DELETE": "DELETE",
+      "IMPORT": "CREATE",
+      "EXPORT": "VIEW",
+      "PROCESS": "UPDATE",
+      "PAGE_ACCESS": "VIEW"
+    };
+    
+    const dbActionCode = actionMap[actionCode] || actionCode;
+    const pageActions = permissions.navigation_permissions[navigationCode];
+    
+    if (!pageActions) return false;
+    return pageActions.includes(dbActionCode);
   };
 
   const canUseMcpTool = (toolCode: string) => {
@@ -131,6 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         roles: permissions?.roles || [],
         isLoading,
         canAccessNavigationItem,
+        hasPermission,
         canUseMcpTool,
         hasRole,
         logout,
