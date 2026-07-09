@@ -289,6 +289,16 @@ export default function RoleApiPermissions() {
           <p className="text-sm text-slate-500 dark:text-zinc-400">
              {selectedRole ? `Configuring CRUD API permissions for ${selectedRole.name}` : "Select a role from the list to begin."}
           </p>
+          <div className="mt-3 p-3 bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              <strong className="font-semibold">Super Admin Override:</strong> Users with the "Super Admin" flag automatically bypass role restrictions and have full access to all rules and modules.
+            </p>
+          </div>
         </div>
 
         {selectedRoleId ? (
