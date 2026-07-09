@@ -699,7 +699,7 @@ export default function GeneralLedgerUpload() {
         setAccountReviewProgress({ current: 100, total: 100 });
         return job.result;
       }
-      if (["failed", "canceled", "discarded"].includes(job.status)) {
+      if (["failed", "cancel_requested", "canceled", "discarded"].includes(job.status)) {
         throw new Error(job.error?.message || `Account review ${job.status}.`);
       }
 
