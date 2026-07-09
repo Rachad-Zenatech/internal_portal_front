@@ -5,10 +5,13 @@ import type { BankFeedRule } from "../../types/bankFeedRule";
 import { useBankFeedRules, useUploadBankFeedRules, useCreateBankFeedRule, useUpdateBankFeedRule, useDeleteBankFeedRule } from "../../hooks/useBankFeedRule";
 import { Search, Upload, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Plus, Pencil, Trash2 } from "lucide-react";
 import BankFeedRuleForm from "../../components/Configurations/BankFeedRuleForm";
+import ReplaceBankFeedRulesDialog from "../../components/Configurations/ReplaceBankFeedRulesDialog";
+import ImportBankFeedRulesDialog from "../../components/Configurations/ImportBankFeedRulesDialog";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
@@ -111,7 +114,6 @@ const formatActionValue = (value: any) => {
 export default function BankFeedRules() {
   const { addJob } = useGlobalProgress();
   const { data: rules = [], isPending: loadingRules } = useBankFeedRules();
-  const { mutateAsync: uploadRules, isPending: isUploading } = useUploadBankFeedRules();
   const createRule = useCreateBankFeedRule();
   const updateRule = useUpdateBankFeedRule();
   const deleteRule = useDeleteBankFeedRule();
@@ -119,7 +121,6 @@ export default function BankFeedRules() {
   const [selectedRule, setSelectedRule] = useState<BankFeedRule | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<BankFeedRule | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSaveRule = async (data: any) => {
     try {
@@ -148,33 +149,38 @@ export default function BankFeedRules() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
-    const promise = uploadRules(file);
-    addJob("Replace Bank Feed Rules", promise, { description: "Uploading...", type: "upload", link_url: window.location.pathname });
-
-    promise.then(() => {
-      toast.success("Successfully replaced rules.", {
-        action: { label: "Refresh", onClick: () => window.location.reload() }
-      });
-    }).catch((err) => {
-      toast.error("Failed to process the uploaded file.");
-      console.error(err);
-    });
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState("");
+  const [rowSelection, setRowSelection] = useState({});
 
   const columns = useMemo<ColumnDef<BankFeedRule>[]>(() => [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={table.getIsAllPageRowsSelected() || (table.getIsSomePageRowsSelected() && "indeterminate")}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center">
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+            className="translate-y-[2px]"
+          />
+        </div>
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
     {
       accessorKey: "rule_name",
       header: ({ column }) => (
@@ -205,6 +211,21 @@ export default function BankFeedRules() {
         </Button>
       ),
       cell: ({ row }) => <span className="text-slate-600">{row.original.is_and_rule ? "All" : "Any"}</span>,
+    },
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => (
+        <Button variant="ghost" className="px-0 font-semibold text-slate-700" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+          Created At
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      ),
+      cell: ({ row }) => {
+        const dateStr = row.original.created_at;
+        if (!dateStr) return <span className="text-slate-500">-</span>;
+        const d = new Date(dateStr);
+        return <span className="text-slate-600">{d.toLocaleString()}</span>;
+      },
     },
     {
       id: "actions",
@@ -254,6 +275,8 @@ export default function BankFeedRules() {
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: true,
     globalFilterFn: (row, _columnId, filterValue) => {
       const search = filterValue.toLowerCase();
       const ruleName = (row.getValue("rule_name") as string)?.toLowerCase() || "";
@@ -264,6 +287,7 @@ export default function BankFeedRules() {
       columnFilters,
       columnVisibility,
       globalFilter,
+      rowSelection,
     },
     onGlobalFilterChange: setGlobalFilter,
   });
@@ -315,13 +339,41 @@ export default function BankFeedRules() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <input 
-            type="file" 
-            accept=".xls,.xlsx,.csv" 
-            className="hidden" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-          />
+          <ImportBankFeedRulesDialog />
+          <ReplaceBankFeedRulesDialog />
+          
+          {Object.keys(rowSelection).length > 0 && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="bg-red-600 hover:bg-red-700 text-white">
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Selected ({Object.keys(rowSelection).length})
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Selected Rules</AlertDialogTitle>
+                  <AlertDialogDescription>Are you sure you want to delete {Object.keys(rowSelection).length} selected rules? This cannot be undone.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={async () => {
+                    try {
+                      const idsToDelete = Object.keys(rowSelection).map(index => table.getRow(index).original.id);
+                      await Promise.all(idsToDelete.map(id => deleteRule.mutateAsync(id)));
+                      toast.success(`Successfully deleted ${idsToDelete.length} rule(s).`);
+                      setRowSelection({});
+                    } catch (e) {
+                      toast.error("Failed to delete some rules.");
+                    }
+                  }} className="bg-red-600 hover:bg-red-700 text-white">
+                    Delete Selected
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
           <Button 
             onClick={() => {
               setEditingRule(null);
@@ -332,50 +384,6 @@ export default function BankFeedRules() {
             <Plus className="w-4 h-4 mr-2" />
             Create Rule
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button 
-                variant="destructive" 
-                disabled={isUploading}
-                className="bg-red-600 hover:bg-red-700 text-white"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {isUploading ? "Uploading..." : "Replace Rules"}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="sm:max-w-[400px] p-0 pt-10 overflow-hidden border border-slate-200 shadow-2xl rounded-[28px] bg-white gap-0">
-              <div className="flex flex-col items-center justify-center text-center px-6">
-                <div className="mx-auto flex h-[88px] w-[88px] items-center justify-center rounded-full bg-red-50 mb-5">
-                  <div className="flex h-[56px] w-[56px] items-center justify-center rounded-full bg-red-100/80">
-                    <AlertTriangle className="h-7 w-7 text-red-600" strokeWidth={2.25} />
-                  </div>
-                </div>
-                
-                <AlertDialogTitle className="text-[24px] font-bold tracking-tight text-slate-900 mb-4">
-                  Replace Rules?
-                </AlertDialogTitle>
-                
-                <AlertDialogDescription className="text-center text-[15px] leading-[1.6] text-slate-500/90 font-medium px-4">
-                  Are you sure you want to replace <strong className="text-slate-700 font-semibold">all<br />existing rules</strong>?
-                  <span className="block mt-1">
-                    This action cannot be undone and will<br />overwrite all current bank feed rules.
-                  </span>
-                </AlertDialogDescription>
-              </div>
-              
-              <div className="mt-8 p-[6px] mx-6 mb-6 rounded-[20px] flex gap-[6px]">
-                <AlertDialogCancel className="m-0 flex-1 rounded-[14px] h-[46px] text-[14px] font-semibold text-slate-900 bg-white border border-slate-200/60 hover:bg-slate-50 shadow-sm transition-all">
-                  Cancel
-                </AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="m-0 flex-1 rounded-[14px] h-[46px] text-[14px] font-semibold bg-[#18181b] hover:bg-[#27272a] text-white shadow-sm transition-all border-none"
-                >
-                  Yes, Replace
-                </AlertDialogAction>
-              </div>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </div>
 
