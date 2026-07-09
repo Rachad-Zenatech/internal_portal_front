@@ -80,7 +80,7 @@ export default function Login() {
   const handleMockLogin = () => {
     // Redirect to mock endpoint for local testing
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    window.location.href = `${baseUrl}/api/auth/mock/login?email=admin@zenatech.com`;
+    window.location.href = `${baseUrl}/api/auth/mock/login?email=test@zenatech.com`;
   };
 
   return (

@@ -59,7 +59,7 @@ import type {
 } from "@tanstack/react-table";
 
 export default function Users() {
-  const { canAccessNavigationItem } = useAuth();
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -264,17 +264,17 @@ export default function Users() {
         const isActive = (user as any).is_active ?? true;
         return (
           <div className="text-right space-x-2">
-            {canAccessNavigationItem("CONFIG_USER_ROLE_ASSIGNMENT", "VIEW") && (
+            {hasPermission("CONFIG_USER_ROLE_ASSIGNMENT_READ") && (
               <Button variant="outline" size="sm" onClick={() => navigate(`/configurations/user-role-assignment?userId=${user.id}`)}>
                 <KeyRound className="h-4 w-4 mr-1" /> Roles
               </Button>
             )}
-            {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
+            {hasPermission("CONFIG_USERS_UPDATE") && (
               <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
                 <Edit className="h-4 w-4 text-blue-600" />
               </Button>
             )}
-            {canAccessNavigationItem("CONFIG_USERS", "EDIT") && (
+            {hasPermission("CONFIG_USERS_UPDATE") && (
               <Button variant="ghost" size="icon" onClick={() => {
                 setUserToDeactivate(user);
                 setIsDeactivateDialogOpen(true);
@@ -322,7 +322,7 @@ export default function Users() {
           <p className="text-sm text-slate-500 dark:text-zinc-400">Manage system users and their access.</p>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4">
-          {canAccessNavigationItem("CONFIG_USERS", "CREATE") && (
+          {hasPermission("CONFIG_USERS_CREATE") && (
             <Button onClick={openCreateDialog} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Add User
             </Button>

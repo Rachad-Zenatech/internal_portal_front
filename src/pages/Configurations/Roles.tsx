@@ -161,7 +161,7 @@ const TreeNode = ({
 };
 
 export default function Roles() {
-  const { canAccessNavigationItem } = useAuth();
+  const { hasPermission, user, roles } = useAuth();
   const queryClient = useQueryClient();
 
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -444,7 +444,7 @@ export default function Roles() {
                    </Button>
                 </div>
               )}
-              {!hasPendingMoves && canAccessNavigationItem("CONFIG_ROLES", "CREATE") && (
+              {!hasPendingMoves && hasPermission("CONFIG_ROLES_CREATE") && (
                 <Button size="sm" variant="outline" onClick={handleAddRoot} className="h-8 text-xs">
                   <Plus className="mr-1 h-3 w-3" /> Root
                 </Button>
@@ -542,17 +542,17 @@ export default function Roles() {
                 
                 {!isEditing && selectedRole.id !== "new" && (
                   <div className="flex flex-wrap items-center gap-2">
-                    {canAccessNavigationItem("CONFIG_ROLES", "CREATE") && (
+                    {hasPermission("CONFIG_ROLES_CREATE") && (
                        <Button variant="outline" size="sm" onClick={handleAddChild} className="bg-white dark:bg-zinc-900">
                          <Plus className="w-4 h-4 mr-2" /> Add Child
                        </Button>
                     )}
-                    {canAccessNavigationItem("CONFIG_ROLES", "EDIT") && !selectedRole.is_system_role && (
+                    {hasPermission("CONFIG_ROLES_UPDATE") && !selectedRole.is_system_role && (
                       <Button variant="outline" size="sm" onClick={startEdit} className="bg-white dark:bg-zinc-900 text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-900 dark:text-blue-400 dark:hover:bg-blue-900/20">
                         <Edit className="w-4 h-4 mr-2" /> Edit
                       </Button>
                     )}
-                    {canAccessNavigationItem("CONFIG_ROLES", "DELETE") && !selectedRole.is_system_role && (
+                    {hasPermission("CONFIG_ROLES_DELETE") && !selectedRole.is_system_role && (
                       selectedRole.is_active ? (
                         <Button variant="outline" size="sm" onClick={() => setIsDeactivateDialogOpen(true)} className="bg-white dark:bg-zinc-900 text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700 dark:border-orange-900 dark:text-orange-400 dark:hover:bg-orange-900/20">
                           <Ban className="w-4 h-4 mr-2" /> Deactivate
@@ -679,15 +679,15 @@ export default function Roles() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                        <Link 
-                         to={`/configurations/role-navigation-permissions?roleId=${selectedRole.id}`}
+                         to={`/configurations/role-group-permissions?roleId=${selectedRole.id}`}
                          className="flex items-start p-4 rounded-xl border border-slate-200 dark:border-zinc-800 hover:border-blue-300 dark:hover:border-blue-700 hover:shadow-md transition-all bg-white dark:bg-zinc-900 group"
                        >
-                         <div className="p-2.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 mr-4 group-hover:scale-110 transition-transform">
+                         <div className="p-2.5 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 mr-4 group-hover:scale-110 transition-transform">
                            <Shield className="w-5 h-5" />
                          </div>
                          <div>
-                           <h5 className="font-semibold text-slate-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Page Permissions</h5>
-                           <p className="text-xs text-slate-500 mt-1">Configure which pages and tabs this role can access.</p>
+                           <h5 className="font-semibold text-slate-900 dark:text-zinc-100 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">Permissions</h5>
+                           <p className="text-xs text-slate-500 mt-1">Configure which modules and actions this role can access.</p>
                          </div>
                        </Link>
 

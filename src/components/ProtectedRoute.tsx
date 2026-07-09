@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 export default function ProtectedRoute({ navigationCode, actionCode = 'VIEW', children }: ProtectedRouteProps) {
-  const { user, roles, isLoading, canAccessNavigationItem } = useAuth();
+  const { user, roles, isLoading, hasPermission } = useAuth();
   if (isLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-zinc-950">
@@ -33,7 +33,17 @@ export default function ProtectedRoute({ navigationCode, actionCode = 'VIEW', ch
     return <Navigate to="/pending-access" replace />;
   }
 
-  if (navigationCode && !canAccessNavigationItem(navigationCode, actionCode)) {
+  const actionMap: Record<string, string> = {
+    "VIEW": "READ",
+    "CREATE": "CREATE",
+    "EDIT": "UPDATE",
+    "UPDATE": "UPDATE",
+    "DELETE": "DELETE"
+  };
+  const mappedAction = actionMap[actionCode] || actionCode;
+  const permissionCode = navigationCode ? `${navigationCode}_${mappedAction}` : null;
+
+  if (permissionCode && !hasPermission(permissionCode)) {
     return (
       <div className="flex flex-col h-full w-full items-center justify-center p-8 text-center bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800">
         <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">

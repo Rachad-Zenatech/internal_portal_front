@@ -18,17 +18,17 @@ export default function Sidebar({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const location = useLocation();
 
-  const { canAccessNavigationItem } = useAuth();
+  const { hasPermission } = useAuth();
 
   const toggleExpand = (label: string) => {
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
   const groupedNavigation = navigation.reduce((acc, item) => {
-    if (item.navigationCode && !canAccessNavigationItem(item.navigationCode)) return acc;
+    if (item.navigationCode && !hasPermission(`${item.navigationCode}_READ`)) return acc;
 
     const filteredSubItems = item.subItems 
-      ? item.subItems.filter(sub => !sub.navigationCode || canAccessNavigationItem(sub.navigationCode))
+      ? item.subItems.filter(sub => !sub.navigationCode || hasPermission(`${sub.navigationCode}_READ`))
       : undefined;
 
     // If it had subItems but now they are all filtered out, don't show the parent if it relies on subItems

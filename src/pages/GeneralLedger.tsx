@@ -45,7 +45,10 @@ import {
 
 type PeriodType = "january" | "february" | "march" | "april" | "may" | "june" | "july" | "august" | "september" | "october" | "november" | "december" | "q1" | "q2" | "q3" | "q4" | "year" | "custom";
 
+import { useAuth } from "@/lib/AuthContext";
+
 export default function GeneralLedger() {
+  const { hasPermission } = useAuth();
   const [period, setPeriod] = useState<PeriodType>("q1");
   const [year, setYear] = useState<number>(2026);
   const [companyId, setCompanyId] = useState<string>("all");
@@ -152,9 +155,11 @@ export default function GeneralLedger() {
             View GL imports and transactions by company, book, and period.
           </p>
         </div>
-        <Button onClick={() => window.location.assign("/general-ledger/upload")}>
-          Upload New GL
-        </Button>
+        {hasPermission("GENERAL_LEDGER_UPLOAD_CREATE") && (
+          <Button onClick={() => window.location.assign("/general-ledger/upload")}>
+            Upload New GL
+          </Button>
+        )}
       </header>
 
       {assignFormatMutation.isError && (
