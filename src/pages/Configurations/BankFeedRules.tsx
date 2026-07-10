@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogTrigger, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import type { BankFeedRule } from "../../types/bankFeedRule";
 import { useBankFeedRules, useCreateBankFeedRule, useUpdateBankFeedRule, useDeleteBankFeedRule } from "../../hooks/useBankFeedRule";
-import { Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Plus, Pencil, Trash2 } from "lucide-react";
+import { Search, ChevronDown, ArrowUpDown, Plus, Pencil, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import BankFeedRuleForm from "../../components/Configurations/BankFeedRuleForm";
 import ReplaceBankFeedRulesDialog from "../../components/Configurations/ReplaceBankFeedRulesDialog";
@@ -15,13 +15,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import {
-  Select as UISelect,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import {

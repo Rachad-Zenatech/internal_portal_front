@@ -30,15 +30,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import {
-  Select as UISelect,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, KeyRound, ArrowUpDown, Power, Ban, Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Plus, Edit, KeyRound, ArrowUpDown, Power, Ban, Search, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { useAuth } from "@/lib/AuthContext";

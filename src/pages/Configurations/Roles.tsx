@@ -21,6 +21,10 @@ import { useAuth } from "@/lib/AuthContext";
 import type { Role } from "@/lib/AuthContext";
 import { Link } from "react-router-dom";
 
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
+
 // Recursive component for Tree Node
 const TreeNode = ({ 
   role, 
@@ -167,7 +171,7 @@ const TreeNode = ({
 };
 
 export default function Roles() {
-  const { hasPermission, user, roles } = useAuth();
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
 
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -266,34 +270,34 @@ export default function Roles() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof formData) => apiClient.post("/api/configuration/roles", {
+    mutationFn: (data: typeof formData) => apiClient.post<Role>("/api/configuration/roles", {
       ...data,
       parent_role_id: data.parent_role_id || null
     }),
-    onSuccess: (newRole: any) => {
+    onSuccess: (newRole) => {
       queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
       queryClient.invalidateQueries({ queryKey: ["roles"] });
       toast.success("Role created successfully");
       setIsEditing(false);
       setSelectedRole(newRole);
     },
-    onError: (err: any) => toast.error(err.message || "Failed to create role"),
+    onError: (err: unknown) => toast.error(getErrorMessage(err, "Failed to create role")),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: string, payload: Partial<typeof formData> }) => 
-      apiClient.put(`/api/configuration/roles/${data.id}`, {
+      apiClient.put<Role>(`/api/configuration/roles/${data.id}`, {
         ...data.payload,
         parent_role_id: data.payload.parent_role_id || null
       }),
-    onSuccess: (updatedRole: any) => {
+    onSuccess: (updatedRole) => {
       queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
       queryClient.invalidateQueries({ queryKey: ["roles"] });
       toast.success("Role updated successfully");
       setIsEditing(false);
       setSelectedRole(updatedRole);
     },
-    onError: (err: any) => toast.error(err.message || "Failed to update role"),
+    onError: (err: unknown) => toast.error(getErrorMessage(err, "Failed to update role")),
   });
 
   const bulkSaveHierarchyMutation = useMutation({
@@ -326,7 +330,7 @@ export default function Roles() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => apiClient.delete(`/api/configuration/roles/${id}`),
+    mutationFn: (id: string) => apiClient.delete<void>(`/api/configuration/roles/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
       queryClient.invalidateQueries({ queryKey: ["roles"] });
@@ -334,7 +338,7 @@ export default function Roles() {
       setSelectedRole(null);
       setIsEditing(false);
     },
-    onError: (err: any) => toast.error(err.message || "Failed to delete role"),
+    onError: (err: unknown) => toast.error(getErrorMessage(err, "Failed to delete role")),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -432,7 +436,6 @@ export default function Roles() {
   };
 
   const [isRootDragOver, setIsRootDragOver] = useState(false);
-  const rootDragCounter = useRef(0);
 
   const hasPendingMoves = Object.keys(pendingMoves).length > 0;
 

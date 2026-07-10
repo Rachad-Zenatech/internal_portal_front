@@ -1,12 +1,11 @@
 import { useState, useMemo } from "react";
-import { X, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Trash2, ArrowUpDown } from "lucide-react";
+import { X, Calendar, ChevronDown, Trash2, ArrowUpDown } from "lucide-react";
 import { useStatements, useDeleteStatement } from "@/hooks/useBank";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import {

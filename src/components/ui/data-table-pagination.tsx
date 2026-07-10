@@ -25,11 +25,11 @@ export function DataTablePagination<TData>({
   noun = "row(s)",
 }: DataTablePaginationProps<TData>) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-6 lg:gap-8 px-2 py-2 text-sm text-slate-600 dark:text-slate-400">
-      <div>
+    <div className="flex flex-col gap-4 px-2 py-2 text-sm text-slate-600 dark:text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-center sm:text-left">
         {table.getFilteredRowModel().rows.length} total {noun}.
       </div>
-      <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-end sm:gap-6 lg:gap-8">
         <div className="flex items-center space-x-2">
           <p className="font-medium">Rows per page</p>
           <Select

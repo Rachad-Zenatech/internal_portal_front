@@ -93,7 +93,14 @@ type WorkbookPreviewRow = {
   suggestion: GLAccountSuggestion | null;
 };
 
-type ReviewFinderKind = "quickbooks_rule" | "xgboost" | "ai" | "ai_changed" | "human_review" | "differences";
+type ReviewFinderKind =
+  | "quickbooks_rule"
+  | "xgboost"
+  | "split_lookup"
+  | "ai"
+  | "ai_changed"
+  | "human_review"
+  | "differences";
 
 type AccountReviewProgress = {
   current: number;
@@ -134,6 +141,18 @@ const emptyManualEntry: ManualEntryForm = {
   debit: "",
   credit: "",
 };
+
+// A dry-run preview cache entry is gone when it expired, was saved/discarded,
+// or the token in the URL is stale (e.g. a reopened link/notification). The
+// backend signals this with a 410 whose message we match here so the UI can
+// prompt a fresh upload instead of showing a hard error.
+function isPreviewExpiredError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err ?? "");
+  return /expired|was not found|already saved/i.test(message);
+}
+
+const PREVIEW_EXPIRED_NOTICE =
+  "This import preview has expired or was already saved. Please upload the file again.";
 
 export default function GeneralLedgerUpload() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -322,6 +341,7 @@ export default function GeneralLedgerUpload() {
     if (activeReviewFinder === "ai") return aiReviewWorkbookRows;
     if (activeReviewFinder === "ai_changed") return aiChangedWorkbookRows;
     if (activeReviewFinder === "xgboost") return xgboostWorkbookRows;
+    if (activeReviewFinder === "split_lookup") return splitLookupWorkbookRows;
     if (activeReviewFinder === "human_review") return humanReviewWorkbookRows;
     if (activeReviewFinder === "differences") return differencesWorkbookRows;
     return [];
@@ -332,6 +352,7 @@ export default function GeneralLedgerUpload() {
     differencesWorkbookRows,
     humanReviewWorkbookRows,
     qbRuleWorkbookRows,
+    splitLookupWorkbookRows,
     xgboostWorkbookRows,
   ]);
 
@@ -708,6 +729,15 @@ export default function GeneralLedgerUpload() {
       scrollToImportReview();
     } catch (err) {
       setBackgroundUploadMessage(null);
+      if (isPreviewExpiredError(err)) {
+        // Stale token from a reopened/refreshed link: clear it and reset so we
+        // don't keep re-driving a dead preview, then prompt a fresh upload.
+        window.history.replaceState(null, "", "/general-ledger/upload");
+        loadedPreviewTokenRef.current = null;
+        resetUploadReviewState();
+        setError(PREVIEW_EXPIRED_NOTICE);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Failed to load dry-run preview page");
     }
   }
@@ -823,7 +853,13 @@ export default function GeneralLedgerUpload() {
           : "Failed to review account suggestions";
       logGeminiReviewRequestFailure(suggestionErr, context);
       if (parseRunIdRef.current === parseRunId) {
-        setSuggestionError(`Account review failed after the GL upload was staged: ${message}`);
+        if (isPreviewExpiredError(suggestionErr)) {
+          window.history.replaceState(null, "", "/general-ledger/upload");
+          loadedPreviewTokenRef.current = null;
+          setSuggestionError(PREVIEW_EXPIRED_NOTICE);
+        } else {
+          setSuggestionError(`Account review failed after the GL upload was staged: ${message}`);
+        }
       }
     } finally {
       if (parseRunIdRef.current === parseRunId) {
@@ -1583,6 +1619,16 @@ export default function GeneralLedgerUpload() {
                   <ReviewStat
                     label="Split Count"
                     value={splitLookupWorkbookRows.length.toLocaleString("en-US")}
+                    onClick={
+                      splitLookupWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("split_lookup", splitLookupWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      splitLookupWorkbookRows.length > 0
+                        ? "Open split account lookup transaction finder"
+                        : "No split account lookup-reviewed transactions in this preview"
+                    }
                   />
                   <ReviewStat
                     label="AI Review"
@@ -1794,6 +1840,15 @@ export default function GeneralLedgerUpload() {
                       onClick={() => toggleReviewFinder("xgboost", xgboostWorkbookRows)}
                     >
                       XGBoost
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={activeReviewFinder === "split_lookup" ? "default" : "outline"}
+                      size="sm"
+                      disabled={splitLookupWorkbookRows.length === 0}
+                      onClick={() => toggleReviewFinder("split_lookup", splitLookupWorkbookRows)}
+                    >
+                      Split Lookup
                     </Button>
                     <Button
                       type="button"
@@ -2093,6 +2148,7 @@ function ReviewFinderPanel({
 
 function reviewFinderTitle(kind: ReviewFinderKind) {
   if (kind === "quickbooks_rule") return "QB Rules finder";
+  if (kind === "split_lookup") return "Split account finder";
   if (kind === "ai") return "AI Review finder";
   if (kind === "ai_changed") return "AI Changed finder";
   if (kind === "human_review") return "Human review finder";
@@ -2103,6 +2159,7 @@ function reviewFinderTitle(kind: ReviewFinderKind) {
 function reviewFinderCountLabel(kind: ReviewFinderKind) {
   if (kind === "ai_changed") return "changed transactions";
   if (kind === "differences") return "differing transactions";
+  if (kind === "split_lookup") return "split account matches";
   return "reviewed transactions";
 }
 
@@ -2115,6 +2172,9 @@ function reviewFinderEmptyText(kind: ReviewFinderKind) {
   }
   if (kind === "ai_changed") {
     return "No AI-changed transactions are available in this preview.";
+  }
+  if (kind === "split_lookup") {
+    return "No split account lookup-reviewed transactions are available in this preview.";
   }
   if (kind === "human_review") {
     return "No Human review transactions are available in this preview.";
@@ -3277,10 +3337,12 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
     isGeminiSuggestion(suggestion) && Boolean(getVisibleSuggestedTargetNumber(suggestion));
   const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
   const hasAiFallbackReview = isAiFallbackSuggestion(suggestion);
+  const hasSplitLookupReview = isSplitLookupSuggestion(suggestion);
   const hasPlainSuggestion = Boolean(
     isMarkedSuggestedChange(suggestion) &&
       !hasXgboostSuggestion &&
-      !isGeminiSuggestion(suggestion)
+      !isGeminiSuggestion(suggestion) &&
+      !hasSplitLookupReview
   );
 
   if (
@@ -3304,6 +3366,10 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   }
   if (hasAiFallbackReview) {
     return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">AI review</Badge>;
+  }
+  if (hasSplitLookupReview) {
+    if (isOneToOneSplitLookupSuggestion(suggestion)) return null;
+    return <Badge className="bg-cyan-600 text-white hover:bg-cyan-600 dark:bg-cyan-500 dark:text-cyan-950 dark:hover:bg-cyan-500">Split Lookup</Badge>;
   }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
@@ -3365,6 +3431,10 @@ function isChangedSuggestion(suggestion: GLAccountSuggestion) {
 function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
   if (review.source === "xgboost") {
     return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">XGBoost</Badge>;
+  }
+  if (review.source === "account_split_lookup") {
+    if (isOneToOneSplitLookupReview(review)) return null;
+    return <Badge className="bg-cyan-600 text-white hover:bg-cyan-600 dark:bg-cyan-500 dark:text-cyan-950 dark:hover:bg-cyan-500">Split Lookup</Badge>;
   }
   if (review.requires_human_review) {
     return <Badge variant="destructive">Human review</Badge>;
@@ -3538,6 +3608,14 @@ function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRo
   if (kind === "quickbooks_rule" && review?.source === "quickbooks_rule") {
     return `review_source: ${review.source} | review_status: ${review.status}`;
   }
+  if (kind === "split_lookup") {
+    if (row.suggestion && isSplitLookupSuggestion(row.suggestion)) {
+      return formatReviewMarker(row.suggestion, null);
+    }
+    if (review?.source === "account_split_lookup") {
+      return `review_source: ${review.source} | review_status: ${review.status}`;
+    }
+  }
   if (kind === "ai") {
     if (
       row.suggestion &&
@@ -3676,6 +3754,7 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
     );
   }
   if (isAiFallbackSuggestion(suggestion)) return "AI review required";
+  if (isSplitLookupSuggestion(suggestion)) return "Split account lookup";
   if (suggestion.requires_manual_review) return "Manual review required";
   if (isGeminiSuggestion(suggestion)) return "AI";
   if (isMarkedSuggestedChange(suggestion) || getVisibleSuggestedTargetNumber(suggestion)) {
@@ -3707,6 +3786,57 @@ function isAiFallbackSuggestion(suggestion: GLAccountSuggestion) {
   );
 }
 
+function isSplitLookupSuggestion(suggestion: GLAccountSuggestion) {
+  return suggestion.review_source === "account_split_lookup";
+}
+
+function isOneToOneSplitLookupSuggestion(suggestion: GLAccountSuggestion) {
+  if (!isSplitLookupSuggestion(suggestion)) return false;
+  if (hasOneToOneMarker(suggestion.review_status, suggestion.review_label, suggestion.rule, suggestion.reason)) {
+    return true;
+  }
+  return accountsReferToSameTarget(
+    suggestion.current_target_account_number,
+    suggestion.current_target_account_name,
+    getVisibleSuggestedTargetNumber(suggestion),
+    getVisibleSuggestedTargetName(suggestion)
+  );
+}
+
+function isOneToOneSplitLookupReview(review: ImportPreviewAccountReview) {
+  if (review.source !== "account_split_lookup") return false;
+  if (hasOneToOneMarker(review.status, review.reason)) return true;
+  return accountsReferToSameTarget(
+    review.current_target_account_number,
+    review.current_target_account_name,
+    review.suggested_account_number,
+    review.suggested_account_name
+  );
+}
+
+function hasOneToOneMarker(...values: Array<string | null | undefined>) {
+  return values.some((value) => /1\s*[-:]?\s*to\s*[-:]?\s*1|one[-_\s]?to[-_\s]?one/i.test(value ?? ""));
+}
+
+function accountsReferToSameTarget(
+  currentNumber: string | null | undefined,
+  currentName: string | null | undefined,
+  suggestedNumber: string | null | undefined,
+  suggestedName: string | null | undefined
+) {
+  const currentCode = normalizeAccountPart(currentNumber);
+  const suggestedCode = normalizeAccountPart(suggestedNumber);
+  if (currentCode && suggestedCode) return currentCode === suggestedCode;
+
+  const currentLabel = normalizeAccountPart(currentName);
+  const suggestedLabel = normalizeAccountPart(suggestedName);
+  return Boolean(currentLabel && suggestedLabel && currentLabel === suggestedLabel);
+}
+
+function normalizeAccountPart(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 function isHumanReviewSuggestion(suggestion: GLAccountSuggestion) {
   if (isXgboostSuggestion(suggestion) || isGeminiSuggestion(suggestion) || isAiFallbackSuggestion(suggestion)) {
     return false;
@@ -3722,6 +3852,7 @@ function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
   if (review.requires_human_review) return "Human review required";
   if (review.requires_ai_review) return "AI review required";
   if (review.source === "quickbooks_rule") return "QuickBooks rule";
+  if (review.source === "account_split_lookup") return "Split account lookup";
   if (review.source === "xgboost") return "XGBoost";
   if (review.categorized) return "Checked";
   return "Review";
@@ -3759,6 +3890,7 @@ function formatReviewMarker(
 
 function inferSuggestionReviewSource(suggestion: GLAccountSuggestion) {
   if (isXgboostSuggestion(suggestion)) return "xgboost";
+  if (isSplitLookupSuggestion(suggestion)) return "account_split_lookup";
   if (isGeminiSuggestion(suggestion)) return "AI";
   if (isAiFallbackSuggestion(suggestion)) return "ai_fallback";
   if (suggestion.requires_manual_review) return "manual";

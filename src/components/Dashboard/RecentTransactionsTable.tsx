@@ -1,16 +1,15 @@
 import { useState } from "react";
 import {
+  type ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRecentTransactions, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecentTransaction } from "@/types/dashboard";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 
@@ -24,25 +23,25 @@ export default function RecentTransactionsTable({
   const { data = [], isLoading, isError } = useRecentTransactions(filters);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 5 });
 
-  const columns = [
+  const columns: ColumnDef<RecentTransaction>[] = [
     {
       accessorKey: "date",
       header: "Date",
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <span className="font-medium text-slate-500 whitespace-nowrap">{row.original.date}</span>
       ),
     },
     {
       accessorKey: "description",
       header: "Description",
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <span className="font-medium text-slate-900 max-w-[200px] truncate block">{row.original.description}</span>
       ),
     },
     {
       accessorKey: "amount",
       header: () => <div className="text-right">Amount</div>,
-      cell: ({ row }: any) => {
+      cell: ({ row }) => {
         const amount = row.original.amount;
         return (
           <div 

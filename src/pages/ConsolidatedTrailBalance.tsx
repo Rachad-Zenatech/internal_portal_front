@@ -505,9 +505,6 @@ function ReconcilingTable({
     .filter((g) => g.items.length > 0)
     .sort((a, b) => compareCompanies(a.company, b.company));
 
-  const grandTotal = groups.reduce((s, g) => s + g.items.reduce((ss, i) => ss + i.amount, 0), 0);
-  const grandCount = groups.reduce((s, g) => s + g.items.length, 0);
-
   const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<number>>(() => new Set());
   const [preview, setPreview] = useState<{ company: ConsolidatedCompany; rows: EditableMissingInBooksRow[]; } | null>(null);
   
@@ -595,7 +592,7 @@ function ReconcilingTable({
       link.remove();
       URL.revokeObjectURL(url);
       setPreview(null);
-    } catch (err) {
+    } catch {
       // the mutation handles its own error states
     }
   };

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Building2, Calendar, CreditCard, BarChart3, Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
+import { Building2, Calendar, CreditCard, BarChart3, Search, ChevronDown, ArrowUpDown } from "lucide-react";
 import {
   Select as UISelect,
   SelectContent,

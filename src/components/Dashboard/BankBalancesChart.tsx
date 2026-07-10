@@ -1,16 +1,17 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import {
+  type ColumnDef,
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { useBankBalancesChart, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { TrendingUp, TrendingDown } from "lucide-react";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
+import type { BankBalancePoint } from "@/types/dashboard";
 
 type BankBalancesChartProps = {
   filters?: DashboardFilters;
@@ -23,11 +24,11 @@ export default function BankBalancesChart({ filters }: BankBalancesChartProps) {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val || 0);
 
-  const columns = [
+  const columns: ColumnDef<BankBalancePoint>[] = [
     {
       accessorKey: "account",
       header: "Bank Account",
-      cell: ({ row }: any) => {
+      cell: ({ row }) => {
         let accountName = row.original.account;
         if (accountName.includes(" - ")) {
           const parts = accountName.split(" - ");
@@ -39,21 +40,21 @@ export default function BankBalancesChart({ filters }: BankBalancesChartProps) {
     {
       accessorKey: "beginning",
       header: () => <div className="text-right">Beginning Balance</div>,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <div className="text-right text-slate-600">{formatCurrency(row.original.beginning)}</div>
       ),
     },
     {
       accessorKey: "ending",
       header: () => <div className="text-right">Ending Balance</div>,
-      cell: ({ row }: any) => (
+      cell: ({ row }) => (
         <div className="text-right text-slate-900 font-medium">{formatCurrency(row.original.ending)}</div>
       ),
     },
     {
       id: "change",
       header: () => <div className="text-right">Change</div>,
-      cell: ({ row }: any) => {
+      cell: ({ row }) => {
         const change = row.original.ending - row.original.beginning;
         const isPositive = change >= 0;
         return (

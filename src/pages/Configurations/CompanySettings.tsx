@@ -5,7 +5,7 @@ import { useCompanies, useCompanyEntities, useCreateCompany, useUpdateCompany, u
 import { GLService } from "../../services/glService";
 import type { GLExtractionFormat } from "@/types/gl";
 import { useAuth } from "@/lib/AuthContext";
-import { Plus, Edit2, Trash2, Search, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, AlertTriangle, ChevronDown, ArrowUpDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,13 +14,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import {
-  Select as UISelect,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import {

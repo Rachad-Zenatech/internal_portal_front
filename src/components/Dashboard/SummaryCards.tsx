@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Wallet, Landmark, PieChart, DollarSign, TrendingUp, TrendingDown, Building2, Scale } from "lucide-react";
+import { Wallet, Landmark, PieChart, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 import { useDashboardSummary, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
@@ -58,14 +58,13 @@ export default function UploadFiles() {
   const [pageSize, setPageSize] = useState(10);
 
   // Selection state
-  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // Data fetching with React Query
   const {
     data,
     isLoading,
     error: queryError,
-    refetch: loadFiles,
   } = useQuery({
     queryKey: ["uploadArchive", filter],
     queryFn: () => uploadArchiveService.list(filter === "all" ? undefined : filter),
@@ -128,14 +127,14 @@ export default function UploadFiles() {
 
   // React Query mutations
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => uploadArchiveService.remove(id),
+    mutationFn: (id: string) => uploadArchiveService.remove(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["uploadArchive"] });
     },
   });
 
   const bulkDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => Promise.all(ids.map(id => uploadArchiveService.remove(id))),
+    mutationFn: (ids: string[]) => Promise.all(ids.map(id => uploadArchiveService.remove(id))),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["uploadArchive"] });
       setSelectedRows(new Set());
@@ -165,7 +164,7 @@ export default function UploadFiles() {
     setSelectedRows(newSelected);
   };
 
-  const handleSelectRow = (id: number, checked: boolean) => {
+  const handleSelectRow = (id: string, checked: boolean) => {
     const newSelected = new Set(selectedRows);
     if (checked) newSelected.add(id);
     else newSelected.delete(id);

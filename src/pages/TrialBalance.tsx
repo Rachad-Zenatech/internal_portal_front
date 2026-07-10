@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useCompanyCards, useTrialBalance } from "@/hooks/useGL";
+import type { TrialBalanceRow } from "@/types/gl";
 import ConsolidatedTrialBalance from "./ConsolidatedTrailBalance";
 
 import { Card } from "@/components/ui/card";
@@ -9,20 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { Download, Filter, FileText, Wallet, BarChart2, Users, Search, Columns, Maximize2, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { FileText, Wallet, BarChart2, Users, Search, ArrowUpDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 // Types
 const PERIODS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december", "q1", "q2", "q3", "q4", "year", "custom"] as const;
 type PeriodType = (typeof PERIODS)[number];
+type TrialBalanceSortColumn = keyof TrialBalanceRow | "balance";
+const EMPTY_TRIAL_BALANCE_ROWS: TrialBalanceRow[] = [];
 
 // Helper functions
 function formatMoney(value: number, showParenthesesForNegative = true) {
@@ -53,6 +47,11 @@ function getAccountTypeColor(type: string | null | undefined) {
   return "bg-slate-100 text-slate-700 dark:text-zinc-300 hover:bg-slate-200";
 }
 
+function getTrialBalanceSortValue(row: TrialBalanceRow, column: TrialBalanceSortColumn) {
+  if (column === "balance") return row.debit - row.credit;
+  return row[column];
+}
+
 export default function TrialBalance() {
   const [period, setPeriod] = useState<PeriodType>("year");
   const [year, setYear] = useState<number>(2026);
@@ -65,10 +64,10 @@ export default function TrialBalance() {
   const [search, setSearch] = useState("");
   
   // Sort state
-  const [sortCol, setSortCol] = useState<string>("account_number");
+  const [sortCol, setSortCol] = useState<TrialBalanceSortColumn>("account_number");
   const [sortDesc, setSortDesc] = useState(false);
 
-  const handleSort = (col: string) => {
+  const handleSort = (col: TrialBalanceSortColumn) => {
     if (sortCol === col) {
       setSortDesc(!sortDesc);
     } else {
@@ -99,12 +98,13 @@ export default function TrialBalance() {
   }, [companies, companyId]);
 
   const { data: trialBalance, isLoading: loadingTB, error: tbError } = useTrialBalance(companyId, period, year);
+  const trialBalanceRows = trialBalance?.rows ?? EMPTY_TRIAL_BALANCE_ROWS;
 
   // Derived state for the datatable
   const { filteredRows, totalPages } = useMemo(() => {
-    if (!trialBalance?.rows) return { filteredRows: [], totalPages: 1 };
+    if (!trialBalanceRows.length) return { filteredRows: [], totalPages: 1 };
     
-    let rows = [...trialBalance.rows];
+    let rows = [...trialBalanceRows];
     
     // Search
     if (search) {
@@ -117,20 +117,16 @@ export default function TrialBalance() {
 
     // Sort
     rows.sort((a, b) => {
-      let valA: any = a[sortCol as keyof typeof a];
-      let valB: any = b[sortCol as keyof typeof b];
-      
-      // Calculate balance if sorting by balance
-      if (sortCol === 'balance') {
-        valA = a.debit - a.credit;
-        valB = b.debit - b.credit;
+      const valA = getTrialBalanceSortValue(a, sortCol);
+      const valB = getTrialBalanceSortValue(b, sortCol);
+
+      if (typeof valA === "number" && typeof valB === "number") {
+        return sortDesc ? valB - valA : valA - valB;
       }
-      
-      if (typeof valA === 'string' && typeof valB === 'string') {
-        return sortDesc ? valB.localeCompare(valA) : valA.localeCompare(valB);
-      }
-      
-      return sortDesc ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
+
+      const textA = String(valA ?? "");
+      const textB = String(valB ?? "");
+      return sortDesc ? textB.localeCompare(textA) : textA.localeCompare(textB);
     });
     
     // Pagination
@@ -138,8 +134,8 @@ export default function TrialBalance() {
     const startIdx = (page - 1) * pageSize;
     const paginated = rows.slice(startIdx, startIdx + pageSize);
     
-    return { filteredRows: paginated, totalPages: Math.max(1, totalPages), totalCount: rows.length };
-  }, [trialBalance?.rows, search, sortCol, sortDesc, page, pageSize]);
+    return { filteredRows: paginated, totalPages: Math.max(1, totalPages) };
+  }, [trialBalanceRows, search, sortCol, sortDesc, page, pageSize]);
 
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">

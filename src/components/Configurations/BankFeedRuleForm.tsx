@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { BankFeedRuleCreate, BankFeedRuleUpdate, RuleCondition, RuleAction, BankFeedRule } from "../../types/bankFeedRule";
+import type { ChartOfAccount } from "../../types/chartOfAccount";
 import { useChartOfAccounts } from "../../hooks/useChartOfAccount";
 
 interface BankFeedRuleFormProps {
@@ -35,6 +35,36 @@ const ACTION_OPTIONS = [
   { value: '2', label: 'Class' },
   { value: '3', label: 'Location' },
 ];
+
+type RuleFormCondition = {
+  id: string;
+  rule_type: number;
+  operator: string;
+  val: string;
+};
+
+type RuleFormAction = {
+  id: string;
+  action_type: number;
+  val: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getNestedRuleValue(value: unknown) {
+  return isRecord(value) && "value" in value ? value.value : value;
+}
+
+function toFormValue(value: unknown) {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) return value.map(toFormValue).join(", ");
+  if (isRecord(value) && typeof value.account_name === "string") return value.account_name;
+  return JSON.stringify(value);
+}
 
 const getOperatorsForField = (fieldId: string) => {
   if (fieldId === '1' || fieldId === '6') {
@@ -69,14 +99,14 @@ export default function BankFeedRuleForm({ initialData, onSave, onCancel, isSavi
   // Transform existing condition values for UI, extracting operator and value if it's a rich JSON
   const initialConditions = useMemo(() => {
     if (!initialData?.conditions || initialData.conditions.length === 0) {
-      return [{ id: Date.now(), rule_type: 1, operator: 'contains', val: '' }];
+      return [{ id: "condition-new", rule_type: 1, operator: 'contains', val: '' }];
     }
-    return initialData.conditions.map(c => {
+    return initialData.conditions.map((c, index) => {
       let operator = 'contains';
-      let val = c.value;
-      if (typeof c.value === 'object' && c.value !== null) {
-        operator = c.value.operator || 'contains';
-        val = c.value.value || '';
+      let val = toFormValue(c.value);
+      if (isRecord(c.value)) {
+        operator = typeof c.value.operator === "string" ? c.value.operator : 'contains';
+        val = toFormValue(c.value.value);
       } else {
         if (c.rule_type === 10 || c.rule_type === 2) {
           operator = 'equals';
@@ -87,45 +117,32 @@ export default function BankFeedRuleForm({ initialData, onSave, onCancel, isSavi
         operator = 'equals';
       }
 
-      return { id: Math.random(), rule_type: c.rule_type, operator, val };
+      return { id: c.id ? `condition-${c.id}` : `condition-${index}`, rule_type: c.rule_type, operator, val };
     });
   }, [initialData]);
 
-  const [conditions, setConditions] = useState<any[]>(initialConditions);
+  const [conditions, setConditions] = useState<RuleFormCondition[]>(initialConditions);
 
   const initialActions = useMemo(() => {
     if (!initialData?.actions || initialData.actions.length === 0) {
-      return [{ id: Date.now(), action_type: 0, val: '' }];
+      return [{ id: "action-new", action_type: 0, val: '' }];
     }
     return initialData.actions
       .filter(a => {
-        const v = a.value?.value || a.value;
+        const v = getNestedRuleValue(a.value);
         return !(Array.isArray(v) && v.length === 0);
       })
-      .map(a => {
-        let val = a.value;
-        if (typeof a.value === 'object' && a.value !== null && a.value.value) {
-            val = a.value.value;
-        }
-        
-        if (Array.isArray(val)) {
-          val = val.join(", ");
-        } else if (typeof val === 'object' && val !== null) {
-          if (val.account_name) {
-            val = val.account_name;
-          } else {
-            val = JSON.stringify(val);
-          }
-        }
+      .map((a, index) => {
+        const val = toFormValue(getNestedRuleValue(a.value));
         
         let type = a.action_type;
         if (type === 9) type = 1; // consolidate Memo into Description/Memo
         
-        return { id: Math.random(), action_type: type, val: String(val) };
+        return { id: a.id ? `action-${a.id}` : `action-${index}`, action_type: type, val };
       });
   }, [initialData]);
 
-  const [actions, setActions] = useState<any[]>(initialActions);
+  const [actions, setActions] = useState<RuleFormAction[]>(initialActions);
 
   const { data: coaData } = useChartOfAccounts();
 
@@ -153,11 +170,11 @@ export default function BankFeedRuleForm({ initialData, onSave, onCancel, isSavi
     }));
 
     const payloadActions: RuleAction[] = actions.map((a, idx) => {
-      let finalValue = a.val;
+      let finalValue: RuleAction["value"] = a.val;
       if (a.action_type === 0 && coaData?.chart_of_accounts) {
         // Try to match category name to provide rich object if needed, but simple string value usually works
         // The backend expects string for chart of account or object with accountName/accountNumber
-        const account = coaData.chart_of_accounts.find((acc: any) => acc.account_name === a.val || String(acc.account_number) === a.val);
+        const account = coaData.chart_of_accounts.find((acc: ChartOfAccount) => acc.account_name === a.val || String(acc.account_number) === a.val);
         if (account) {
            finalValue = { account_number: String(account.account_number), account_name: account.account_name };
         }
@@ -311,7 +328,7 @@ export default function BankFeedRuleForm({ initialData, onSave, onCancel, isSavi
           </div>
           
           <Button variant="outline" size="sm" onClick={() => {
-            setConditions([...conditions, { id: Date.now(), rule_type: 1, operator: 'contains', val: '' }]);
+            setConditions([...conditions, { id: `condition-${Date.now()}`, rule_type: 1, operator: 'contains', val: '' }]);
           }} className="mt-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800">
             <Plus className="w-4 h-4 mr-1.5" />
             Add Condition
@@ -356,7 +373,7 @@ export default function BankFeedRuleForm({ initialData, onSave, onCancel, isSavi
                         <SelectValue placeholder="Select Category/Account..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {coaData?.chart_of_accounts?.map((acc: any) => (
+                        {coaData?.chart_of_accounts?.map((acc: ChartOfAccount) => (
                           <SelectItem key={acc.id} value={acc.account_name}>
                             {acc.account_number} - {acc.account_name}
                           </SelectItem>
@@ -387,7 +404,7 @@ export default function BankFeedRuleForm({ initialData, onSave, onCancel, isSavi
           </div>
 
           <Button variant="outline" size="sm" onClick={() => {
-            setActions([...actions, { id: Date.now(), action_type: 0, val: '' }]);
+            setActions([...actions, { id: `action-${Date.now()}`, action_type: 0, val: '' }]);
           }} className="mt-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/30 border-blue-200 dark:border-blue-800">
             <Plus className="w-4 h-4 mr-1.5" />
             Add Action

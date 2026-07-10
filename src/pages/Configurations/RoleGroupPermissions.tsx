@@ -1,19 +1,35 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, ShieldCheck, Search, Check } from "lucide-react";
+import { Loader2, Save, ShieldCheck, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/AuthContext";
 import type { Role } from "@/lib/AuthContext";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
+
+type PermissionGroup = {
+  id: number;
+  code: string;
+  name: string;
+  description?: string | null;
+};
+
+type PermissionModule = {
+  code: string;
+  name: string;
+  groups: PermissionGroup[];
+};
+
+function getErrorMessage(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback;
+}
 
 export default function RoleGroupPermissions() {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const roleId = searchParams.get("roleId");
 
@@ -43,7 +59,7 @@ export default function RoleGroupPermissions() {
   // Fetch permission modules & groups
   const { data: modules, isLoading: isLoadingModules } = useQuery({
     queryKey: ["permission-modules"],
-    queryFn: () => apiClient.get<any[]>("/api/configuration/permission-modules"),
+    queryFn: () => apiClient.get<PermissionModule[]>("/api/configuration/permission-modules"),
   });
 
   // Fetch current assigned groups
@@ -68,7 +84,7 @@ export default function RoleGroupPermissions() {
       queryClient.invalidateQueries({ queryKey: ["role-permission-groups", roleId] });
       toast.success("Permissions updated successfully");
     },
-    onError: (err: any) => toast.error(err.message || "Failed to update permissions"),
+    onError: (err: unknown) => toast.error(getErrorMessage(err, "Failed to update permissions")),
   });
 
   const handleToggleGroup = (groupId: number) => {
@@ -88,8 +104,6 @@ export default function RoleGroupPermissions() {
   const handleRoleSelect = (id: string) => {
     setSearchParams({ roleId: id });
   };
-
-  const isLoading = isLoadingRoles || isLoadingModules || isLoadingAssigned;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
@@ -172,18 +186,18 @@ export default function RoleGroupPermissions() {
               </div>
             ) : (
               <div className="space-y-8">
-                {modules?.map((module: any) => (
+                {modules?.map((module) => (
                   <div key={module.code} className="bg-slate-50 dark:bg-zinc-950/50 rounded-xl p-6 border border-slate-100 dark:border-zinc-800/50">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-zinc-100 mb-4 pb-2 border-b border-slate-200 dark:border-zinc-800">
                       {module.name}
                     </h3>
                     <div className="space-y-6">
                       {/* View Access */}
-                      {module.groups.some((g: any) => g.code.includes('_VIEW')) && (
+                      {module.groups.some((g) => g.code.includes('_VIEW')) && (
                         <div>
                           <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">View Access</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {module.groups.filter((g: any) => g.code.includes('_VIEW')).map((group: any) => {
+                            {module.groups.filter((g) => g.code.includes('_VIEW')).map((group) => {
                               const isChecked = selectedGroups.has(group.id);
                               return (
                                 <label 
@@ -222,11 +236,11 @@ export default function RoleGroupPermissions() {
                       )}
 
                       {/* Manage Actions */}
-                      {module.groups.some((g: any) => !g.code.includes('_VIEW')) && (
+                      {module.groups.some((g) => !g.code.includes('_VIEW')) && (
                         <div>
                           <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Manage & Actions</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {module.groups.filter((g: any) => !g.code.includes('_VIEW')).map((group: any) => {
+                            {module.groups.filter((g) => !g.code.includes('_VIEW')).map((group) => {
                               const isChecked = selectedGroups.has(group.id);
                               return (
                                 <label 
