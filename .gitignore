@@ -47,3 +47,7 @@ temp/
 # local database files
 *.sqlite
 *.db
+
+
+
+.env
