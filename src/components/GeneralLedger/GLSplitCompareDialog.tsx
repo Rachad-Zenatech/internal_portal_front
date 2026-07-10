@@ -157,7 +157,6 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
     { accessorKey: "transaction_type", header: "Type" },
     { accessorKey: "name", header: "Name" },
     { accessorKey: "memo", header: "Memo" },
-    { accessorKey: "description", header: "Description", cell: ({ row }) => <div className="max-w-[200px] truncate" title={row.original.description}>{row.original.description}</div> },
     { accessorKey: "amount", header: "Amount", cell: ({ row }) => row.original.amount.toFixed(2) },
     { accessorKey: "expected_account", header: "Expected Account" },
     { accessorKey: "dry_run_account", header: "Dry-Run Account" },
@@ -194,7 +193,7 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
   const handleExportCSV = () => {
     if (!result) return;
     const headers = [
-      "Row #", "Date", "Type", "Name", "Memo", "Description", "Amount", "Expected Account",
+      "Row #", "Date", "Type", "Name", "Memo", "Amount", "Expected Account",
       "Dry-Run Account", "Applied By", "Confidence", "Status", "Difference Reason"
     ];
 
@@ -204,7 +203,6 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
       r.transaction_type || "",
       r.name || "",
       r.memo || "",
-      `"${(r.description || "").replace(/"/g, '""')}"`,
       r.amount.toFixed(2),
       `"${(r.expected_account || "").replace(/"/g, '""')}"`,
       `"${(r.dry_run_account || "").replace(/"/g, '""')}"`,

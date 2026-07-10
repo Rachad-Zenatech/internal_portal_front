@@ -11,7 +11,7 @@ const WORKFLOW_LABELS = {
   BANK_RULES: "Internal Bank Rules (e.g., matching bank transfers, bank service fees)",
   XGBOOST: "XGBoost Machine Learning Predictions",
   AI: "AI Review (strictly for the 1000-1099 bank/credit card scope)",
-  MANUAL: "Manual Fallback (for everything else)",
+  MANUAL: "Manual Fallback",
 } as const;
 
 function getFriendlyLabel(source: string | null, matchedRule: any): string {
@@ -51,6 +51,15 @@ export function isBankOrCreditCard(row: ImportPreviewRow): boolean {
   // Check account type if it exists in the raw data
   const type = ((row as any).account_type || "").toLowerCase();
   if (type === "bank" || type === "creditcard") {
+    return true;
+  }
+
+  // Fallback to checking account_name for keywords, but exclude common expense keywords
+  const name = (row.account_name || "").toLowerCase();
+  const hasBankKeyword = /\b(bank|checking|savings|cash|credit\s*card|visa|mastercard|amex|discover)\b/.test(name);
+  const hasExpenseKeyword = /\b(fee|fees|charge|charges|interest|expense|payable)\b/.test(name);
+  
+  if (hasBankKeyword && !hasExpenseKeyword) {
     return true;
   }
   
@@ -107,13 +116,36 @@ export function compareGLSplitResults(
       }
     }
 
+    const extractSplitsFromExpectedBankLine = (expectedBankLine: ImportPreviewRow) => {
+      let sameTxn: ImportPreviewRow[] = [];
+      // Use gl_id to reliably find all lines of the split transaction, even if transaction_number is missing
+      if (expectedBankLine.gl_id !== undefined && expectedBankLine.gl_id !== null) {
+        sameTxn = unmatchedExpected.filter(e => e.gl_id === expectedBankLine.gl_id);
+      } else if (expectedBankLine.transaction_number) {
+        sameTxn = unmatchedExpected.filter(e => e.transaction_number === expectedBankLine.transaction_number);
+      } else {
+        sameTxn = [expectedBankLine];
+      }
+
+      const origSign = Math.sign(origAmount) || 1;
+      const oppositeLines = sameTxn.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
+      const sameLines = sameTxn.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
+      
+      if (oppositeLines.length > 0) {
+        matchedExpRows = oppositeLines;
+        matchedSameLines = sameLines;
+      } else if (sameLines.length > 0) {
+        matchedExpRows = [sameLines[0]];
+      }
+    };
+
     // Second try: Exact match (1-to-1) using findIndex to avoid capturing duplicates
     if (matchedExpRows.length === 0) {
       const exactIndex = unmatchedExpected.findIndex(
         (exp) => exp.date === origDate && getAmount(exp) === origAmount && normalizeText(exp.name) === origNormName
       );
       if (exactIndex !== -1) {
-        matchedExpRows = [unmatchedExpected[exactIndex]];
+        extractSplitsFromExpectedBankLine(unmatchedExpected[exactIndex]);
       }
     }
 
@@ -123,7 +155,7 @@ export function compareGLSplitResults(
         (exp) => exp.date === origDate && getAmount(exp) === origAmount
       );
       if (partialIndex !== -1) {
-        matchedExpRows = [unmatchedExpected[partialIndex]];
+        extractSplitsFromExpectedBankLine(unmatchedExpected[partialIndex]);
       }
     }
 
