@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import {
   flexRender,
   getCoreRowModel,
@@ -373,74 +374,8 @@ export default function AuditLog() {
             </Card>
 
             {/* PAGINATION FOR ACTIONS */}
-            <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
-              <div className="text-sm text-muted-foreground">
-                {auditTable.getFilteredRowModel().rows.length} total action(s).
-              </div>
-              <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
-                <div className="flex items-center space-x-2">
-                  <p className="text-sm font-medium">Rows per page</p>
-                  <UISelect
-                    value={`${auditTable.getState().pagination.pageSize}`}
-                    onValueChange={(value) => {
-                      auditTable.setPageSize(Number(value));
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-[70px]">
-                      <SelectValue placeholder={auditTable.getState().pagination.pageSize} />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                      {[10, 20, 30, 40, 50].map((pageSize) => (
-                        <SelectItem key={pageSize} value={`${pageSize}`}>
-                          {pageSize}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </UISelect>
-                </div>
-                <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-                  Page {auditTable.getState().pagination.pageIndex + 1} of{" "}
-                  {auditTable.getPageCount() || 1}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    className="hidden h-8 w-8 p-0 lg:flex"
-                    onClick={() => auditTable.setPageIndex(0)}
-                    disabled={!auditTable.getCanPreviousPage()}
-                  >
-                    <span className="sr-only">Go to first page</span>
-                    <ChevronsLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => auditTable.previousPage()}
-                    disabled={!auditTable.getCanPreviousPage()}
-                  >
-                    <span className="sr-only">Go to previous page</span>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => auditTable.nextPage()}
-                    disabled={!auditTable.getCanNextPage()}
-                  >
-                    <span className="sr-only">Go to next page</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="hidden h-8 w-8 p-0 lg:flex"
-                    onClick={() => auditTable.setPageIndex(auditTable.getPageCount() - 1)}
-                    disabled={!auditTable.getCanNextPage()}
-                  >
-                    <span className="sr-only">Go to last page</span>
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+            <div className="border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-3">
+              <DataTablePagination table={auditTable} noun="action(s)" />
             </div>
           </div>
         </TabsContent>
@@ -532,74 +467,8 @@ export default function AuditLog() {
             </Card>
 
             {/* PAGINATION FOR LOGINS */}
-            <div className="flex flex-col items-center justify-center gap-4 px-2 py-4 sm:flex-row sm:gap-6 lg:gap-8">
-              <div className="text-sm text-muted-foreground">
-                {loginTable.getFilteredRowModel().rows.length} total activity(ies).
-              </div>
-              <div className="flex items-center space-x-4 sm:space-x-6 lg:space-x-8">
-                <div className="flex items-center space-x-2">
-                  <p className="text-sm font-medium">Rows per page</p>
-                  <UISelect
-                    value={`${loginTable.getState().pagination.pageSize}`}
-                    onValueChange={(value) => {
-                      loginTable.setPageSize(Number(value));
-                    }}
-                  >
-                    <SelectTrigger className="h-8 w-[70px]">
-                      <SelectValue placeholder={loginTable.getState().pagination.pageSize} />
-                    </SelectTrigger>
-                    <SelectContent side="top">
-                      {[10, 20, 30, 40, 50].map((pageSize) => (
-                        <SelectItem key={pageSize} value={`${pageSize}`}>
-                          {pageSize}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </UISelect>
-                </div>
-                <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-                  Page {loginTable.getState().pagination.pageIndex + 1} of{" "}
-                  {loginTable.getPageCount() || 1}
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    className="hidden h-8 w-8 p-0 lg:flex"
-                    onClick={() => loginTable.setPageIndex(0)}
-                    disabled={!loginTable.getCanPreviousPage()}
-                  >
-                    <span className="sr-only">Go to first page</span>
-                    <ChevronsLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => loginTable.previousPage()}
-                    disabled={!loginTable.getCanPreviousPage()}
-                  >
-                    <span className="sr-only">Go to previous page</span>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-8 w-8 p-0"
-                    onClick={() => loginTable.nextPage()}
-                    disabled={!loginTable.getCanNextPage()}
-                  >
-                    <span className="sr-only">Go to next page</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="hidden h-8 w-8 p-0 lg:flex"
-                    onClick={() => loginTable.setPageIndex(loginTable.getPageCount() - 1)}
-                    disabled={!loginTable.getCanNextPage()}
-                  >
-                    <span className="sr-only">Go to last page</span>
-                    <ChevronsRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+            <div className="border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-3">
+              <DataTablePagination table={loginTable} noun="activity(ies)" />
             </div>
           </div>
         </TabsContent>

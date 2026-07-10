@@ -12,6 +12,7 @@ import { useRecentTransactions, type DashboardFilters } from "@/hooks/useDashboa
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecentTransaction } from "@/types/dashboard";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 
 type RecentTransactionsTableProps = {
   filters?: DashboardFilters;
@@ -146,33 +147,8 @@ export default function RecentTransactionsTable({
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-white">
-          <div className="text-xs text-slate-500">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount() || 1}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="h-8 w-8 p-0"
-            >
-              <span className="sr-only">Go to previous page</span>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="h-8 w-8 p-0"
-            >
-              <span className="sr-only">Go to next page</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="border-t border-slate-100 bg-white py-3">
+          <DataTablePagination table={table} noun="transaction(s)" />
         </div>
       </CardContent>
     </Card>

@@ -35,7 +35,7 @@ export default function Dashboard() {
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-slate-200/60 pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Finance Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
           <p className="text-sm text-slate-500 mt-1">Overview of financial position, bank activity, and accounting workflow.</p>
         </div>
 

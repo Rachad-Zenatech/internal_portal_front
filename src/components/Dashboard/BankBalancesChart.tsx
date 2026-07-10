@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useBankBalancesChart, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { DataTablePagination } from "@/components/ui/data-table-pagination";
 
 type BankBalancesChartProps = {
   filters?: DashboardFilters;
@@ -147,33 +148,8 @@ export default function BankBalancesChart({ filters }: BankBalancesChartProps) {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
-          <div className="text-xs text-slate-500">
-            Page {table.getState().pagination.pageIndex + 1} of{" "}
-            {table.getPageCount() || 1}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-              className="h-8 w-8 p-0"
-            >
-              <span className="sr-only">Go to previous page</span>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-              className="h-8 w-8 p-0"
-            >
-              <span className="sr-only">Go to next page</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+        <div className="border-t border-slate-100 bg-white py-3">
+          <DataTablePagination table={table} noun="account(s)" />
         </div>
       </CardContent>
     </Card>
