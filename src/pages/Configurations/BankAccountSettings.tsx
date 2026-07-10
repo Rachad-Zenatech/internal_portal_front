@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import type { BankAccount, BankAccountCreate } from "../../types/bank";
 import { useBankAccounts, useCompanies, useBanks, useCreateBankAccount, useUpdateBankAccount, useDeleteBankAccount } from "../../hooks/useBank";
+import { useAuth } from "@/lib/AuthContext";
 import { Plus, Edit2, Trash2, Search, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,10 @@ function errorMessage(error: unknown) {
 }
 
 export default function BankAccountSettings() {
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission("CONFIG_BANK_ACCOUNT_UPDATE");
+  const canDelete = hasPermission("CONFIG_BANK_ACCOUNT_DELETE");
+  const canCreate = hasPermission("CONFIG_BANK_ACCOUNT_CREATE");
   const { data: accounts = [], isLoading: isLoadingAccounts } = useBankAccounts();
   const { data: companies = [], isLoading: isLoadingCompanies } = useCompanies();
   const { data: banks = [], isLoading: isLoadingBanks } = useBanks();
@@ -107,7 +112,8 @@ export default function BankAccountSettings() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const columns = useMemo<ColumnDef<BankAccount>[]>(() => [
+  const columns = useMemo<ColumnDef<BankAccount>[]>(() => {
+    const cols: ColumnDef<BankAccount>[] = [
     {
       accessorKey: "company_name",
       header: ({ column }) => (
@@ -137,22 +143,31 @@ export default function BankAccountSettings() {
         </Button>
       ),
       cell: ({ row }) => <span className="font-mono text-sm text-slate-600">{row.original.account_number}</span>,
-    },
-    {
+    }
+  ];
+
+  if (canUpdate || canDelete) {
+    cols.push({
       id: "actions",
       header: () => <div className="text-right">Actions</div>,
       cell: ({ row }) => (
         <div className="text-right space-x-2">
-          <Button variant="outline" size="sm" onClick={() => handleOpenModal(row.original)}>
-            <Edit2 size={14} className="mr-1" /> Edit
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(row.original)}>
-            <Trash2 size={14} className="mr-1" /> Remove
-          </Button>
+          {canUpdate && (
+            <Button variant="outline" size="sm" onClick={() => handleOpenModal(row.original)}>
+              <Edit2 size={14} className="mr-1" /> Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(row.original)}>
+              <Trash2 size={14} className="mr-1" /> Remove
+            </Button>
+          )}
         </div>
       ),
-    }
-  ], []);
+    });
+  }
+  return cols;
+}, [canUpdate, canDelete]);
 
   const table = useReactTable({
     data: accounts,
@@ -190,9 +205,11 @@ export default function BankAccountSettings() {
           <p className="text-slate-500 mt-1">Manage bank accounts linked to your companies and banks.</p>
         </div>
         <div className="flex items-center gap-4">
-          <Button onClick={() => handleOpenModal()} className="gap-2">
-            <Plus size={16} /> Add Account
-          </Button>
+          {canCreate && (
+            <Button onClick={() => handleOpenModal()} className="gap-2">
+              <Plus size={16} /> Add Account
+            </Button>
+          )}
         </div>
       </div>
 

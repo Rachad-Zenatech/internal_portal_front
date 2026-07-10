@@ -1,13 +1,13 @@
 // src/pages/Dashboard.tsx
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import SummaryCards from "@/components/Dashboard/SummaryCards";
 import RevenueExpenseChart from "@/components/Dashboard/RevenueExpenseChart";
+import FinancialPosition from "@/components/Dashboard/FinancialPosition";
 import BankBalancesChart from "@/components/Dashboard/BankBalancesChart";
 import AccountTypeDonut from "@/components/Dashboard/AccountTypeDonut";
 import RecentTransactionsTable from "@/components/Dashboard/RecentTransactionsTable";
 import { useCompanies } from "@/hooks/useBank";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -15,41 +15,40 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { DashboardFilters } from "@/hooks/useDashboard";
 
 export default function Dashboard() {
   const { data: companies = [], isLoading: companiesLoading } = useCompanies();
   const [companySelection, setCompanySelection] = useState("all");
+  const [period, setPeriod] = useState("monthly");
 
   const selectedCompanyId =
     companySelection === "all" ? null : Number(companySelection);
 
-  const selectedCompanyName = useMemo(() => {
-    if (!selectedCompanyId) return "All companies";
-    return (
-      companies.find((company) => company.id === selectedCompanyId)?.name ??
-      "Selected company"
-    );
-  }, [companies, selectedCompanyId]);
+  const filters: DashboardFilters = {
+    companyId: selectedCompanyId,
+  };
 
   return (
-    <div className="w-full space-y-6 flex flex-col h-full overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
-      <header className="flex flex-col gap-4 rounded-lg  p-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="w-full space-y-6 flex flex-col h-full overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out pb-10 bg-slate-50/50 p-2 sm:p-6 lg:p-8 rounded-xl">
+      
+      {/* Header */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-slate-200/60 pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">{selectedCompanyName}</p>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Finance Dashboard</h1>
+          <p className="text-sm text-slate-500 mt-1">Overview of financial position, bank activity, and accounting workflow.</p>
         </div>
 
-        <div className="space-y-2">
-          <Label>Company</Label>
+        <div className="flex flex-wrap items-center gap-3">
           <Select
             value={companySelection}
             onValueChange={setCompanySelection}
             disabled={companiesLoading}
           >
-            <SelectTrigger className="w-full sm:w-[280px]">
+            <SelectTrigger className="w-[200px] h-9 bg-white border-slate-200">
               <SelectValue
                 placeholder={
-                  companiesLoading ? "Loading companies..." : "Select company"
+                  companiesLoading ? "Loading companies..." : "All Companies"
                 }
               />
             </SelectTrigger>
@@ -58,33 +57,56 @@ export default function Dashboard() {
               {companies.map((company) => (
                 <SelectItem key={company.id} value={String(company.id)}>
                   {company.name}
-                  {company.entity ? ` (${company.entity})` : ""}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={period}
+            onValueChange={setPeriod}
+          >
+            <SelectTrigger className="w-[150px] h-9 bg-white border-slate-200">
+              <SelectValue placeholder="Select period" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="monthly">Monthly</SelectItem>
+              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="yearly">Yearly</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </header>
 
-      {/* Top Row: Summary Cards */}
-      <SummaryCards companyId={selectedCompanyId} />
+      <div className="space-y-6">
+        {/* Row 1: KPI Summary Cards */}
+        <SummaryCards filters={filters} />
 
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Row 1: Revenue vs Expense & Account Donut */}
-        <div className="xl:col-span-2 flex flex-col min-h-[400px]">
-          <RevenueExpenseChart companyId={selectedCompanyId} />
-        </div>
-        <div className="flex flex-col">
-          <AccountTypeDonut companyId={selectedCompanyId} />
+        {/* Row 2: Monthly P&L Trend & Financial Position */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 flex flex-col">
+            <RevenueExpenseChart filters={filters} period={period} />
+          </div>
+          <div className="flex flex-col">
+            <FinancialPosition filters={filters} />
+          </div>
         </div>
 
-        {/* Row 2: Bank Balances & Recent Transactions */}
-        <div className="xl:col-span-2 flex flex-col min-h-[400px]">
-          <BankBalancesChart companyId={selectedCompanyId} />
+        {/* Row 3: Bank Account Balances & Account Distribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 flex flex-col h-[400px]">
+            <BankBalancesChart filters={filters} />
+          </div>
+          <div className="flex flex-col h-[400px]">
+            <AccountTypeDonut filters={filters} />
+          </div>
         </div>
-        <div className="flex flex-col min-h-[400px]">
-          <RecentTransactionsTable companyId={selectedCompanyId} />
+
+        {/* Row 4: Recent Transactions Table */}
+        <div className="grid grid-cols-1 gap-6">
+          <div className="flex flex-col max-h-[400px]">
+            <RecentTransactionsTable filters={filters} />
+          </div>
         </div>
       </div>
     </div>

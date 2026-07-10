@@ -1,17 +1,17 @@
-import { useState } from "react";
-import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useMemo } from "react";
+import { ComposedChart, Bar, Line, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-import { useRevenueExpenseChart } from "@/hooks/useDashboard";
+import { useRevenueExpenseChart, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RevenueExpensePoint } from "@/types/dashboard";
+
+type ExtendedPoint = RevenueExpensePoint & { netIncome: number };
 
 type RevenueTooltipSeries = {
   color?: string;
   name: string;
   value: number;
-  payload: RevenueExpensePoint;
+  payload: ExtendedPoint;
 };
 
 type RevenueTooltipProps = {
@@ -39,42 +39,56 @@ const CustomTooltip = ({ active, payload }: RevenueTooltipProps) => {
 };
 
 type RevenueExpenseChartProps = {
-  companyId?: number | null;
+  filters?: DashboardFilters;
+  period: string;
 };
 
 export default function RevenueExpenseChart({
-  companyId,
+  filters,
+  period,
 }: RevenueExpenseChartProps) {
-  const [period, setPeriod] = useState("monthly");
   const { data, isLoading, isError } = useRevenueExpenseChart(
     period,
-    companyId
+    filters
   );
 
-  const yAxisTickFormatter = (value: number) => {
-    return `$${value.toLocaleString()}`;
+  const chartData = useMemo(() => {
+    if (!data) return [];
+    return data.map(d => ({
+      ...d,
+      netIncome: d.revenue - d.expenses
+    }));
+  }, [data]);
+
+  const formatCompactCurrency = (value: number) => {
+    if (value === 0) return "$0";
+    const absVal = Math.abs(value);
+    const sign = value < 0 ? "-" : "";
+    if (absVal >= 1000000) return `${sign}${(absVal / 1000000).toFixed(1)}M`;
+    if (absVal >= 1000) return `${sign}${(absVal / 1000).toFixed(0)}K`;
+    return `${sign}$${absVal}`;
   };
 
   if (isLoading) {
     return (
-      <Card className="w-full">
+      <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
         <CardHeader>
           <Skeleton className="h-6 w-[250px]" />
         </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[350px] w-full" />
+        <CardContent className="flex-1">
+          <Skeleton className="h-full min-h-[300px] w-full" />
         </CardContent>
       </Card>
     );
   }
 
-  if (isError || !data) {
+  if (isError || !chartData.length) {
     return (
-      <Card className="w-full">
+      <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
         <CardHeader>
-          <CardTitle>General Ledger Activity: Revenue vs Expenses</CardTitle>
+          <CardTitle className="text-lg">Monthly P&L Trend</CardTitle>
         </CardHeader>
-        <CardContent className="h-[350px] flex flex-col items-center justify-center p-6 text-center">
+        <CardContent className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <h3 className="text-lg font-semibold">No data</h3>
           <p className="text-sm text-muted-foreground mt-1">Failed to load revenue vs expense data.</p>
         </CardContent>
@@ -83,65 +97,65 @@ export default function RevenueExpenseChart({
   }
 
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>General Ledger Activity: Revenue vs Expenses</CardTitle>
-        <Select value={period} onValueChange={setPeriod}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Select period" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="monthly">Monthly</SelectItem>
-            <SelectItem value="quarterly">Quarterly</SelectItem>
-            <SelectItem value="yearly">Yearly</SelectItem>
-          </SelectContent>
-        </Select>
+    <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg capitalize">{period} P&L Trend</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="h-[350px] w-full mt-4">
+      <CardContent className="flex-1 pt-2">
+        <div className="h-full min-h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-            <AreaChart
-              data={data}
-              margin={{ top: 10, right: 30, left: 10, bottom: 0 }}
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+              barGap={2}
             >
-              <defs>
-                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="month" axisLine={false} tickLine={false} tickMargin={10} tick={{ fill: "#64748b", fontSize: 12 }} />
-              <YAxis 
-                width={85}
+              <XAxis 
+                dataKey="month" 
                 axisLine={false} 
                 tickLine={false} 
                 tickMargin={10} 
-                tickFormatter={yAxisTickFormatter}
-                tick={{ fill: "#64748b", fontSize: 12 }}
+                tick={{ fill: "#64748b", fontSize: 11 }} 
+              />
+              <YAxis 
+                width={50}
+                axisLine={false} 
+                tickLine={false} 
+                tickMargin={10} 
+                tickFormatter={formatCompactCurrency}
+                tick={{ fill: "#64748b", fontSize: 11 }}
               />
               <Tooltip content={<CustomTooltip />} />
-              <Legend verticalAlign="top" height={36} iconType="rect" wrapperStyle={{ paddingBottom: '20px' }} />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                name="Revenue"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorRevenue)"
-                activeDot={{ r: 6, strokeWidth: 0 }}
+              <Legend 
+                verticalAlign="top" 
+                height={36} 
+                iconType="circle" 
+                wrapperStyle={{ fontSize: '12px', paddingBottom: '10px' }} 
               />
-              <Area
-                type="monotone"
-                dataKey="expenses"
-                name="Expenses"
-                stroke="#f97316"
-                strokeWidth={2}
-                fill="none"
-                activeDot={{ r: 6, strokeWidth: 0 }}
+              <Bar 
+                dataKey="revenue" 
+                name="Revenue" 
+                fill="#3b82f6" 
+                barSize={12}
+                radius={[2, 2, 0, 0]}
               />
-            </AreaChart>
+              <Bar 
+                dataKey="expenses" 
+                name="Expenses" 
+                fill="#f97316" 
+                barSize={12}
+                radius={[2, 2, 0, 0]}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="netIncome" 
+                name="Net Income" 
+                stroke="#10b981" 
+                strokeWidth={2}
+                dot={{ r: 4, strokeWidth: 2, fill: "#fff", stroke: "#10b981" }}
+                activeDot={{ r: 6, fill: "#10b981", stroke: "#fff" }}
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </CardContent>

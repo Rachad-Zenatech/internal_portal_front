@@ -190,7 +190,8 @@ export default function Users() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const columns = useMemo<ColumnDef<User>[]>(() => [
+  const columns = useMemo<ColumnDef<User>[]>(() => {
+    const cols: ColumnDef<User>[] = [
     {
       accessorKey: "full_name",
       header: ({ column }) => (
@@ -255,8 +256,11 @@ export default function Users() {
         }
         return <span className="text-slate-500 text-sm italic">No Roles</span>;
       },
-    },
-    {
+    }
+  ];
+
+  if (hasPermission("CONFIG_USER_ROLE_ASSIGNMENT_READ") || hasPermission("CONFIG_USERS_UPDATE")) {
+    cols.push({
       id: "actions",
       header: () => <div className="text-right">Actions</div>,
       cell: ({ row }) => {
@@ -285,8 +289,10 @@ export default function Users() {
           </div>
         );
       },
-    }
-  ], [hasPermission, navigate]);
+    });
+  }
+  return cols;
+}, [hasPermission, navigate]);
 
   const table = useReactTable({
     data: users,

@@ -13,6 +13,12 @@ const queryClient = new QueryClient({
     queries: {
       // Data remains "fresh" for 5 minutes before checking for background updates
       staleTime: 1000 * 60 * 5, 
+      retry: (failureCount, error: any) => {
+        if (error?.status === 401 || error?.status === 403) {
+          return false;
+        }
+        return failureCount < 3;
+      },
     },
   },
 });

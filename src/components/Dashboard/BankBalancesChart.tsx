@@ -1,110 +1,101 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useState, useMemo } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-import { useBankBalancesChart } from "@/hooks/useDashboard";
+import { Button } from "@/components/ui/button";
+import { useBankBalancesChart, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { BankBalancePoint } from "@/types/dashboard";
-
-type BankTooltipSeries = {
-  color?: string;
-  name: string;
-  value: number;
-  payload: BankBalancePoint;
-};
-
-type BankTooltipProps = {
-  active?: boolean;
-  payload?: BankTooltipSeries[];
-  label?: string;
-};
-
-const CustomTooltip = ({ active, payload, label }: BankTooltipProps) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-white border shadow-md p-3 rounded-lg flex flex-col gap-1 text-sm">
-        <p className="font-semibold">{label}</p>
-        {payload.map((entry) => (
-          <div key={entry.name} className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-            <span className="text-slate-600">{entry.name}:</span>
-            <span className="font-medium">${entry.value.toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-const CustomXAxisTick = ({ x, y, payload }: any) => {
-  const value = payload.value as string;
-  let lines: string[] = [];
-  
-  if (value.includes(" - ")) {
-    const parts = value.split(" - ");
-    lines = [
-      parts[0].length > 20 ? parts[0].substring(0, 18) + "..." : parts[0],
-      "#" + parts[1]
-    ];
-  } else {
-    lines = [value.length > 20 ? value.substring(0, 18) + "..." : value];
-  }
-  
-  return (
-    <g transform={`translate(${x},${y})`}>
-      <text
-        x={0}
-        y={0}
-        dy={16}
-        textAnchor="end"
-        fill="#64748b"
-        fontSize={11}
-        transform="rotate(-35)"
-      >
-        {lines.map((line, index) => (
-          <tspan x={0} dy={index === 0 ? 0 : 14} key={index}>
-            {line}
-          </tspan>
-        ))}
-      </text>
-    </g>
-  );
-};
+import { TrendingUp, TrendingDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 type BankBalancesChartProps = {
-  companyId?: number | null;
+  filters?: DashboardFilters;
 };
 
-export default function BankBalancesChart({ companyId }: BankBalancesChartProps) {
-  const { data, isLoading, isError } = useBankBalancesChart(companyId);
+export default function BankBalancesChart({ filters }: BankBalancesChartProps) {
+  const { data = [], isLoading, isError } = useBankBalancesChart(filters);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 5 });
 
-  const yAxisTickFormatter = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(0)}k`;
-    return `$${value}`;
-  };
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val || 0);
+
+  const columns = [
+    {
+      accessorKey: "account",
+      header: "Bank Account",
+      cell: ({ row }: any) => {
+        let accountName = row.original.account;
+        if (accountName.includes(" - ")) {
+          const parts = accountName.split(" - ");
+          accountName = `${parts[0]} ${parts[1].substring(0, 4)}`;
+        }
+        return <span className="font-medium text-slate-900">{accountName}</span>;
+      },
+    },
+    {
+      accessorKey: "beginning",
+      header: () => <div className="text-right">Beginning Balance</div>,
+      cell: ({ row }: any) => (
+        <div className="text-right text-slate-600">{formatCurrency(row.original.beginning)}</div>
+      ),
+    },
+    {
+      accessorKey: "ending",
+      header: () => <div className="text-right">Ending Balance</div>,
+      cell: ({ row }: any) => (
+        <div className="text-right text-slate-900 font-medium">{formatCurrency(row.original.ending)}</div>
+      ),
+    },
+    {
+      id: "change",
+      header: () => <div className="text-right">Change</div>,
+      cell: ({ row }: any) => {
+        const change = row.original.ending - row.original.beginning;
+        const isPositive = change >= 0;
+        return (
+          <div className={`flex items-center justify-end gap-1 font-medium ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+            {formatCurrency(Math.abs(change))}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
+    state: {
+      pagination,
+    },
+  });
 
   if (isLoading) {
     return (
-      <Card className="w-full h-full">
+      <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
         <CardHeader>
           <Skeleton className="h-6 w-[200px]" />
         </CardHeader>
-        <CardContent>
-          <Skeleton className="h-[350px] w-full" />
+        <CardContent className="flex-1">
+          <Skeleton className="h-[250px] w-full" />
         </CardContent>
       </Card>
     );
   }
 
-  if (isError || !data) {
+  if (isError) {
     return (
-      <Card className="w-full">
+      <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
         <CardHeader>
-          <CardTitle>Bank Account Balances</CardTitle>
+          <CardTitle className="text-lg">Bank Account Balances</CardTitle>
         </CardHeader>
-        <CardContent className="h-[350px] flex flex-col items-center justify-center p-6 text-center">
-          <h3 className="text-lg font-semibold">No data</h3>
+        <CardContent className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <p className="text-sm text-muted-foreground mt-1">Failed to load bank balances.</p>
         </CardContent>
       </Card>
@@ -112,67 +103,76 @@ export default function BankBalancesChart({ companyId }: BankBalancesChartProps)
   }
 
   return (
-    <Card className="w-full h-full flex flex-col">
-      <CardHeader>
-        <CardTitle>Bank Account Balances</CardTitle>
+    <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg">Bank Account Balances</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col min-h-0 pb-6 relative">
-        {/* Custom Sticky Legend */}
-        <div className="flex items-center gap-6 pb-2">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-[#1e3a8a] rounded-[2px]" />
-            <span className="text-xs font-semibold text-slate-600">Beginning Balance</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-[#60a5fa] rounded-[2px]" />
-            <span className="text-xs font-semibold text-slate-600">Ending Balance</span>
-          </div>
+      <CardContent className="flex-1 flex flex-col p-0">
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 border-y border-slate-100 text-slate-500 font-medium">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th key={header.id} className="px-4 py-3 font-medium">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-4 py-3">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={columns.length} className="h-24 text-center text-slate-500">
+                    No results.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-        <div className="flex-1 w-full min-h-0 flex relative">
-          {/* Sticky Left Y-Axis */}
-          <div className="w-[55px] shrink-0 h-full bg-card z-10">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-              <BarChart data={data} margin={{ top: 10, right: 0, left: 0, bottom: 20 }}>
-                {/* Dummy XAxis to match bottom margin height perfectly */}
-                <XAxis dataKey="account" tick={false} axisLine={false} tickLine={false} height={80} />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tickMargin={10} 
-                  tickFormatter={yAxisTickFormatter}
-                  tick={{ fill: "#64748b", fontSize: 11 }}
-                  width={55}
-                  domain={[0, 'auto']}
-                />
-                <Bar dataKey="beginning" fill="transparent" isAnimationActive={false} />
-                <Bar dataKey="ending" fill="transparent" isAnimationActive={false} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
+          <div className="text-xs text-slate-500">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount() || 1}
           </div>
-
-          {/* Scrollable Chart Area */}
-          <div className="flex-1 overflow-x-auto overflow-y-hidden custom-scrollbar">
-            <div style={{ minWidth: Math.max(800, data.length * 80), height: "100%" }}>
-              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="account" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tickMargin={10} 
-                    tick={<CustomXAxisTick />}
-                    interval={0}
-                    height={80}
-                  />
-                  <YAxis hide domain={[0, 'auto']} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9' }} />
-                  <Bar dataKey="beginning" fill="#1e3a8a" radius={[2, 2, 0, 0]} barSize={20} />
-                  <Bar dataKey="ending" fill="#60a5fa" radius={[2, 2, 0, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="h-8 w-8 p-0"
+            >
+              <span className="sr-only">Go to previous page</span>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="h-8 w-8 p-0"
+            >
+              <span className="sr-only">Go to next page</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardContent>

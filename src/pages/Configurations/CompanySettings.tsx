@@ -4,6 +4,7 @@ import type { Company, CompanyCreate } from "../../types/bank";
 import { useCompanies, useCompanyEntities, useCreateCompany, useUpdateCompany, useDeleteCompany } from "../../hooks/useBank";
 import { GLService } from "../../services/glService";
 import type { GLExtractionFormat } from "@/types/gl";
+import { useAuth } from "@/lib/AuthContext";
 import { Plus, Edit2, Trash2, Search, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,10 @@ function errorMessage(error: unknown) {
 }
 
 export default function CompanySettings() {
+  const { hasPermission } = useAuth();
+  const canDelete = hasPermission("CONFIG_COMPANY_DELETE");
+  const canUpdate = hasPermission("CONFIG_COMPANY_UPDATE");
+  const canCreate = hasPermission("CONFIG_COMPANY_CREATE");
   const { data: companies = [], isLoading } = useCompanies();
   const { data: entityOptions = [], isLoading: isLoadingEntities } = useCompanyEntities();
   const createMutation = useCreateCompany();
@@ -155,7 +160,8 @@ export default function CompanySettings() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const columns = useMemo<ColumnDef<Company>[]>(() => [
+  const columns = useMemo<ColumnDef<Company>[]>(() => {
+    const cols: ColumnDef<Company>[] = [
     {
       accessorKey: "name",
       header: ({ column }) => (
@@ -215,22 +221,31 @@ export default function CompanySettings() {
         </Button>
       ),
       cell: ({ row }) => <span className="max-w-[250px] truncate block" title={row.original.description || ""}>{row.original.description || "-"}</span>,
-    },
-    {
+    }
+  ];
+
+  if (canUpdate || canDelete) {
+    cols.push({
       id: "actions",
       header: () => <div className="text-right">Actions</div>,
       cell: ({ row }) => (
         <div className="text-right space-x-2">
-          <Button variant="outline" size="sm" onClick={() => handleOpenModal(row.original)}>
-            <Edit2 size={14} className="mr-1" /> Edit
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(row.original)}>
-            <Trash2 size={14} className="mr-1" /> Remove
-          </Button>
+          {canUpdate && (
+            <Button variant="outline" size="sm" onClick={() => handleOpenModal(row.original)}>
+              <Edit2 size={14} className="mr-1" /> Edit
+            </Button>
+          )}
+          {canDelete && (
+            <Button variant="destructive" size="sm" onClick={() => handleDeleteClick(row.original)}>
+              <Trash2 size={14} className="mr-1" /> Remove
+            </Button>
+          )}
         </div>
       ),
-    }
-  ], []);
+    });
+  }
+  return cols;
+}, [canUpdate, canDelete]);
 
   const table = useReactTable({
     data: companies,
@@ -269,9 +284,11 @@ export default function CompanySettings() {
           <p className="text-slate-500 mt-1">Manage the companies and entities within your organization.</p>
         </div>
         <div className="flex items-center gap-4">
-          <Button onClick={() => handleOpenModal()} className="gap-2">
-            <Plus size={16} /> Add Company
-          </Button>
+          {canCreate && (
+            <Button onClick={() => handleOpenModal()} className="gap-2">
+              <Plus size={16} /> Add Company
+            </Button>
+          )}
         </div>
       </div>
 

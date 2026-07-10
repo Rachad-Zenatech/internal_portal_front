@@ -29,7 +29,8 @@ const TreeNode = ({
   onSelect, 
   expandedNodes, 
   toggleNode,
-  onMoveRole
+  onMoveRole,
+  setDraggingId
 }: { 
   role: Role; 
   level: number; 
@@ -38,6 +39,7 @@ const TreeNode = ({
   expandedNodes: Set<string>;
   toggleNode: (id: string, e: React.MouseEvent) => void;
   onMoveRole: (draggedId: string, targetId: string) => void;
+  setDraggingId: (id: string | null) => void;
 }) => {
   const isExpanded = expandedNodes.has(role.id);
   const isSelected = selectedRole?.id === role.id;
@@ -49,6 +51,7 @@ const TreeNode = ({
   const handleDragStart = (e: React.DragEvent) => {
     e.dataTransfer.setData("text/plain", role.id);
     e.dataTransfer.effectAllowed = "move";
+    setDraggingId(role.id);
   };
   
   const handleDragEnter = (e: React.DragEvent) => {
@@ -78,6 +81,7 @@ const TreeNode = ({
   const handleDragEnd = () => {
     dragCounter.current = 0;
     setIsDragOver(false);
+    setDraggingId(null);
   };
   
   const handleDrop = (e: React.DragEvent) => {
@@ -85,6 +89,7 @@ const TreeNode = ({
     e.stopPropagation();
     dragCounter.current = 0;
     setIsDragOver(false);
+    setDraggingId(null);
     const draggedId = e.dataTransfer.getData("text/plain");
     if (draggedId && draggedId !== role.id) {
       onMoveRole(draggedId, role.id);
@@ -152,6 +157,7 @@ const TreeNode = ({
               expandedNodes={expandedNodes} 
               toggleNode={toggleNode} 
               onMoveRole={onMoveRole}
+              setDraggingId={setDraggingId}
             />
           ))}
         </div>
@@ -168,6 +174,7 @@ export default function Roles() {
   const [isEditing, setIsEditing] = useState(false);
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [pendingMoves, setPendingMoves] = useState<Record<string, string | null>>({});
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState(false);
@@ -291,12 +298,23 @@ export default function Roles() {
 
   const bulkSaveHierarchyMutation = useMutation({
     mutationFn: async () => {
-      const promises = Object.keys(pendingMoves).map(roleId => {
-        return apiClient.put(`/api/configuration/roles/${roleId}`, {
-          parent_role_id: pendingMoves[roleId]
+      // Pass 1: Set all moving roles to root (null) to break any existing hierarchy chains.
+      // This prevents "cannot move under descendant" errors if the database is in an intermediate state.
+      for (const roleId of Object.keys(pendingMoves)) {
+        await apiClient.put(`/api/configuration/roles/${roleId}`, {
+          parent_role_id: null
         });
-      });
-      return Promise.all(promises);
+      }
+      
+      // Pass 2: Set roles to their new target parents sequentially
+      for (const roleId of Object.keys(pendingMoves)) {
+        const targetId = pendingMoves[roleId];
+        if (targetId !== null) {
+          await apiClient.put(`/api/configuration/roles/${roleId}`, {
+            parent_role_id: targetId
+          });
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["roles-tree"] });
@@ -455,40 +473,7 @@ export default function Roles() {
             {isLoadingRoles ? (
               <div className="p-4 text-center text-slate-500 text-sm">Loading tree...</div>
             ) : optimisticTree && optimisticTree.length > 0 ? (
-              <div
-                className="min-h-full pb-32 relative"
-                onDragEnter={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  rootDragCounter.current++;
-                  if (rootDragCounter.current === 1) setIsRootDragOver(true);
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  rootDragCounter.current--;
-                  if (rootDragCounter.current === 0) setIsRootDragOver(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  rootDragCounter.current = 0;
-                  setIsRootDragOver(false);
-                  const draggedId = e.dataTransfer.getData("text/plain");
-                  if (draggedId) handleMoveRole(draggedId, null);
-                }}
-              >
-                {isRootDragOver && (
-                  <div className="absolute inset-0 bg-blue-50/50 dark:bg-blue-900/10 border-2 border-blue-400 border-dashed rounded-xl z-0 pointer-events-none transition-all flex items-center justify-center m-2">
-                    <span className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-4 py-2 rounded-lg font-medium text-sm shadow-sm animate-pulse">
-                      Drop here to make root level
-                    </span>
-                  </div>
-                )}
+              <div className="min-h-full flex flex-col relative">
                 <div className="relative z-10 flex flex-col">
                   {optimisticTree.map(rootRole => (
                     <TreeNode 
@@ -500,8 +485,45 @@ export default function Roles() {
                       expandedNodes={expandedNodes}
                       toggleNode={toggleNode}
                       onMoveRole={(draggedId, targetId) => handleMoveRole(draggedId, targetId)}
+                      setDraggingId={setDraggingId}
                     />
                   ))}
+                </div>
+
+                <div
+                  className={`flex-1 min-h-[120px] mt-4 mx-2 rounded-xl border-2 border-dashed flex items-center justify-center transition-all duration-200 ${
+                    draggingId 
+                      ? 'opacity-100 pointer-events-auto' 
+                      : 'opacity-0 pointer-events-none h-0 min-h-0 mt-0 overflow-hidden'
+                  } ${
+                    isRootDragOver 
+                      ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-400' 
+                      : 'border-slate-300 bg-slate-50 text-slate-500 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-400'
+                  }`}
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsRootDragOver(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = "move";
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsRootDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsRootDragOver(false);
+                    const draggedId = e.dataTransfer.getData("text/plain");
+                    if (draggedId) handleMoveRole(draggedId, null);
+                  }}
+                >
+                  <span className="text-sm font-medium">Drop here to move to root level</span>
                 </div>
               </div>
             ) : (
@@ -614,7 +636,18 @@ export default function Roles() {
                           className="w-full h-10 px-3 py-2 rounded-md border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-slate-900 dark:text-zinc-100 text-sm"
                         >
                           <option value="">-- None (Root Role) --</option>
-                          {flatRoles?.filter(r => r.id !== selectedRole?.id).map(r => (
+                          {flatRoles?.filter(r => {
+                            if (r.id === selectedRole?.id) return false;
+                            if (selectedRole && selectedRole.id !== "new") {
+                              let curr = r;
+                              while (curr) {
+                                if (curr.parent_role_id === selectedRole.id) return false;
+                                if (!curr.parent_role_id) break;
+                                curr = flatRoles.find(parent => parent.id === curr.parent_role_id) as Role;
+                              }
+                            }
+                            return true;
+                          }).map(r => (
                             <option key={r.id} value={r.id}>{r.name}</option>
                           ))}
                         </select>

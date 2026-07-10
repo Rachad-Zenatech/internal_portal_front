@@ -1,27 +1,81 @@
+import { useState } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-import { useRecentTransactions } from "@/hooks/useDashboard";
+import { useRecentTransactions, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { RecentTransaction } from "@/types/dashboard";
 
 type RecentTransactionsTableProps = {
-  companyId?: number | null;
+  filters?: DashboardFilters;
 };
 
 export default function RecentTransactionsTable({
-  companyId,
+  filters,
 }: RecentTransactionsTableProps) {
-  const { data, isLoading, isError } = useRecentTransactions(companyId);
+  const { data = [], isLoading, isError } = useRecentTransactions(filters);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 5 });
+
+  const columns = [
+    {
+      accessorKey: "date",
+      header: "Date",
+      cell: ({ row }: any) => (
+        <span className="font-medium text-slate-500 whitespace-nowrap">{row.original.date}</span>
+      ),
+    },
+    {
+      accessorKey: "description",
+      header: "Description",
+      cell: ({ row }: any) => (
+        <span className="font-medium text-slate-900 max-w-[200px] truncate block">{row.original.description}</span>
+      ),
+    },
+    {
+      accessorKey: "amount",
+      header: () => <div className="text-right">Amount</div>,
+      cell: ({ row }: any) => {
+        const amount = row.original.amount;
+        return (
+          <div 
+            className={cn(
+              "text-right font-medium whitespace-nowrap",
+              amount > 0 ? "text-emerald-600" : "text-rose-600"
+            )}
+          >
+            {amount > 0 ? "+" : ""}
+            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
+    state: {
+      pagination,
+    },
+  });
 
   if (isLoading) {
     return (
-      <Card className="w-full h-full">
+      <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
         <CardHeader>
           <Skeleton className="h-6 w-[250px]" />
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1">
           <div className="space-y-4 px-6">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-full" />
@@ -34,14 +88,13 @@ export default function RecentTransactionsTable({
     );
   }
 
-  if (isError || !data) {
+  if (isError) {
     return (
-      <Card className="w-full">
+      <Card className="w-full h-full rounded-2xl border-slate-200/60 shadow-sm flex flex-col">
         <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
+          <CardTitle className="text-lg">Recent Transactions</CardTitle>
         </CardHeader>
-        <CardContent className="h-[300px] flex flex-col items-center justify-center p-6 text-center">
-          <h3 className="text-lg font-semibold">No data</h3>
+        <CardContent className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <p className="text-sm text-muted-foreground mt-1">Failed to load recent transactions.</p>
         </CardContent>
       </Card>
@@ -49,39 +102,78 @@ export default function RecentTransactionsTable({
   }
 
   return (
-    <Card className="w-full h-full flex flex-col overflow-hidden">
-      <CardHeader className="flex-none">
-        <CardTitle>Recent Bank Statement Transactions</CardTitle>
+    <Card className="w-full h-full flex flex-col rounded-2xl border-slate-200/60 shadow-sm overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-lg">Recent Bank Statement Transactions</CardTitle>
       </CardHeader>
-      <CardContent className="p-0 flex-1 overflow-y-auto min-h-[300px]">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[100px] pl-6">Date</TableHead>
-              <TableHead className="max-w-[150px] sm:max-w-[200px]">Description</TableHead>
-              <TableHead className="text-right pr-6 w-[120px]">Amount</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((tx: RecentTransaction) => (
-              <TableRow key={tx.id}>
-                <TableCell className="pl-6 font-medium text-slate-500 whitespace-nowrap">{tx.date}</TableCell>
-                <TableCell className="max-w-[150px] sm:max-w-[200px] whitespace-normal break-words">
-                  {tx.description}
-                </TableCell>
-                <TableCell 
-                  className={cn(
-                    "text-right pr-6 font-semibold",
-                    tx.amount > 0 ? "text-green-600" : "text-red-500"
-                  )}
-                >
-                  {tx.amount > 0 ? "+" : ""}
-                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(tx.amount)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <CardContent className="p-0 flex-1 flex flex-col">
+        <div className="flex-1 overflow-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 border-y border-slate-100 text-slate-500 font-medium">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th key={header.id} className="px-6 py-3 font-medium">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <tr key={row.id} className="hover:bg-slate-50/50 transition-colors">
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-6 py-3">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={columns.length} className="h-24 text-center text-slate-500">
+                    No results.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-white">
+          <div className="text-xs text-slate-500">
+            Page {table.getState().pagination.pageIndex + 1} of{" "}
+            {table.getPageCount() || 1}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="h-8 w-8 p-0"
+            >
+              <span className="sr-only">Go to previous page</span>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="h-8 w-8 p-0"
+            >
+              <span className="sr-only">Go to next page</span>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

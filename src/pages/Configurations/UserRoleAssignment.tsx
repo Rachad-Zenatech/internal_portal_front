@@ -4,7 +4,7 @@ import { apiClient } from "@/services/apiClient";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Check, Loader2, Search } from "lucide-react";
+import { Check, Loader2, Search, Folder, FolderOpen, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/AuthContext";
 import type { User, Role } from "@/lib/AuthContext";
@@ -220,8 +220,92 @@ export default function UserRoleAssignment() {
   );
 }
 
+// Recursive component for Tree Node in UserRoleAssignment
+const SelectableTreeNode = ({ 
+  role, 
+  level, 
+  selectedRoleId, 
+  onSelect, 
+  expandedNodes, 
+  toggleNode,
+  childrenMap
+}: { 
+  role: Role; 
+  level: number; 
+  selectedRoleId: string | null; 
+  onSelect: (roleId: string) => void;
+  expandedNodes: Set<string>;
+  toggleNode: (id: string, e: React.MouseEvent) => void;
+  childrenMap: Map<string | null, Role[]>;
+}) => {
+  const isExpanded = expandedNodes.has(role.id);
+  const isSelected = selectedRoleId === role.id;
+  const children = childrenMap.get(role.id) || [];
+  const hasChildren = children.length > 0;
+  
+  return (
+    <div className="w-full">
+      <div 
+        className={`relative flex items-center py-2 px-2 rounded-md cursor-pointer group transition-colors ${
+          isSelected 
+            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/20' 
+            : 'hover:bg-slate-50 dark:hover:bg-zinc-800/50 text-slate-700 dark:text-zinc-300'
+        }`}
+        style={{ paddingLeft: `${(level * 16) + 8}px` }}
+        onClick={() => onSelect(role.id)}
+      >
+        <div 
+          className={`w-6 h-6 flex items-center justify-center mr-1 rounded hover:bg-slate-200 dark:hover:bg-zinc-700 ${hasChildren ? 'cursor-pointer' : 'opacity-0'}`}
+          onClick={(e) => {
+            if (hasChildren) toggleNode(role.id, e);
+          }}
+        >
+          {isExpanded ? <ChevronDown className="w-4 h-4 pointer-events-none" /> : <ChevronRight className="w-4 h-4 pointer-events-none" />}
+        </div>
+        
+        {isExpanded ? (
+          <FolderOpen className="w-4 h-4 mr-2 text-blue-500 pointer-events-none" />
+        ) : (
+          <Folder className="w-4 h-4 mr-2 text-blue-500 pointer-events-none" />
+        )}
+        
+        <div className="flex flex-col flex-1 min-w-0 pointer-events-none">
+          <span className="text-sm font-medium truncate">
+            {role.name}
+            {role.is_system_role && (
+              <Badge variant="secondary" className={`text-[9px] h-4 px-1.5 ml-2 ${isSelected ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>SYS</Badge>
+            )}
+          </span>
+          {role.description && <span className={`text-[10px] leading-tight mt-0.5 truncate ${isSelected ? 'text-blue-500' : 'text-slate-500 dark:text-zinc-500'}`}>{role.description}</span>}
+        </div>
+        
+        {isSelected && <Check className="w-4 h-4 ml-2 text-blue-600 dark:text-blue-400" />}
+      </div>
+
+      {isExpanded && hasChildren && (
+        <div className="flex flex-col w-full">
+          {children.map(child => (
+            <SelectableTreeNode 
+              key={child.id} 
+              role={child} 
+              level={level + 1} 
+              selectedRoleId={selectedRoleId} 
+              onSelect={onSelect} 
+              expandedNodes={expandedNodes} 
+              toggleNode={toggleNode} 
+              childrenMap={childrenMap}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Tree Diagram Component
 function RoleTree({ roles, selectedRoleId, setRole }: { roles: Role[], selectedRoleId: string | null, setRole: (id: string) => void }) {
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+
   const childrenMap = useMemo(() => {
     const map = new Map<string | null, Role[]>();
     
@@ -252,51 +336,22 @@ function RoleTree({ roles, selectedRoleId, setRole }: { roles: Role[], selectedR
     return map;
   }, [roles]);
 
-  const renderNode = (role: Role, depth: number) => {
-    const children = childrenMap.get(role.id) || [];
-    const isSelected = selectedRoleId === role.id;
-    
-    return (
-      <div key={role.id} className="relative flex flex-col group">
-        {/* Node */}
-        <div className="flex items-center gap-4 py-2 relative z-10">
-          
-          {/* Horizontal line connecting to parent */}
-          {depth > 0 && (
-              <div className="absolute top-1/2 -left-6 w-6 h-px bg-slate-300 dark:bg-zinc-700 -translate-y-1/2"></div>
-          )}
+  // Auto-expand all on load
+  useEffect(() => {
+    if (roles.length > 0 && expandedNodes.size === 0) {
+      setExpandedNodes(new Set(roles.map(r => r.id)));
+    }
+  }, [roles]);
 
-          <div 
-            onClick={() => setRole(role.id)}
-            className={`flex items-center gap-3 p-3 rounded-xl border shadow-sm transition-all cursor-pointer select-none min-w-[280px] max-w-sm hover:scale-[1.01] ${
-              isSelected 
-                ? 'bg-blue-600 border-blue-600 text-white shadow-blue-500/30' 
-                : 'bg-white border-slate-200 hover:border-blue-300 text-slate-800 dark:bg-zinc-950 dark:border-zinc-800 dark:text-zinc-100 dark:hover:border-blue-500'
-            }`}
-          >
-             <div className={`flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-md border transition-colors ${isSelected ? 'border-white/30 bg-blue-500/50' : 'border-slate-300 dark:border-zinc-700'}`}>
-               {isSelected && <Check className="h-3.5 w-3.5" />}
-             </div>
-             <div className="flex-1 min-w-0">
-               <div className="font-semibold text-sm truncate flex items-center gap-2">
-                 {role.name}
-                 {role.is_system_role && <Badge variant="secondary" className={`text-[9px] h-3.5 px-1 bg-purple-100 text-purple-700 border-0 ${isSelected ? 'bg-blue-400/30 text-white' : 'dark:bg-purple-900/30 dark:text-purple-400'}`}>SYS</Badge>}
-               </div>
-               {role.description && <div className={`text-[11px] leading-tight mt-0.5 truncate ${isSelected ? 'text-blue-100' : 'text-slate-500 dark:text-zinc-500'}`}>{role.description}</div>}
-             </div>
-          </div>
-        </div>
-        
-        {/* Children wrapper with connecting vertical line */}
-        {children.length > 0 && (
-          <div className="relative ml-8 flex flex-col">
-            {/* The vertical trunk line for this parent */}
-            <div className="absolute top-0 bottom-4 -left-6 w-px bg-slate-300 dark:bg-zinc-700"></div>
-            {children.map((child) => renderNode(child, depth + 1))}
-          </div>
-        )}
-      </div>
-    );
+  const toggleNode = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newExpanded = new Set(expandedNodes);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+    }
+    setExpandedNodes(newExpanded);
   };
 
   const rootRoles = childrenMap.get(null) || [];
@@ -310,9 +365,20 @@ function RoleTree({ roles, selectedRoleId, setRole }: { roles: Role[], selectedR
   }
 
   return (
-    <div className="flex flex-col w-full min-h-full pb-32">
+    <div className="flex flex-col w-full min-h-full pb-8">
       <div className="relative z-10 flex flex-col">
-        {rootRoles.map((root) => renderNode(root, 0))}
+        {rootRoles.map((root) => (
+          <SelectableTreeNode
+            key={root.id}
+            role={root}
+            level={0}
+            selectedRoleId={selectedRoleId}
+            onSelect={setRole}
+            expandedNodes={expandedNodes}
+            toggleNode={toggleNode}
+            childrenMap={childrenMap}
+          />
+        ))}
       </div>
     </div>
   );

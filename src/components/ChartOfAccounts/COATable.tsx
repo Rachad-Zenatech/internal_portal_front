@@ -28,6 +28,7 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table";
+import { useAuth } from "@/lib/AuthContext";
 import type {
   ColumnDef,
   SortingState,
@@ -60,6 +61,9 @@ interface COATableProps {
 }
 
 export default function COATable({ result, loadingData }: COATableProps) {
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission("CONFIG_CHART_OF_ACCOUNTS_UPDATE");
+  const canDelete = hasPermission("CONFIG_CHART_OF_ACCOUNTS_DELETE");
   const { mutate: deleteAccount } = useDeleteChartOfAccount();
   const { mutate: updateAccount } = useUpdateChartOfAccount();
 
@@ -101,6 +105,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
     useState<ChartOfAccount | null>(null);
 
   const handleEditClick = (account: ChartOfAccount) => {
+    if (!canUpdate) return;
     setEditForm({ ...account });
     setIsDialogOpen(true);
   };
@@ -135,60 +140,67 @@ export default function COATable({ result, loadingData }: COATableProps) {
 
   const accounts = result?.chart_of_accounts || [];
 
-  const columns = useMemo<ColumnDef<ChartOfAccount>[]>(() => [
-    {
-      accessorKey: "account_number",
-      header: ({ column }) => (
-        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Account #
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <span className="font-medium">{row.original.account_number}</span>,
-    },
-    {
-      accessorKey: "account_name",
-      header: ({ column }) => (
-        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Account Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <span>{row.original.account_name}</span>,
-    },
-    {
-      accessorKey: "account_type",
-      header: ({ column }) => (
-        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Type
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <span>{row.original.account_type}</span>,
-    },
-    {
-      accessorKey: "detail_type",
-      header: ({ column }) => (
-        <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          Detail Type
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      ),
-      cell: ({ row }) => <span>{row.original.detail_type}</span>,
-    },
-    {
-      id: "actions",
-      header: () => <div className="text-right">Actions</div>,
-      cell: ({ row }) => (
-        <div className="text-right space-x-2">
-          <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => handleDeleteClick(row.original)}>
-            <Trash2 className="h-3.5 w-3.5" />
-            Remove
+  const columns = useMemo<ColumnDef<ChartOfAccount>[]>(() => {
+    const cols: ColumnDef<ChartOfAccount>[] = [
+      {
+        accessorKey: "account_number",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Account #
+            <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
-        </div>
-      ),
+        ),
+        cell: ({ row }) => <span className="font-medium">{row.original.account_number}</span>,
+      },
+      {
+        accessorKey: "account_name",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Account Name
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+        cell: ({ row }) => <span>{row.original.account_name}</span>,
+      },
+      {
+        accessorKey: "account_type",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Type
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+        cell: ({ row }) => <span>{row.original.account_type}</span>,
+      },
+      {
+        accessorKey: "detail_type",
+        header: ({ column }) => (
+          <Button variant="ghost" className="px-0 font-semibold" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Detail Type
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        ),
+        cell: ({ row }) => <span>{row.original.detail_type}</span>,
+      }
+    ];
+
+    if (canDelete) {
+      cols.push({
+        id: "actions",
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => (
+          <div className="text-right space-x-2">
+            <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => handleDeleteClick(row.original)}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </Button>
+          </div>
+        ),
+      });
     }
-  ], []);
+
+    return cols;
+  }, [canDelete]);
 
   const table = useReactTable({
     data: accounts,

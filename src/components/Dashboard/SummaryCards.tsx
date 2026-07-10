@@ -1,30 +1,58 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, ThumbsDown, Wallet, Clock, TrendingDown, TrendingUp } from "lucide-react";
-import { useDashboardSummary } from "@/hooks/useDashboard";
+import { Card, CardContent } from "@/components/ui/card";
+import { Wallet, Landmark, PieChart, DollarSign, TrendingUp, TrendingDown, Building2, Scale } from "lucide-react";
+import { useDashboardSummary, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type SummaryCardsProps = {
-  companyId?: number | null;
+  filters?: DashboardFilters;
 };
 
-export default function SummaryCards({ companyId }: SummaryCardsProps) {
-  const { data, isLoading, isError } = useDashboardSummary(companyId);
+// Simple SVG sparklines matching the mockup aesthetics
+const SparklineGreen = () => (
+  <svg width="60" height="20" viewBox="0 0 60 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 15C10 15 15 5 25 5C35 5 40 10 50 10C55 10 58 5 60 2" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const SparklineOrange = () => (
+  <svg width="60" height="20" viewBox="0 0 60 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 18C10 18 15 12 25 12C35 12 40 8 50 8C55 8 58 5 60 2" stroke="#f97316" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const SparklineBlue = () => (
+  <svg width="60" height="20" viewBox="0 0 60 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 10C10 10 15 15 25 15C35 15 40 5 50 5C55 5 58 2 60 0" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+const SparklinePurple = () => (
+  <svg width="60" height="20" viewBox="0 0 60 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 15C10 15 15 8 25 8C35 8 40 12 50 12C55 12 58 5 60 3" stroke="#a855f7" strokeWidth="2" strokeLinecap="round"/>
+  </svg>
+);
+
+export default function SummaryCards({ filters }: SummaryCardsProps) {
+  const { data, isLoading, isError } = useDashboardSummary(filters);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(val || 0);
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-              <Skeleton className="h-4 w-[100px]" />
-              <Skeleton className="h-8 w-8 rounded-lg" />
-            </CardHeader>
-            <CardContent>
-              <Skeleton className="h-8 w-[120px] mb-2" />
-              <Skeleton className="h-3 w-[140px]" />
+          <Card key={i} className="rounded-2xl border-slate-200/60 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-4">
+                <Skeleton className="h-10 w-10 rounded-xl" />
+                <Skeleton className="h-4 w-24" />
+              </div>
+              <Skeleton className="h-8 w-32 mb-3" />
+              <div className="flex justify-between items-end">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-6 w-16" />
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -34,100 +62,93 @@ export default function SummaryCards({ companyId }: SummaryCardsProps) {
 
   if (isError || !data) {
     return (
-      <Card className="w-full col-span-full">
-        <CardHeader>
-          <CardTitle>Dashboard Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center justify-center p-6 text-center">
-          <h3 className="text-lg font-semibold">No data</h3>
-          <p className="text-sm text-muted-foreground mt-1">Failed to load summary metrics.</p>
+      <Card className="w-full col-span-full border-slate-200/60 shadow-sm rounded-2xl">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <h3 className="text-lg font-semibold text-slate-700">No data available</h3>
+          <p className="text-sm text-slate-500 mt-1">Failed to load summary metrics.</p>
         </CardContent>
       </Card>
     );
   }
 
-  const liabilitiesChange = data.liabilitiesChange || 0;
-  const liabilitiesIncreased = liabilitiesChange > 0;
-  const LiabilityTrendIcon = liabilitiesIncreased ? TrendingUp : TrendingDown;
+  const metrics = [
+    {
+      title: "Total Assets",
+      value: data.assets,
+      change: data.assetsChange,
+      icon: <Wallet className="w-5 h-5 text-emerald-600" />,
+      bg: "bg-emerald-50",
+      sparkline: <SparklineGreen />,
+      goodIsUp: true,
+    },
+    {
+      title: "Total Liabilities",
+      value: data.liabilities,
+      change: data.liabilitiesChange,
+      icon: <Landmark className="w-5 h-5 text-rose-600" />,
+      bg: "bg-rose-50",
+      sparkline: <SparklineOrange />,
+      goodIsUp: false,
+    },
+    {
+      title: "Total Equity",
+      value: data.equity,
+      change: data.equityChange,
+      icon: <PieChart className="w-5 h-5 text-blue-600" />,
+      bg: "bg-blue-50",
+      sparkline: <SparklineBlue />,
+      goodIsUp: true,
+    },
+    {
+      title: "Net Income YTD",
+      value: data.netIncome,
+      change: data.netIncomeChange,
+      icon: <DollarSign className="w-5 h-5 text-purple-600" />,
+      bg: "bg-purple-50",
+      sparkline: <SparklinePurple />,
+      goodIsUp: true,
+    },
+  ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* Total Assets */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-slate-500">Total Assets</CardTitle>
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <BarChart3 className="w-4 h-4 text-blue-600" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(data.assets)}</div>
-          <p className="flex items-center text-xs text-green-500 mt-1">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            +{data.assetsChange}% from last month
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Total Liabilities */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-slate-500">Total Liabilities</CardTitle>
-          <div className="p-2 bg-red-100 rounded-lg">
-            <ThumbsDown className="w-4 h-4 text-red-500" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-            {formatCurrency(data.liabilities)}
-          </div>
-          <p
-            className={`flex items-center text-xs mt-1 ${
-              liabilitiesIncreased
-                ? "text-red-500 dark:text-red-400"
-                : "text-green-500 dark:text-green-400"
-            }`}
-          >
-            <LiabilityTrendIcon className="w-3 h-3 mr-1" />
-            {liabilitiesChange > 0 ? "+" : ""}
-            {liabilitiesChange}% from last month
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Total Equity */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-slate-500">Total Equity</CardTitle>
-          <div className="p-2 bg-yellow-100 rounded-lg">
-            <Wallet className="w-4 h-4 text-yellow-600" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(data.equity)}</div>
-          <p className="flex items-center text-xs text-green-500 mt-1">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            +{data.equityChange}% from last month
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Net Income */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-          <CardTitle className="text-sm font-medium text-slate-500">Net Income (YTD)</CardTitle>
-          <div className="p-2 bg-green-100 rounded-lg">
-            <Clock className="w-4 h-4 text-green-600" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{formatCurrency(data.netIncome)}</div>
-          <p className="flex items-center text-xs text-green-500 mt-1">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            +{data.netIncomeChange}% from last month
-          </p>
-        </CardContent>
-      </Card>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {metrics.map((m, i) => {
+        const isPositive = m.change >= 0;
+        const isGood = m.goodIsUp ? isPositive : !isPositive;
+        const TrendIcon = isPositive ? TrendingUp : TrendingDown;
+        
+        return (
+          <Card key={i} className="rounded-2xl border-slate-200/60 shadow-sm overflow-hidden">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2.5 rounded-xl ${m.bg}`}>
+                  {m.icon}
+                </div>
+                <h3 className="text-sm font-semibold text-slate-600">{m.title}</h3>
+              </div>
+              
+              <div className="mt-2">
+                <div className="text-3xl font-bold tracking-tight text-slate-900">
+                  {formatCurrency(m.value)}
+                </div>
+              </div>
+              
+              <div className="flex items-end justify-between mt-3">
+                <div className="flex items-center gap-1.5">
+                  <div className={`flex items-center text-xs font-semibold ${isGood ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    <TrendIcon className="w-3.5 h-3.5 mr-0.5" />
+                    {isPositive ? "+" : ""}{m.change}%
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">from last month</span>
+                </div>
+                <div className="opacity-80">
+                  {m.sparkline}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

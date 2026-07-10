@@ -1,9 +1,10 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle, AlertDialogTrigger, AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import type { BankFeedRule } from "../../types/bankFeedRule";
-import { useBankFeedRules, useUploadBankFeedRules, useCreateBankFeedRule, useUpdateBankFeedRule, useDeleteBankFeedRule } from "../../hooks/useBankFeedRule";
-import { Search, Upload, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Plus, Pencil, Trash2 } from "lucide-react";
+import { useBankFeedRules, useCreateBankFeedRule, useUpdateBankFeedRule, useDeleteBankFeedRule } from "../../hooks/useBankFeedRule";
+import { Search, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, ArrowUpDown, Plus, Pencil, Trash2 } from "lucide-react";
+import { useAuth } from "@/lib/AuthContext";
 import BankFeedRuleForm from "../../components/Configurations/BankFeedRuleForm";
 import ReplaceBankFeedRulesDialog from "../../components/Configurations/ReplaceBankFeedRulesDialog";
 import ImportBankFeedRulesDialog from "../../components/Configurations/ImportBankFeedRulesDialog";
@@ -22,7 +23,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 import {
   flexRender,
   getCoreRowModel,
@@ -104,6 +104,7 @@ const formatActionValue = (value: any) => {
     return val.join(", ");
   }
   if (typeof val === 'object' && val !== null) {
+    if (val.account_number && val.account_name) return `${val.account_number} - ${val.account_name}`;
     if (val.account_name) return val.account_name;
     return JSON.stringify(val);
   }
@@ -112,7 +113,10 @@ const formatActionValue = (value: any) => {
 };
 
 export default function BankFeedRules() {
-  const { addJob } = useGlobalProgress();
+  const { hasPermission } = useAuth();
+  const canUpdate = hasPermission("CONFIG_BANK_FEED_RULES_UPDATE");
+  const canDelete = hasPermission("CONFIG_BANK_FEED_RULES_DELETE");
+  const canCreate = hasPermission("CONFIG_BANK_FEED_RULES_CREATE");
   const { data: rules = [], isPending: loadingRules } = useBankFeedRules();
   const createRule = useCreateBankFeedRule();
   const updateRule = useUpdateBankFeedRule();
@@ -157,7 +161,8 @@ export default function BankFeedRules() {
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState({});
 
-  const columns = useMemo<ColumnDef<BankFeedRule>[]>(() => [
+  const columns = useMemo<ColumnDef<BankFeedRule>[]>(() => {
+    const cols: ColumnDef<BankFeedRule>[] = [
     {
       id: "select",
       header: ({ table }) => (
@@ -166,6 +171,7 @@ export default function BankFeedRules() {
           onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
           aria-label="Select all"
           className="translate-y-[2px]"
+          disabled={!canDelete}
         />
       ),
       cell: ({ row }) => (
@@ -175,6 +181,7 @@ export default function BankFeedRules() {
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
             className="translate-y-[2px]"
+            disabled={!canDelete}
           />
         </div>
       ),
@@ -226,44 +233,53 @@ export default function BankFeedRules() {
         const d = new Date(dateStr);
         return <span className="text-slate-600">{d.toLocaleString()}</span>;
       },
-    },
-    {
+    }
+  ];
+
+  if (canUpdate || canDelete) {
+    cols.push({
       id: "actions",
       header: "Actions",
       cell: ({ row }) => (
         <div className="flex items-center space-x-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingRule(row.original);
-              setIsFormOpen(true);
-            }}
-          >
-            <Pencil className="w-4 h-4 text-slate-500" />
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                <Trash2 className="w-4 h-4 text-red-500" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Rule</AlertDialogTitle>
-                <AlertDialogDescription>Are you sure you want to delete this rule? This cannot be undone.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => handleDeleteRule(row.original.id)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {canUpdate && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingRule(row.original);
+                setIsFormOpen(true);
+              }}
+            >
+              <Pencil className="w-4 h-4 text-slate-500" />
+            </Button>
+          )}
+          {canDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+                  <Trash2 className="w-4 h-4 text-red-500" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Rule</AlertDialogTitle>
+                  <AlertDialogDescription>Are you sure you want to delete this rule? This cannot be undone.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => handleDeleteRule(row.original.id)} className="bg-red-600 hover:bg-red-700 text-white">Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       ),
-    }
-  ], []);
+    });
+  }
+  return cols;
+}, [canUpdate, canDelete]);
 
   const table = useReactTable({
     data: rules,
@@ -339,10 +355,10 @@ export default function BankFeedRules() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <ImportBankFeedRulesDialog />
-          <ReplaceBankFeedRulesDialog />
+          {canCreate && <ImportBankFeedRulesDialog />}
+          {(canUpdate || canDelete) && <ReplaceBankFeedRulesDialog />}
           
-          {Object.keys(rowSelection).length > 0 && (
+          {canDelete && Object.keys(rowSelection).length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" className="bg-red-600 hover:bg-red-700 text-white">
@@ -374,16 +390,18 @@ export default function BankFeedRules() {
             </AlertDialog>
           )}
 
-          <Button 
-            onClick={() => {
-              setEditingRule(null);
-              setIsFormOpen(true);
-            }}
-            className="bg-[#18181b] hover:bg-[#27272a] text-white"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Create Rule
-          </Button>
+          {canCreate && (
+            <Button 
+              onClick={() => {
+                setEditingRule(null);
+                setIsFormOpen(true);
+              }}
+              className="bg-[#18181b] hover:bg-[#27272a] text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Create Rule
+            </Button>
+          )}
         </div>
       </div>
 

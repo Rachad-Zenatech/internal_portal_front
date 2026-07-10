@@ -1,11 +1,9 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-import { useAccountDistribution } from "@/hooks/useDashboard";
+import { useAccountDistribution, type DashboardFilters } from "@/hooks/useDashboard";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AccountDistributionPoint } from "@/types/dashboard";
-
-const COLORS = ["#22c55e", "#a855f7", "#eab308", "#3b82f6", "#f97316"];
 
 type AccountTooltipPayload = {
   color?: string;
@@ -49,15 +47,17 @@ const CenterLabel = ({ cx, cy, index, total }: any) => {
 };
 
 type AccountTypeDonutProps = {
-  companyId?: number | null;
+  filters?: DashboardFilters;
 };
 
-export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
-  const { data, isLoading, isError } = useAccountDistribution(companyId);
+const COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#f97316", "#a855f7"];
+
+export default function AccountTypeDonut({ filters }: AccountTypeDonutProps) {
+  const { data, isLoading, isError } = useAccountDistribution(filters);
 
   if (isLoading) {
     return (
-      <Card className="w-full h-full flex flex-col">
+      <Card className="w-full h-full flex flex-col rounded-2xl border-slate-200/60 shadow-sm">
         <CardHeader>
           <Skeleton className="h-6 w-[200px]" />
         </CardHeader>
@@ -70,9 +70,9 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
 
   if (isError || !data) {
     return (
-      <Card className="w-full h-full flex flex-col">
+      <Card className="w-full h-full flex flex-col rounded-2xl border-slate-200/60 shadow-sm">
         <CardHeader>
-          <CardTitle>Account Type Distribution: Trial Balance Snapshot</CardTitle>
+          <CardTitle className="text-lg">Account Type Distribution</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 flex flex-col items-center justify-center p-6 text-center">
           <h3 className="text-lg font-semibold">No data</h3>
@@ -86,9 +86,9 @@ export default function AccountTypeDonut({ companyId }: AccountTypeDonutProps) {
   const total = data.reduce((acc, item) => acc + item.value, 0);
 
   return (
-    <Card className="w-full h-full flex flex-col">
-      <CardHeader>
-        <CardTitle>Account Type Distribution: Trial Balance Snapshot</CardTitle>
+    <Card className="w-full h-full flex flex-col rounded-2xl border-slate-200/60 shadow-sm">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg">Account Type Distribution</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 pb-6 flex flex-col min-h-0">
         <div className="flex-1 w-full relative min-h-[250px]">
