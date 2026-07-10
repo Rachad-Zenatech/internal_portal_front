@@ -37,6 +37,7 @@ import {
 } from "@/hooks/useGL";
 import { GLService } from "@/services/glService";
 import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
+import { GLSplitCompareDialog } from "@/components/GeneralLedger/GLSplitCompareDialog";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 import {
@@ -1232,12 +1233,15 @@ export default function GeneralLedgerUpload() {
           onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
           deletingJobId={deletingQueueJobId}
           headerAction={
-            <DrawerTrigger asChild>
-              <Button size="sm">
-                <UploadCloud className="mr-2 h-4 w-4" />
-                New Upload
-              </Button>
-            </DrawerTrigger>
+            <div className="flex items-center gap-2">
+              <GLSplitCompareDialog books={books} />
+              <DrawerTrigger asChild>
+                <Button size="sm">
+                  <UploadCloud className="mr-2 h-4 w-4" />
+                  New Upload
+                </Button>
+              </DrawerTrigger>
+            </div>
           }
         />
 
