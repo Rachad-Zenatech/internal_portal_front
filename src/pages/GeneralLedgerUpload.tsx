@@ -93,7 +93,7 @@ type WorkbookPreviewRow = {
   suggestion: GLAccountSuggestion | null;
 };
 
-type ReviewFinderKind = "quickbooks_rule" | "xgboost" | "ai" | "ai_changed" | "human_review";
+type ReviewFinderKind = "quickbooks_rule" | "xgboost" | "ai" | "ai_changed" | "human_review" | "differences";
 
 type AccountReviewProgress = {
   current: number;
@@ -309,17 +309,27 @@ export default function GeneralLedgerUpload() {
     () => workbookRows.filter(isWorkbookHumanReviewRow),
     [workbookRows]
   );
+  const splitLookupWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookSplitLookupRow),
+    [workbookRows]
+  );
+  const differencesWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookDifferenceRow),
+    [workbookRows]
+  );
   const activeReviewFinderRows = useMemo(() => {
     if (activeReviewFinder === "quickbooks_rule") return qbRuleWorkbookRows;
     if (activeReviewFinder === "ai") return aiReviewWorkbookRows;
     if (activeReviewFinder === "ai_changed") return aiChangedWorkbookRows;
     if (activeReviewFinder === "xgboost") return xgboostWorkbookRows;
     if (activeReviewFinder === "human_review") return humanReviewWorkbookRows;
+    if (activeReviewFinder === "differences") return differencesWorkbookRows;
     return [];
   }, [
     activeReviewFinder,
     aiChangedWorkbookRows,
     aiReviewWorkbookRows,
+    differencesWorkbookRows,
     humanReviewWorkbookRows,
     qbRuleWorkbookRows,
     xgboostWorkbookRows,
@@ -1537,7 +1547,7 @@ export default function GeneralLedgerUpload() {
               </div>
 
               {preview.account_review_summary && (
-                <div className="sticky top-0 z-40 grid border-b bg-background md:grid-cols-7 md:divide-x shadow-sm">
+                <div className="sticky top-0 z-40 grid border-b bg-background md:grid-cols-9 md:divide-x shadow-sm">
                   <ReviewStat
                     label="Bank Txns"
                     value={preview.account_review_summary.bank_transaction_count.toLocaleString("en-US")}
@@ -1569,6 +1579,10 @@ export default function GeneralLedgerUpload() {
                         ? "Open XGBoost reviewed transaction finder"
                         : "No XGBoost-reviewed transactions in this preview"
                     }
+                  />
+                  <ReviewStat
+                    label="Split Count"
+                    value={splitLookupWorkbookRows.length.toLocaleString("en-US")}
                   />
                   <ReviewStat
                     label="AI Review"
@@ -1618,6 +1632,21 @@ export default function GeneralLedgerUpload() {
                   <ReviewStat
                     label="N/A"
                     value={preview.account_review_summary.not_applicable_count.toLocaleString("en-US")}
+                  />
+                  <ReviewStat
+                    label="Differences"
+                    value={differencesWorkbookRows.length.toLocaleString("en-US")}
+                    tone={differencesWorkbookRows.length > 0 ? "warning" : "default"}
+                    onClick={
+                      differencesWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("differences", differencesWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      differencesWorkbookRows.length > 0
+                        ? "Open transactions where current and suggested targets differ"
+                        : "No transactions with differing targets in this preview"
+                    }
                   />
                 </div>
               )}
@@ -2067,11 +2096,13 @@ function reviewFinderTitle(kind: ReviewFinderKind) {
   if (kind === "ai") return "AI Review finder";
   if (kind === "ai_changed") return "AI Changed finder";
   if (kind === "human_review") return "Human review finder";
+  if (kind === "differences") return "Differences finder";
   return "XGBoost finder";
 }
 
 function reviewFinderCountLabel(kind: ReviewFinderKind) {
   if (kind === "ai_changed") return "changed transactions";
+  if (kind === "differences") return "differing transactions";
   return "reviewed transactions";
 }
 
@@ -2087,6 +2118,9 @@ function reviewFinderEmptyText(kind: ReviewFinderKind) {
   }
   if (kind === "human_review") {
     return "No Human review transactions are available in this preview.";
+  }
+  if (kind === "differences") {
+    return "No transactions with differing current and suggested targets are available in this preview.";
   }
   return "No XGBoost-reviewed transactions are available in this preview.";
 }
@@ -3411,6 +3445,17 @@ function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
   return row.txn.account_review?.source === "quickbooks_rule";
 }
 
+function isWorkbookSplitLookupRow(row: WorkbookPreviewRow) {
+  return (
+    row.txn.account_review?.source === "account_split_lookup" ||
+    row.suggestion?.review_source === "account_split_lookup"
+  );
+}
+
+function isWorkbookDifferenceRow(row: WorkbookPreviewRow) {
+  return hasSuggestedTargetForReviewFinder(row);
+}
+
 function hasSuggestedTargetForReviewFinder(row: WorkbookPreviewRow) {
   if (row.suggestion) {
     const suggestedCode = getVisibleSuggestedTargetNumber(row.suggestion)?.trim();
@@ -3477,7 +3522,7 @@ function isWorkbookHumanReviewRow(row: WorkbookPreviewRow) {
 
 function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRow) {
   const review = row.txn.account_review;
-  if (kind === "ai_changed") {
+  if (kind === "ai_changed" || kind === "differences") {
     const current = formatReviewCurrentTarget(
       row.txn,
       row.suggestion ?? undefined,
@@ -3487,7 +3532,8 @@ function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRo
       row.suggestion ?? undefined,
       review
     );
-    return `AI changed: ${current} -> ${suggested}`;
+    const prefix = kind === "differences" ? "Change" : "AI changed";
+    return `${prefix}: ${current} -> ${suggested}`;
   }
   if (kind === "quickbooks_rule" && review?.source === "quickbooks_rule") {
     return `review_source: ${review.source} | review_status: ${review.status}`;
