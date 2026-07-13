@@ -18,11 +18,22 @@ function getFriendlyLabel(source: string | null, matchedRule: any): string {
   if (!source) return WORKFLOW_LABELS.MANUAL;
   
   const src = source.toLowerCase();
-  if (src === "lookup") return WORKFLOW_LABELS.LOOKUP;
-  if (src === "xgboost") return WORKFLOW_LABELS.XGBOOST;
-  if (src === "ai" || src === "ai_fallback") return WORKFLOW_LABELS.AI;
-  if (src === "rules") {
-    const ruleStr = typeof matchedRule === "string" ? matchedRule.toLowerCase() : "";
+  if (src.includes("lookup")) return WORKFLOW_LABELS.LOOKUP;
+  if (src.includes("xgboost")) return WORKFLOW_LABELS.XGBOOST;
+  if (src.includes("ai")) return WORKFLOW_LABELS.AI;
+
+  if (src.includes("internal bank") || src.includes("bank rule") || src.includes("bank feed")) {
+    return WORKFLOW_LABELS.BANK_RULES;
+  }
+
+  if (src.includes("rule")) {
+    let ruleStr = "";
+    if (typeof matchedRule === "string") {
+      ruleStr = matchedRule.toLowerCase();
+    } else if (matchedRule && typeof matchedRule === "object") {
+      ruleStr = JSON.stringify(matchedRule).toLowerCase();
+    }
+    
     if (ruleStr.includes("bank_transfer") || ruleStr.includes("bank_service_charge") || ruleStr.includes("internal_bank")) {
       return WORKFLOW_LABELS.BANK_RULES;
     }
@@ -36,6 +47,10 @@ function getAmount(row: ImportPreviewRow): number {
 }
 
 export function isBankOrCreditCard(row: ImportPreviewRow): boolean {
+  if (row.account_review && typeof row.account_review.is_bank_transaction === "boolean") {
+    return row.account_review.is_bank_transaction;
+  }
+
   const code = (row.account_number || "").trim();
   const numericStr = code.replace(/\D/g, "");
   if (numericStr) {
@@ -71,10 +86,10 @@ export function compareGLSplitResults(
   expectedRowsAll: ImportPreviewRow[],
   confidenceThreshold: number = 0.75
 ): GLSplitComparisonResult {
-  // Preserve original Excel row number (1-indexed based on original array)
   const originalRowsWithLine = originalRowsAll.map((r, i) => ({ ...r, _excel_row: i + 1 }));
   const originalRows = originalRowsWithLine.filter(isBankOrCreditCard);
-  const unmatchedExpected = [...expectedRowsAll]; // Keep all rows for matching splits
+  const expectedRowsWithLine = expectedRowsAll.map((r, i) => ({ ...r, _excel_row: i + 1 }));
+  const unmatchedExpected = [...expectedRowsWithLine]; // Keep all rows for matching splits
 
   const summary: GLSplitComparisonSummary = {
     total_rows: originalRows.length,
@@ -96,8 +111,8 @@ export function compareGLSplitResults(
     const origNormName = normalizeText(origRow.name);
     
     // First try: Match by transaction number
-    let matchedExpRows: ImportPreviewRow[] = [];
-    let matchedSameLines: ImportPreviewRow[] = [];
+    let matchedExpRows: any[] = [];
+    let matchedSameLines: any[] = [];
 
     if (origRow.transaction_number) {
       const sameTxn = unmatchedExpected.filter(e => e.transaction_number === origRow.transaction_number);
@@ -116,8 +131,8 @@ export function compareGLSplitResults(
       }
     }
 
-    const extractSplitsFromExpectedBankLine = (expectedBankLine: ImportPreviewRow) => {
-      let sameTxn: ImportPreviewRow[] = [];
+    const extractSplitsFromExpectedBankLine = (expectedBankLine: any) => {
+      let sameTxn: any[] = [];
       // Use gl_id to reliably find all lines of the split transaction, even if transaction_number is missing
       if (expectedBankLine.gl_id !== undefined && expectedBankLine.gl_id !== null) {
         sameTxn = unmatchedExpected.filter(e => e.gl_id === expectedBankLine.gl_id);
@@ -165,10 +180,13 @@ export function compareGLSplitResults(
       if (idx !== -1) unmatchedExpected.splice(idx, 1);
     });
 
+    const getExpectedAccount = (e: any) => {
+      return e.Split || e.split || e.split_account_name || e.account_review?.current_target_account_name || e.account_review?.current_target_account_number || e.account_name || e.account_number;
+    };
+
     const expectedAccount = matchedExpRows.length === 1 
-      ? matchedExpRows[0].account_review?.current_target_account_name || matchedExpRows[0].account_review?.current_target_account_number || matchedExpRows[0].account_name || matchedExpRows[0].account_number 
-      : matchedExpRows.length > 1 ? matchedExpRows.map(e => e.account_review?.current_target_account_name || e.account_name).filter(Boolean).join(" | ") : null;
-      
+      ? getExpectedAccount(matchedExpRows[0])
+      : matchedExpRows.length > 1 ? matchedExpRows.map(e => getExpectedAccount(e)).filter(Boolean).join(" | ") : null;
     // The dry run account comes from account_review or fallback to account_name
     const dryRunAccount = origRow.account_review?.suggested_account_name 
       || origRow.account_review?.suggested_account_number 

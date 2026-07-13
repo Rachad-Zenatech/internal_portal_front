@@ -1565,9 +1565,12 @@ export default function GeneralLedgerUpload() {
                     size="sm"
                     onClick={() => setShowWorkbookPreview(true)}
                   >
-                    <FileSpreadsheet className="h-4 w-4" />
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
                     Workbook
                   </Button>
+                  {isDryRun && (
+                    <GLSplitCompareDialog books={books} bookId={bookId} localPreview={preview} />
+                  )}
                   <Badge variant={reviewReady ? "default" : "destructive"} className={reviewReady ? "bg-green-600 text-white hover:bg-green-600 dark:bg-green-500 dark:text-green-950 dark:hover:bg-green-500" : ""}>
                     {isDryRun ? "Preview only" : reviewReady ? "Ready for save" : "Needs review"}
                   </Badge>

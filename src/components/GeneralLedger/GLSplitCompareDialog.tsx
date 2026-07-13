@@ -33,9 +33,11 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 
 interface GLSplitCompareDialogProps {
   books: CompanyBook[];
+  bookId?: number | null;
+  localPreview?: any; // ImportPreview
 }
 
-export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
+export function GLSplitCompareDialog({ books, bookId, localPreview }: GLSplitCompareDialogProps) {
   const [open, setOpen] = useState(false);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [expectedFile, setExpectedFile] = useState<File | null>(null);
@@ -48,7 +50,8 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
   const [tab, setTab] = useState("suspicious");
 
   const handleCompare = async () => {
-    if (!originalFile || !expectedFile || !companyBookId) {
+    const activeBookId = localPreview ? String(bookId || "") : companyBookId;
+    if ((!localPreview && !originalFile) || !expectedFile || !activeBookId) {
       toast.error("Please select a book and both files.");
       return;
     }
@@ -58,21 +61,26 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
     setResult(null);
 
     try {
-      // 1. Parse Original File
-      const origRes = await GLService.parseImport({
-        companyBookId: Number(companyBookId),
-        file: originalFile,
-        dryRun: true,
-      });
+      let origRows = localPreview?.rows || [];
+      let origRes: any = null;
+
+      // 1. Parse Original File (if no localPreview)
+      if (!localPreview) {
+        origRes = await GLService.parseImport({
+          companyBookId: Number(activeBookId),
+          file: originalFile!,
+          dryRun: true,
+        });
+        origRows = origRes.preview?.rows || [];
+      }
 
       // 2. Parse Expected File
       const expRes = await GLService.parseImport({
-        companyBookId: Number(companyBookId),
+        companyBookId: Number(activeBookId),
         file: expectedFile,
         dryRun: true,
       });
 
-      const origRows = origRes.preview?.rows || [];
       const expRows = expRes.preview?.rows || [];
 
       if (!origRows.length || !expRows.length) {
@@ -81,60 +89,62 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
         return;
       }
 
-      // 3. Run Dry-Run Account Suggestions (XGBoost/Rules/AI) on Original File
-      const origToken = origRes.dry_run_preview_token || origRes.preview?.pagination?.preview_token;
-      if (origToken) {
-        const formatCode = books.find(b => String(b.book_id) === companyBookId)?.format_code || "";
-        const queued = await GLService.queueAccountSuggestions({
-          previewToken: origToken,
-          companyId: origRes.summary.company_id,
-          formatCode,
-          includeAll: true,
-          useAi: !skipAi, // Toggle AI review based on checkbox
-        });
+      // 3. Run Dry-Run Account Suggestions (XGBoost/Rules/AI) on Original File if we don't have localPreview
+      if (!localPreview && origRes) {
+        const origToken = origRes.dry_run_preview_token || origRes.preview?.pagination?.preview_token;
+        if (origToken) {
+          const formatCode = books.find(b => String(b.book_id) === activeBookId)?.format_code || "";
+          const queued = await GLService.queueAccountSuggestions({
+            previewToken: origToken,
+            companyId: origRes.summary.company_id,
+            formatCode,
+            includeAll: true,
+            useAi: !skipAi, // Toggle AI review based on checkbox
+          });
 
-        const jobId = queued.backgroundJobId ?? queued.jobId;
-        if (jobId) {
-          while (true) {
-            const job = await GLService.getAccountSuggestionsJob(jobId);
-            if (job.progress !== undefined && job.progress !== null) {
-              setReviewProgress(job.progress);
+          const jobId = queued.backgroundJobId ?? queued.jobId;
+          if (jobId) {
+            while (true) {
+              const job = await GLService.getAccountSuggestionsJob(jobId);
+              if (job.progress !== undefined && job.progress !== null) {
+                setReviewProgress(job.progress);
+              }
+              if (job.status === "completed") {
+                const suggestions = job.result?.suggestions || [];
+                // Map suggestions back to origRows
+                origRows.forEach((row: any, idx: number) => {
+                  const suggestion = suggestions.find(s => s.row_number === idx + 1);
+                  if (suggestion) {
+                    row.account_review = {
+                      status: "predicted",
+                      source: suggestion.review_source || "unknown",
+                      categorized: true,
+                      target_field: suggestion.target_field || "split_account",
+                      current_target_account_number: null,
+                      current_target_account_name: null,
+                      suggested_account_number: suggestion.suggested_split_account_number || suggestion.suggested_account_number,
+                      suggested_account_name: suggestion.suggested_split_account_name || suggestion.suggested_account_name,
+                      suggested_payee: null,
+                      suggested_memo: null,
+                      confidence: suggestion.confidence,
+                      requires_ai_review: false,
+                      requires_human_review: suggestion.requires_manual_review,
+                      reason: suggestion.reason,
+                      matched_rule: (suggestion as any).rule || null,
+                      applied_actions: [],
+                      xgboost_candidate: null,
+                      ai_context: null,
+                      is_bank_transaction: false,
+                    };
+                  }
+                });
+                break;
+              } else if (["failed", "cancel_requested", "canceled", "discarded"].includes(job.status)) {
+                toast.error(job.error?.message || "Account review failed, continuing with basic parsing...");
+                break;
+              }
+              await new Promise(r => setTimeout(r, 2000));
             }
-            if (job.status === "completed") {
-              const suggestions = job.result?.suggestions || [];
-              // Map suggestions back to origRows
-              origRows.forEach((row, idx) => {
-                const suggestion = suggestions.find(s => s.row_number === idx + 1);
-                if (suggestion) {
-                  row.account_review = {
-                    status: "predicted",
-                    source: suggestion.review_source || "unknown",
-                    categorized: true,
-                    target_field: suggestion.target_field || "split_account",
-                    current_target_account_number: null,
-                    current_target_account_name: null,
-                    suggested_account_number: suggestion.suggested_split_account_number || suggestion.suggested_account_number,
-                    suggested_account_name: suggestion.suggested_split_account_name || suggestion.suggested_account_name,
-                    suggested_payee: null,
-                    suggested_memo: null,
-                    confidence: suggestion.confidence,
-                    requires_ai_review: false,
-                    requires_human_review: suggestion.requires_manual_review,
-                    reason: suggestion.reason,
-                    matched_rule: (suggestion as any).rule || null,
-                    applied_actions: [],
-                    xgboost_candidate: null,
-                    ai_context: null,
-                    is_bank_transaction: false,
-                  };
-                }
-              });
-              break;
-            } else if (["failed", "cancel_requested", "canceled", "discarded"].includes(job.status)) {
-              toast.error(job.error?.message || "Account review failed, continuing with basic parsing...");
-              break;
-            }
-            await new Promise(r => setTimeout(r, 2000));
           }
         }
       }
@@ -153,10 +163,11 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
 
   const columns = useMemo<ColumnDef<GLSplitComparisonRow>[]>(() => [
     { accessorKey: "row_number", header: "Row #" },
+    { accessorKey: "expected_row_number", header: "Expected Row #", cell: ({ row }) => row.original.expected_rows?.map((r: any) => r._excel_row).filter(Boolean).join(", ") || "-" },
     { accessorKey: "date", header: "Date" },
     { accessorKey: "transaction_type", header: "Type" },
     { accessorKey: "name", header: "Name" },
-    { accessorKey: "memo", header: "Memo" },
+    { accessorKey: "memo", header: "Memo", cell: ({ row }) => <div className="max-w-[200px] whitespace-normal break-words">{row.original.memo}</div> },
     { accessorKey: "amount", header: "Amount", cell: ({ row }) => row.original.amount.toFixed(2) },
     { accessorKey: "expected_account", header: "Expected Account" },
     { accessorKey: "dry_run_account", header: "Dry-Run Account" },
@@ -193,16 +204,17 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
   const handleExportCSV = () => {
     if (!result) return;
     const headers = [
-      "Row #", "Date", "Type", "Name", "Memo", "Amount", "Expected Account",
+      "Row #", "Expected Row #", "Date", "Type", "Name", "Memo", "Amount", "Expected Account",
       "Dry-Run Account", "Applied By", "Confidence", "Status", "Difference Reason"
     ];
 
     const rows = result.rows.map(r => [
       r.row_number,
+      `"${(r.expected_rows?.map((exp: any) => exp._excel_row).filter(Boolean).join(", ") || "-")}"`,
       r.date || "",
       r.transaction_type || "",
-      r.name || "",
-      r.memo || "",
+      `"${(r.name || "").replace(/"/g, '""')}"`,
+      `"${(r.memo || "").replace(/"/g, '""')}"`,
       r.amount.toFixed(2),
       `"${(r.expected_account || "").replace(/"/g, '""')}"`,
       `"${(r.dry_run_account || "").replace(/"/g, '""')}"`,
@@ -212,14 +224,16 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
       `"${(r.difference_reason || "").replace(/"/g, '""')}"`
     ]);
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
+    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.setAttribute("href", url);
     link.setAttribute("download", "GL_Comparison_Result.csv");
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -239,25 +253,29 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 py-4 flex-shrink-0">
-          <div className="space-y-2 min-w-0">
-            <Label className="truncate block">Company Book</Label>
-            <Select value={companyBookId} onValueChange={setCompanyBookId}>
-              <SelectTrigger className="w-full truncate">
-                <SelectValue placeholder="Select Book..." />
-              </SelectTrigger>
-              <SelectContent>
-                {books.map((b) => (
-                  <SelectItem key={b.book_id} value={String(b.book_id)}>
-                    {b.company_name} - {b.book_name} ({b.format_name})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2 min-w-0">
-            <Label className="truncate block">Original GL File (No Splits)</Label>
-            <Input type="file" accept=".csv,.xlsx,.xls" className="w-full truncate" onChange={(e) => setOriginalFile(e.target.files?.[0] || null)} />
-          </div>
+          {!localPreview && (
+            <>
+              <div className="space-y-2 min-w-0">
+                <Label className="truncate block">Company Book</Label>
+                <Select value={companyBookId} onValueChange={setCompanyBookId}>
+                  <SelectTrigger className="w-full truncate">
+                    <SelectValue placeholder="Select Book..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {books.map((b) => (
+                      <SelectItem key={b.book_id} value={String(b.book_id)}>
+                        {b.company_name} - {b.book_name} ({b.format_name})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 min-w-0">
+                <Label className="truncate block">Original GL File (No Splits)</Label>
+                <Input type="file" accept=".csv,.xlsx,.xls" className="w-full truncate" onChange={(e) => setOriginalFile(e.target.files?.[0] || null)} />
+              </div>
+            </>
+          )}
           <div className="space-y-2 min-w-0">
             <Label className="truncate block">Expected GL File (With Splits)</Label>
             <Input type="file" accept=".csv,.xlsx,.xls" className="w-full truncate" onChange={(e) => setExpectedFile(e.target.files?.[0] || null)} />
@@ -266,7 +284,7 @@ export function GLSplitCompareDialog({ books }: GLSplitCompareDialogProps) {
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b flex-shrink-0">
           <div className="flex items-center gap-4">
-            <Button onClick={handleCompare} disabled={!originalFile || !expectedFile || !companyBookId || isLoading}>
+            <Button onClick={handleCompare} disabled={(!localPreview && (!originalFile || !companyBookId)) || !expectedFile || isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Run Comparison
             </Button>
