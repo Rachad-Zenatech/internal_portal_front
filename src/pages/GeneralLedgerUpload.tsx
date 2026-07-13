@@ -104,6 +104,16 @@ type ReviewFinderKind =
   | "human_review"
   | "differences";
 
+type DifferenceFinderFilter =
+  | "all"
+  | "quickbooks_rule"
+  | "bank_transfer"
+  | "split_lookup"
+  | "xgboost"
+  | "ai"
+  | "ai_changed"
+  | "human_review";
+
 type AiReviewRunState = "disabled" | "running" | "completed" | "not_run" | "incomplete";
 
 type AccountReviewProgress = {
@@ -339,7 +349,7 @@ export default function GeneralLedgerUpload() {
     [workbookRows]
   );
   const differencesWorkbookRows = useMemo(
-    () => workbookRows.filter(isWorkbookDifferenceRow),
+    () => sortDifferenceFinderRows(workbookRows.filter(isWorkbookDifferenceRow)),
     [workbookRows]
   );
   const activeReviewFinderRows = useMemo(() => {
@@ -2124,6 +2134,7 @@ export default function GeneralLedgerUpload() {
         <ReviewFinderPanel
           kind={activeReviewFinder}
           rows={activeReviewFinderRows}
+          differenceStatRows={workbookRows}
           focusedReviewRowId={focusedReviewRowId}
           aiReviewRunState={aiReviewRunState}
           onGoTo={goToReviewFinderRow}
@@ -2146,6 +2157,7 @@ function Info({ label, value }: { label: string; value: string }) {
 function ReviewFinderPanel({
   kind,
   rows,
+  differenceStatRows,
   focusedReviewRowId,
   aiReviewRunState,
   onGoTo,
@@ -2153,6 +2165,7 @@ function ReviewFinderPanel({
 }: {
   kind: ReviewFinderKind;
   rows: WorkbookPreviewRow[];
+  differenceStatRows?: WorkbookPreviewRow[];
   focusedReviewRowId: string | null;
   aiReviewRunState: AiReviewRunState;
   onGoTo: (row: WorkbookPreviewRow) => void;
@@ -2160,24 +2173,110 @@ function ReviewFinderPanel({
 }) {
   const title = reviewFinderTitle(kind);
   const emptyText = reviewFinderEmptyText(kind);
+  const [position, setPosition] = useState({ x: 0, y: 80 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffset = useRef({ x: 0, y: 0 });
   const [aiFinderFilter, setAiFinderFilter] = useState<"all" | "suggested">("suggested");
+  const [differenceFinderFilter, setDifferenceFinderFilter] =
+    useState<DifferenceFinderFilter>("all");
+  const differenceFinderStats = useMemo(
+    () => buildDifferenceFinderStats(
+      rows,
+      differenceStatRows ?? rows,
+      aiReviewRunState
+    ),
+    [aiReviewRunState, differenceStatRows, rows]
+  );
   const filteredRows = useMemo(() => {
-    if (kind !== "ai") return rows;
-    if (aiFinderFilter === "all") return rows;
-    return rows.filter(hasSuggestedTargetForReviewFinder);
-  }, [aiFinderFilter, kind, rows]);
+    if (kind === "ai") {
+      if (aiFinderFilter === "all") return rows;
+      return rows.filter(hasSuggestedTargetForReviewFinder);
+    }
+    if (kind === "differences" && differenceFinderFilter !== "all") {
+      return rows.filter((row) =>
+        rowMatchesDifferenceFinderFilter(
+          row,
+          differenceFinderFilter,
+          aiReviewRunState
+        )
+      );
+    }
+    return rows;
+  }, [aiFinderFilter, aiReviewRunState, differenceFinderFilter, kind, rows]);
+
+  useEffect(() => {
+    const width = Math.min(460, window.innerWidth - 32);
+    setPosition({
+      x: Math.max(16, window.innerWidth - width - 16),
+      y: 80,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    function handleMove(event: PointerEvent) {
+      const panelWidth = Math.min(460, window.innerWidth - 32);
+      const panelHeight = Math.min(620, window.innerHeight - 96);
+      setPosition({
+        x: clamp(event.clientX - dragOffset.current.x, 16, window.innerWidth - panelWidth - 16),
+        y: clamp(event.clientY - dragOffset.current.y, 16, window.innerHeight - panelHeight - 16),
+      });
+    }
+
+    function handleUp() {
+      setIsDragging(false);
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+    };
+  }, [isDragging]);
 
   return (
-    <div className="fixed right-4 top-20 z-50 flex max-h-[min(620px,calc(100vh-6rem))] w-[min(460px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border bg-background shadow-2xl">
-      <div className="flex items-start justify-between gap-3 border-b bg-muted/60 px-4 py-3">
-        <div>
+    <>
+      {isDragging ? (
+        <div
+          className="fixed inset-0 z-40 cursor-move select-none"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.preventDefault()}
+          onPointerUp={(event) => event.stopPropagation()}
+        />
+      ) : null}
+      <div
+        className="fixed z-50 flex max-h-[min(620px,calc(100vh-6rem))] w-[min(460px,calc(100vw-2rem))] flex-col overflow-hidden rounded-md border bg-background shadow-2xl"
+        style={{ left: position.x, top: position.y }}
+      >
+      <div
+        className="flex cursor-move touch-none select-none items-start justify-between gap-3 border-b bg-muted/60 px-4 py-3"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.setPointerCapture(event.pointerId);
+          const rect = event.currentTarget.parentElement?.getBoundingClientRect();
+          dragOffset.current = {
+            x: event.clientX - (rect?.left ?? position.x),
+            y: event.clientY - (rect?.top ?? position.y),
+          };
+          setIsDragging(true);
+        }}
+      >
+        <div className="min-w-0">
           <div className="text-sm font-medium">{title}</div>
           <div className="mt-1 text-xs text-muted-foreground">
             {filteredRows.length.toLocaleString("en-US")} {reviewFinderCountLabel(kind)}
             {kind === "ai" ? ` (${aiFinderFilter === "suggested" ? "suggested only" : "all"})` : ""}
+            {kind === "differences" && differenceFinderFilter !== "all"
+              ? ` (${differenceFinderFilterLabel(differenceFinderFilter)})`
+              : ""}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onPointerDown={(event) => event.stopPropagation()}>
           {kind === "ai" ? (
             <div className="inline-flex rounded-md border bg-background p-1">
               <Button
@@ -2211,6 +2310,32 @@ function ReviewFinderPanel({
         </div>
       </div>
 
+      {kind === "differences" ? (
+        <div
+          className="flex flex-wrap gap-1 border-b bg-background px-3 py-2"
+          onPointerDown={(event) => event.stopPropagation()}
+        >
+          {DIFFERENCE_FINDER_FILTERS.map((filter) => (
+            <Button
+              key={filter.value}
+              type="button"
+              size="sm"
+              variant={
+                differenceFinderFilter === filter.value ? "default" : "outline"
+              }
+              className="h-auto min-h-8 min-w-[74px] flex-col gap-0 px-2 py-1 text-xs leading-tight"
+              onClick={() => setDifferenceFinderFilter(filter.value)}
+              title={`${filter.label}: ${formatDifferenceFinderStat(differenceFinderStats[filter.value])}`}
+            >
+              <span>{filter.label}</span>
+              <span className="text-[10px] font-normal opacity-80">
+                {formatDifferenceFinderStat(differenceFinderStats[filter.value])}
+              </span>
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
       {filteredRows.length === 0 ? (
         <div className="p-4 text-sm text-muted-foreground">
           {emptyText}
@@ -2222,6 +2347,7 @@ function ReviewFinderPanel({
             const isFocused = focusedReviewRowId === rowId;
             const label = row.txn.name || row.txn.memo || row.txn.transaction_type || "Transaction";
             const marker = formatReviewFinderMarker(kind, row, aiReviewRunState);
+            const status = formatReviewFinderStatus(row, aiReviewRunState);
             const suggested = formatReviewSuggestedTarget(
               row.suggestion ?? undefined,
               row.txn.account_review,
@@ -2258,6 +2384,9 @@ function ReviewFinderPanel({
                 <div className={`mt-2 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
                   {marker}
                 </div>
+                <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
+                  Status: {status}
+                </div>
                 <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground" : "text-blue-700 group-hover:text-accent-foreground dark:text-blue-300"}`}>
                   Suggested: {suggested}
                 </div>
@@ -2269,7 +2398,8 @@ function ReviewFinderPanel({
           })}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
@@ -2579,9 +2709,38 @@ function estimateGeminiChunkCount(rowCount: number) {
   return Math.max(1, Math.ceil(rowCount / AI_ROWS_PER_REQUEST));
 }
 
+function isBankOrCreditCardAccountType(accountType: string | null | undefined) {
+  const normalized = String(accountType || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+  return normalized === "bank" || normalized === "creditcard";
+}
+
 function isCreditCardAccountType(accountType: string | null | undefined) {
   const normalized = String(accountType || "").trim().toLowerCase().replace(/[\s_-]+/g, "");
   return normalized === "creditcard";
+}
+
+function isBankOrCreditCardAccountLabel(accountName: string | null | undefined) {
+  return /\b(bank|checking|savings|cash|credit card|boa|amex|american express|capital one|us bank|vystar)\b/i.test(
+    String(accountName || "")
+  );
+}
+
+function isBankAccountNumberRange(accountNumber: string | null | undefined) {
+  const digits = String(accountNumber || "").replace(/\D+/g, "");
+  if (!digits) return false;
+  const code = Number(digits);
+  return Number.isFinite(code) && code >= 1000 && code <= 1099;
+}
+
+function isWorkbookBankOrCreditCardRow(row: WorkbookPreviewRow) {
+  if (row.account.account_type) {
+    return isBankOrCreditCardAccountType(row.account.account_type);
+  }
+  return Boolean(
+    row.txn.is_bank_line ||
+      isBankOrCreditCardAccountLabel(row.account.account_name) ||
+      isBankAccountNumberRange(row.account.account_number)
+  );
 }
 
 function formatAccountReviewProgress(progress: AccountReviewProgress, jobId?: string | null) {
@@ -3563,11 +3722,13 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
   const hasAiFallbackReview = isAiFallbackSuggestion(suggestion);
   const hasSplitLookupReview = isSplitLookupSuggestion(suggestion);
+  const hasBankTransferReview = isBankTransferSuggestion(suggestion);
   const hasPlainSuggestion = Boolean(
     isMarkedSuggestedChange(suggestion) &&
       !hasXgboostSuggestion &&
       !isGeminiSuggestion(suggestion) &&
-      !hasSplitLookupReview
+      !hasSplitLookupReview &&
+      !hasBankTransferReview
   );
 
   if (
@@ -3595,6 +3756,9 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
   if (hasSplitLookupReview) {
     if (isOneToOneSplitLookupSuggestion(suggestion)) return null;
     return <Badge className="bg-cyan-600 text-white hover:bg-cyan-600 dark:bg-cyan-500 dark:text-cyan-950 dark:hover:bg-cyan-500">Split Lookup</Badge>;
+  }
+  if (hasBankTransferReview) {
+    return <Badge className="bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-500">Bank transfer</Badge>;
   }
   if (suggestion.requires_manual_review) {
     return <Badge variant="destructive">Review</Badge>;
@@ -3654,6 +3818,9 @@ function isChangedSuggestion(suggestion: GLAccountSuggestion) {
 }
 
 function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
+  if (review.source === "bank_transfer") {
+    return <Badge className="bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-500">Bank transfer</Badge>;
+  }
   if (review.source === "xgboost") {
     return <Badge className="bg-blue-600 text-white hover:bg-blue-600 dark:bg-blue-500 dark:text-blue-950 dark:hover:bg-blue-500">XGBoost</Badge>;
   }
@@ -3731,24 +3898,248 @@ function transactionSuggestionKey(parts: {
 
 function isWorkbookXgboostReviewRow(row: WorkbookPreviewRow) {
   return (
-    (row.suggestion ? isXgboostSuggestion(row.suggestion) : false) ||
-    row.txn.account_review?.source === "xgboost"
+    isWorkbookBankOrCreditCardRow(row) &&
+    ((row.suggestion ? isXgboostSuggestion(row.suggestion) : false) ||
+      row.txn.account_review?.source === "xgboost")
   );
 }
 
 function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
-  return row.txn.account_review?.source === "quickbooks_rule";
+  return (
+    isWorkbookBankOrCreditCardRow(row) &&
+    row.txn.account_review?.source === "quickbooks_rule"
+  );
 }
 
 function isWorkbookSplitLookupRow(row: WorkbookPreviewRow) {
   return (
-    row.txn.account_review?.source === "account_split_lookup" ||
-    row.suggestion?.review_source === "account_split_lookup"
+    isWorkbookBankOrCreditCardRow(row) &&
+    (row.txn.account_review?.source === "account_split_lookup" ||
+      row.suggestion?.review_source === "account_split_lookup")
+  );
+}
+
+function isWorkbookBankTransferRow(row: WorkbookPreviewRow) {
+  return Boolean(
+    isWorkbookBankOrCreditCardRow(row) &&
+      ((row.suggestion && isBankTransferSuggestion(row.suggestion)) ||
+        row.txn.account_review?.source === "bank_transfer")
   );
 }
 
 function isWorkbookDifferenceRow(row: WorkbookPreviewRow) {
-  return hasSuggestedTargetForReviewFinder(row);
+  return isWorkbookBankOrCreditCardRow(row) && hasSuggestedTargetForReviewFinder(row);
+}
+
+const DIFFERENCE_FINDER_STATUS_ORDER: Record<string, number> = {
+  "1-to-1 mapping": 0,
+  "Bank transfer": 1,
+  "QB Rule": 2,
+  "Split Lookup": 3,
+  XGBoost: 4,
+  "XGBoost suggested": 5,
+  "AI manual suggestion": 6,
+  "AI manual review": 7,
+  AI: 8,
+  "AI review": 9,
+  "AI running": 10,
+  "AI incomplete": 11,
+  "AI not run": 12,
+  "Human review": 13,
+  "Manual review": 14,
+  Suggested: 15,
+  Checked: 16,
+  Review: 17,
+};
+
+const DIFFERENCE_FINDER_FILTERS: Array<{
+  value: DifferenceFinderFilter;
+  label: string;
+}> = [
+  { value: "all", label: "All" },
+  { value: "quickbooks_rule", label: "QB" },
+  { value: "bank_transfer", label: "Transfer" },
+  { value: "split_lookup", label: "1-to-1" },
+  { value: "xgboost", label: "XGBoost" },
+  { value: "ai", label: "AI" },
+  { value: "ai_changed", label: "AI changed" },
+  { value: "human_review", label: "Human" },
+];
+
+function differenceFinderFilterLabel(filter: DifferenceFinderFilter) {
+  return (
+    DIFFERENCE_FINDER_FILTERS.find((item) => item.value === filter)?.label ??
+    "All"
+  );
+}
+
+function buildDifferenceFinderStats(
+  differenceRows: WorkbookPreviewRow[],
+  comparisonRows: WorkbookPreviewRow[],
+  aiReviewRunState: AiReviewRunState
+) {
+  return Object.fromEntries(
+    DIFFERENCE_FINDER_FILTERS.map((filter) => {
+      const count =
+        filter.value === "all"
+          ? differenceRows.length
+          : differenceRows.filter((row) =>
+              rowMatchesDifferenceFinderFilter(
+                row,
+                filter.value,
+                aiReviewRunState
+              )
+            ).length;
+      const total = comparisonRows.filter((row) =>
+        rowMatchesDifferenceFinderTotalFilter(
+          row,
+          filter.value,
+          aiReviewRunState
+        )
+      ).length;
+      return [filter.value, { count, total }];
+    })
+  ) as Record<DifferenceFinderFilter, { count: number; total: number }>;
+}
+
+function formatDifferenceFinderStat(stat?: { count: number; total: number }) {
+  const count = stat?.count ?? 0;
+  const total = stat?.total ?? 0;
+  const percent = total > 0 ? Math.round((count / total) * 100) : 0;
+  return `${count.toLocaleString("en-US")}/${total.toLocaleString("en-US")} ${percent}%`;
+}
+
+function rowMatchesDifferenceFinderFilter(
+  row: WorkbookPreviewRow,
+  filter: DifferenceFinderFilter,
+  aiReviewRunState: AiReviewRunState
+) {
+  if (filter === "all") return true;
+  if (filter === "quickbooks_rule") return isWorkbookQuickBooksRuleReviewRow(row);
+  if (filter === "bank_transfer") return isWorkbookBankTransferRow(row);
+  if (filter === "split_lookup") return isWorkbookSplitLookupRow(row);
+  if (filter === "xgboost") return isWorkbookXgboostReviewRow(row);
+  if (filter === "ai") return isWorkbookAiReviewRow(row);
+  if (filter === "ai_changed") return isWorkbookAiChangedReviewRow(row);
+  if (filter === "human_review") return isWorkbookHumanReviewRow(row);
+  return formatReviewFinderStatus(row, aiReviewRunState) === filter;
+}
+
+function rowMatchesDifferenceFinderTotalFilter(
+  row: WorkbookPreviewRow,
+  filter: DifferenceFinderFilter,
+  aiReviewRunState: AiReviewRunState
+) {
+  if (filter === "all") {
+    return isWorkbookDifferenceFinderComparisonRow(row, aiReviewRunState);
+  }
+  if (filter === "ai_changed") return isWorkbookAiReviewRow(row);
+  return rowMatchesDifferenceFinderFilter(row, filter, aiReviewRunState);
+}
+
+function isWorkbookDifferenceFinderComparisonRow(
+  row: WorkbookPreviewRow,
+  aiReviewRunState: AiReviewRunState
+) {
+  return (
+    isWorkbookBankOrCreditCardRow(row) &&
+    (hasSuggestedTargetForReviewFinder(row) ||
+      isWorkbookQuickBooksRuleReviewRow(row) ||
+      isWorkbookBankTransferRow(row) ||
+      isWorkbookSplitLookupRow(row) ||
+      isWorkbookXgboostReviewRow(row) ||
+      isWorkbookAiReviewRow(row) ||
+      isWorkbookHumanReviewRow(row) ||
+      formatReviewFinderStatus(row, aiReviewRunState) !== "Checked")
+  );
+}
+
+function sortDifferenceFinderRows(rows: WorkbookPreviewRow[]) {
+  return [...rows].sort((left, right) => {
+    const leftStatus = formatReviewFinderStatus(left);
+    const rightStatus = formatReviewFinderStatus(right);
+    const statusCompare =
+      differenceFinderStatusRank(leftStatus) -
+      differenceFinderStatusRank(rightStatus);
+    if (statusCompare !== 0) return statusCompare;
+
+    const statusTextCompare = compareFinderText(leftStatus, rightStatus);
+    if (statusTextCompare !== 0) return statusTextCompare;
+
+    const accountCompare = compareFinderText(
+      formatAccountLabel(left.account),
+      formatAccountLabel(right.account)
+    );
+    if (accountCompare !== 0) return accountCompare;
+
+    const dateCompare = compareFinderText(
+      left.txn.entry_date,
+      right.txn.entry_date
+    );
+    if (dateCompare !== 0) return dateCompare;
+
+    return Number(left.txn.entry_id ?? 0) - Number(right.txn.entry_id ?? 0);
+  });
+}
+
+function differenceFinderStatusRank(status: string) {
+  return DIFFERENCE_FINDER_STATUS_ORDER[status] ?? 50;
+}
+
+function compareFinderText(
+  left: string | number | null | undefined,
+  right: string | number | null | undefined
+) {
+  return String(left ?? "").localeCompare(String(right ?? ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function formatReviewFinderStatus(
+  row: WorkbookPreviewRow,
+  aiReviewRunState: AiReviewRunState = "completed"
+) {
+  const suggestion = row.suggestion ?? undefined;
+  const review = row.txn.account_review ?? undefined;
+
+  if (suggestion) {
+    if (isOneToOneSplitLookupSuggestion(suggestion)) return "1-to-1 mapping";
+    if (suggestion.rule === "quickbooks_rule" || suggestion.review_source === "quickbooks_rule") return "QB Rule";
+    if (isBankTransferSuggestion(suggestion)) return "Bank transfer";
+    if (isSplitLookupSuggestion(suggestion)) return suggestion.review_label || "Split Lookup";
+    if (isXgboostSuggestion(suggestion)) return shouldUseXgboostFallbackSuggestion(suggestion) ? "XGBoost suggested" : "XGBoost";
+    if (suggestion.requires_manual_review && isGeminiSuggestion(suggestion) && getVisibleSuggestedTargetNumber(suggestion)) {
+      return "AI manual suggestion";
+    }
+    if (suggestion.requires_manual_review && isGeminiSuggestion(suggestion)) return "AI manual review";
+    if (isAiFallbackSuggestion(suggestion)) {
+      return isAiReviewPendingState(aiReviewRunState)
+        ? formatAiReviewPendingLabel(aiReviewRunState)
+        : "AI review";
+    }
+    if (isGeminiSuggestion(suggestion)) return "AI";
+    if (isHumanReviewSuggestion(suggestion)) return "Manual review";
+    if (suggestion.review_label) return suggestion.review_label;
+    return formatSuggestionStatus(suggestion);
+  }
+
+  if (review) {
+    if (isOneToOneSplitLookupReview(review)) return "1-to-1 mapping";
+    if (review.source === "bank_transfer") return "Bank transfer";
+    if (review.source === "quickbooks_rule") return "QB Rule";
+    if (review.source === "account_split_lookup") return "Split Lookup";
+    if (review.source === "xgboost") return "XGBoost";
+    if (review.requires_human_review) return "Human review";
+    if (review.requires_ai_review) {
+      return isAiReviewPendingState(aiReviewRunState)
+        ? formatAiReviewPendingLabel(aiReviewRunState)
+        : "AI review";
+    }
+    if (review.categorized) return "Checked";
+  }
+
+  return "Review";
 }
 
 function hasSuggestedTargetForReviewFinder(row: WorkbookPreviewRow) {
@@ -3780,13 +4171,14 @@ function hasSuggestedTargetForReviewFinder(row: WorkbookPreviewRow) {
 
 function isWorkbookAiReviewRow(row: WorkbookPreviewRow) {
   return Boolean(
-    (row.suggestion &&
-      (isGeminiSuggestion(row.suggestion) ||
-        isAiFallbackSuggestion(row.suggestion) ||
-        row.suggestion.ai_provider)) ||
-      row.txn.account_review?.requires_ai_review ||
-      row.txn.account_review?.source === "gemini" ||
-      row.txn.account_review?.source === "ai"
+    isWorkbookBankOrCreditCardRow(row) &&
+      ((row.suggestion &&
+        (isGeminiSuggestion(row.suggestion) ||
+          isAiFallbackSuggestion(row.suggestion) ||
+          row.suggestion.ai_provider)) ||
+        row.txn.account_review?.requires_ai_review ||
+        row.txn.account_review?.source === "gemini" ||
+        row.txn.account_review?.source === "ai")
   );
 }
 
@@ -3809,9 +4201,10 @@ function isWorkbookAiChangedReviewRow(row: WorkbookPreviewRow) {
 
 function isWorkbookHumanReviewRow(row: WorkbookPreviewRow) {
   return Boolean(
-    row.txn.account_review?.requires_human_review ||
-      row.txn.account_review?.source === "manual_review" ||
-      (row.suggestion ? isHumanReviewSuggestion(row.suggestion) : false)
+    isWorkbookBankOrCreditCardRow(row) &&
+      (row.txn.account_review?.requires_human_review ||
+        row.txn.account_review?.source === "manual_review" ||
+        (row.suggestion ? isHumanReviewSuggestion(row.suggestion) : false))
   );
 }
 
@@ -4056,6 +4449,7 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
   }
   if (isAiFallbackSuggestion(suggestion)) return "AI review required";
   if (isSplitLookupSuggestion(suggestion)) return "Split account lookup";
+  if (isBankTransferSuggestion(suggestion)) return "Bank transfer";
   if (suggestion.requires_manual_review) return "Manual review required";
   if (isGeminiSuggestion(suggestion)) return "AI";
   if (isMarkedSuggestedChange(suggestion) || getVisibleSuggestedTargetNumber(suggestion)) {
@@ -4089,6 +4483,16 @@ function isAiFallbackSuggestion(suggestion: GLAccountSuggestion) {
 
 function isSplitLookupSuggestion(suggestion: GLAccountSuggestion) {
   return suggestion.review_source === "account_split_lookup";
+}
+
+function isBankTransferSuggestion(suggestion: GLAccountSuggestion) {
+  return (
+    suggestion.review_source === "bank_transfer" ||
+    suggestion.rule === "bank_transfer_counterparty" ||
+    suggestion.rule === "bank_transfer_paired" ||
+    suggestion.rule === "bank_transfer_manual_review" ||
+    String(suggestion.review_status ?? "").startsWith("bank_transfer_")
+  );
 }
 
 function isOneToOneSplitLookupSuggestion(suggestion: GLAccountSuggestion) {
@@ -4139,7 +4543,12 @@ function normalizeAccountPart(value: string | null | undefined) {
 }
 
 function isHumanReviewSuggestion(suggestion: GLAccountSuggestion) {
-  if (isXgboostSuggestion(suggestion) || isGeminiSuggestion(suggestion) || isAiFallbackSuggestion(suggestion)) {
+  if (
+    isXgboostSuggestion(suggestion) ||
+    isGeminiSuggestion(suggestion) ||
+    isAiFallbackSuggestion(suggestion) ||
+    isBankTransferSuggestion(suggestion)
+  ) {
     return false;
   }
   return (
@@ -4152,6 +4561,7 @@ function isHumanReviewSuggestion(suggestion: GLAccountSuggestion) {
 function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
   if (review.requires_human_review) return "Human review required";
   if (review.requires_ai_review) return "AI review required";
+  if (review.source === "bank_transfer") return "Bank transfer";
   if (review.source === "quickbooks_rule") return "QuickBooks rule";
   if (review.source === "account_split_lookup") return "Split account lookup";
   if (review.source === "xgboost") return "XGBoost";
@@ -4192,6 +4602,7 @@ function formatReviewMarker(
 function inferSuggestionReviewSource(suggestion: GLAccountSuggestion) {
   if (isXgboostSuggestion(suggestion)) return "xgboost";
   if (isSplitLookupSuggestion(suggestion)) return "account_split_lookup";
+  if (isBankTransferSuggestion(suggestion)) return "bank_transfer";
   if (isGeminiSuggestion(suggestion)) return "AI";
   if (isAiFallbackSuggestion(suggestion)) return "ai_fallback";
   if (suggestion.requires_manual_review) return "manual";
@@ -4210,6 +4621,11 @@ function inferSuggestionReviewStatus(suggestion: GLAccountSuggestion) {
     return isMarkedSuggestedChange(suggestion) ? "gemini_suggested" : "gemini_checked";
   }
   if (isAiFallbackSuggestion(suggestion)) return "needs_ai_review";
+  if (isBankTransferSuggestion(suggestion)) {
+    return isMarkedSuggestedChange(suggestion)
+      ? "bank_transfer_suggested"
+      : "bank_transfer_review";
+  }
   if (suggestion.requires_manual_review) return "manual_review";
   return isMarkedSuggestedChange(suggestion) ? "suggested" : "checked";
 }
