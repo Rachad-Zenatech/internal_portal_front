@@ -114,6 +114,21 @@ type DifferenceFinderFilter =
   | "ai_changed"
   | "human_review";
 
+type SaveImportBlockerTarget =
+  | "upload"
+  | "reconciliation"
+  | "account_review"
+  | "import_review"
+  | "save_import";
+
+type SaveImportBlocker = {
+  key: string;
+  title: string;
+  detail: string;
+  actionLabel: string;
+  target: SaveImportBlockerTarget;
+};
+
 type AiReviewRunState = "disabled" | "running" | "completed" | "not_run" | "incomplete";
 
 type AccountReviewProgress = {
@@ -396,6 +411,90 @@ export default function GeneralLedgerUpload() {
     ? formatAccountReviewProgress(accountReviewProgress, accountReviewJobId)
     : null;
   const hasAccountReviewProgress = accountReviewProgress !== null;
+  const saveImportBlockers = useMemo<SaveImportBlocker[]>(() => {
+    const blockers: SaveImportBlocker[] = [];
+    const mismatchedChecks = reconciliationChecks.filter(
+      (check) => check.status !== "match"
+    );
+
+    if (isSavingImport) {
+      blockers.push({
+        key: "saving",
+        title: "Save is already running",
+        detail: "Wait for the current save request to finish before starting another one.",
+        actionLabel: "Go to save",
+        target: "save_import",
+      });
+    }
+    if (!preview) {
+      blockers.push({
+        key: "no-preview",
+        title: "No import preview is loaded",
+        detail: "Build or reopen a dry-run preview before saving the GL import.",
+        actionLabel: "Open upload",
+        target: "upload",
+      });
+    } else {
+      if (!preview.reconciliation?.is_balanced) {
+        blockers.push({
+          key: "not-balanced",
+          title: "Reconciliation is not balanced",
+          detail: `Debit and credit totals must balance before save. Current difference: ${formatMoney(reviewDifference)}.`,
+          actionLabel: "Go to checks",
+          target: "reconciliation",
+        });
+      }
+      if (mismatchedChecks.length > 0) {
+        blockers.push({
+          key: "checks-mismatch",
+          title: "Completeness checks do not match",
+          detail: `${mismatchedChecks.map((check) => check.check).join(", ")} must match the source file before save.`,
+          actionLabel: "Go to checks",
+          target: "reconciliation",
+        });
+      }
+    }
+    if (isReviewingAccounts) {
+      blockers.push({
+        key: "account-review-running",
+        title: "Account review is still running",
+        detail: accountReviewProgressLabel ?? "Wait for the account review job to finish.",
+        actionLabel: "Go to account review",
+        target: "account_review",
+      });
+    }
+    if (applySuggestedTargetMutation.isPending || unapplySuggestedTargetMutation.isPending) {
+      blockers.push({
+        key: "suggestion-apply-running",
+        title: "Suggested account changes are still applying",
+        detail: "Wait for the apply or undo request to finish before saving.",
+        actionLabel: "Go to account review",
+        target: "account_review",
+      });
+    }
+    if (isDryRun && !canSaveDryRun) {
+      blockers.push({
+        key: "dry-run-source-missing",
+        title: "Dry-run source is missing",
+        detail: "This preview needs either a valid preview token or the selected file/book before it can be saved.",
+        actionLabel: "Open upload",
+        target: "upload",
+      });
+    }
+
+    return blockers;
+  }, [
+    accountReviewProgressLabel,
+    applySuggestedTargetMutation.isPending,
+    canSaveDryRun,
+    isDryRun,
+    isReviewingAccounts,
+    isSavingImport,
+    preview,
+    reconciliationChecks,
+    reviewDifference,
+    unapplySuggestedTargetMutation.isPending,
+  ]);
 
   const previewAccounts = preview?.accounts ?? [];
   const previewPagination = preview?.pagination ?? null;
@@ -564,6 +663,46 @@ export default function GeneralLedgerUpload() {
       
       pendingImportReviewScrollRef.current = false;
     }, 50);
+  }
+
+  function scrollToSection(id: string) {
+    window.setTimeout(() => {
+      const section = document.getElementById(id);
+      const mainContainer = document.querySelector("main");
+      if (!section || !mainContainer) return;
+
+      const sectionRect = section.getBoundingClientRect();
+      const mainRect = mainContainer.getBoundingClientRect();
+      const targetScroll = mainContainer.scrollTop + (sectionRect.top - mainRect.top) - 24;
+
+      mainContainer.scrollTo({
+        top: targetScroll,
+        behavior: "smooth",
+      });
+    }, 50);
+  }
+
+  function handleSaveImportBlockerAction(blocker: SaveImportBlocker) {
+    setShowWorkbookPreview(false);
+    setActiveReviewFinder(null);
+
+    if (blocker.target === "upload") {
+      setIsUploadDrawerOpen(true);
+      return;
+    }
+    if (blocker.target === "reconciliation") {
+      scrollToSection("reconciliation-checks");
+      return;
+    }
+    if (blocker.target === "account_review") {
+      scrollToSection("account-suggestions");
+      return;
+    }
+    if (blocker.target === "import_review") {
+      scrollToSection("import-review");
+      return;
+    }
+    scrollToSection("save-import");
   }
 
   function applyDryRunParseResponse(response: ParseImportResponse) {
@@ -1815,7 +1954,7 @@ export default function GeneralLedgerUpload() {
               )}
 
               {preview.reconciliation && (
-                <div className="border-b p-6">
+                <div id="reconciliation-checks" className="scroll-mt-6 border-b p-6">
                   <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="font-medium text-lg">Completeness Checks</h3>
@@ -1859,7 +1998,7 @@ export default function GeneralLedgerUpload() {
                 </div>
               )}
 
-              <div className="border-b bg-muted/10 p-4">
+              <div id="account-suggestions" className="scroll-mt-6 border-b bg-muted/10 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <h3 className="font-medium">Account Suggestions</h3>
@@ -2081,7 +2220,7 @@ export default function GeneralLedgerUpload() {
             </Card>
           ) : null}
 
-          <Card>
+          <Card id="save-import" className="scroll-mt-6">
             <CardContent className="p-6">
               <h2 className="text-lg font-medium">Save Import</h2>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -2089,6 +2228,38 @@ export default function GeneralLedgerUpload() {
                   ? "This preview is not staged. Saving will parse this file again and write the saved GL import to the database."
                   : "Review the account groups above, then save to make this import available on the company GL dashboard."}
               </p>
+              {saveImportBlockers.length > 0 ? (
+                <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-100">
+                  <div className="font-medium">Save Import is disabled</div>
+                  <div className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                    Fix these items before saving.
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {saveImportBlockers.map((blocker) => (
+                      <div
+                        key={blocker.key}
+                        className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-amber-200/80 bg-white/70 p-3 dark:border-amber-400/30 dark:bg-background/40"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium">{blocker.title}</div>
+                          <div className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+                            {blocker.detail}
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 border-amber-300 bg-white text-amber-900 hover:bg-amber-100 dark:border-amber-400/40 dark:bg-background dark:text-amber-100"
+                          onClick={() => handleSaveImportBlockerAction(blocker)}
+                        >
+                          {blocker.actionLabel}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className="mt-6 flex justify-end gap-3">
                 <Button
                   variant="outline"
@@ -2104,12 +2275,7 @@ export default function GeneralLedgerUpload() {
                 </Button>
                 <Button
                   disabled={
-                    isSavingImport ||
-                    isReviewingAccounts ||
-                    applySuggestedTargetMutation.isPending ||
-                    unapplySuggestedTargetMutation.isPending ||
-                    !reviewReady ||
-                    (isDryRun && !canSaveDryRun)
+                    saveImportBlockers.length > 0
                   }
                   onClick={handleSave}
                 >
