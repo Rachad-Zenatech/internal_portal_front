@@ -19,7 +19,7 @@ import { GLService } from "@/services/glService";
 import { compareGLSplitResults } from "@/utils/glCompare";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { GLSplitComparisonResult, GLSplitComparisonRow } from "@/types/glCompare";
-import type { CompanyBook } from "@/types/gl";
+import type { CompanyBook, GLAccountSuggestion } from "@/types/gl";
 import { toast } from "sonner";
 import { Loader2, FileSpreadsheet } from "lucide-react";
 import {
@@ -35,9 +35,10 @@ interface GLSplitCompareDialogProps {
   books: CompanyBook[];
   bookId?: number | null;
   localPreview?: any; // ImportPreview
+  localSuggestions?: GLAccountSuggestion[];
 }
 
-export function GLSplitCompareDialog({ books, bookId, localPreview }: GLSplitCompareDialogProps) {
+export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggestions }: GLSplitCompareDialogProps) {
   const [open, setOpen] = useState(false);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [expectedFile, setExpectedFile] = useState<File | null>(null);
@@ -62,6 +63,36 @@ export function GLSplitCompareDialog({ books, bookId, localPreview }: GLSplitCom
 
     try {
       let origRows = localPreview?.rows || [];
+      if (localPreview && localSuggestions && localSuggestions.length > 0) {
+        // Deep copy rows to prevent mutating the original parent state
+        origRows = JSON.parse(JSON.stringify(origRows));
+        origRows.forEach((row: any, idx: number) => {
+          const suggestion = localSuggestions.find(s => s.row_number === idx + 1);
+          if (suggestion) {
+            row.account_review = {
+              status: "predicted",
+              source: suggestion.review_source || "unknown",
+              categorized: true,
+              target_field: suggestion.target_field || "split_account",
+              current_target_account_number: null,
+              current_target_account_name: null,
+              suggested_account_number: suggestion.suggested_split_account_number || suggestion.suggested_account_number,
+              suggested_account_name: suggestion.suggested_split_account_name || suggestion.suggested_account_name,
+              suggested_payee: null,
+              suggested_memo: null,
+              confidence: suggestion.confidence,
+              requires_ai_review: false,
+              requires_human_review: suggestion.requires_manual_review,
+              reason: suggestion.reason,
+              matched_rule: (suggestion as any).rule || null,
+              applied_actions: [],
+              xgboost_candidate: null,
+              ai_context: null,
+              is_bank_transaction: row.account_review?.is_bank_transaction ?? row.is_bank_transaction ?? false,
+            };
+          }
+        });
+      }
       let origRes: any = null;
 
       // 1. Parse Original File (if no localPreview)
@@ -134,7 +165,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview }: GLSplitCom
                       applied_actions: [],
                       xgboost_candidate: null,
                       ai_context: null,
-                      is_bank_transaction: false,
+                      is_bank_transaction: row.account_review?.is_bank_transaction ?? row.is_bank_transaction ?? false,
                     };
                   }
                 });

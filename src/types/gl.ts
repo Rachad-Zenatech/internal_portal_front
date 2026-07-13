@@ -421,6 +421,7 @@ export type ImportPreviewRow = {
   memo: string | null;
   debit: number;
   credit: number;
+  is_bank_line?: boolean;
   account_review?: ImportPreviewAccountReview | null;
 };
 

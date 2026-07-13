@@ -8,13 +8,13 @@ function normalizeText(text?: string | null): string {
 const WORKFLOW_LABELS = {
   LOOKUP: "1-to-1 Mappings (Lookups)",
   QB_RULES: "QuickBooks Rules (from the approved rules cache)",
-  BANK_RULES: "Internal Bank Rules (e.g., matching bank transfers, bank service fees)",
+  BANK_RULES: "Bank Transfer",
   XGBOOST: "XGBoost Machine Learning Predictions",
   AI: "AI Review (strictly for the 1000-1099 bank/credit card scope)",
   MANUAL: "Manual Fallback",
 } as const;
 
-function getFriendlyLabel(source: string | null, matchedRule: any): string {
+function getFriendlyLabel(source: string | null, matchedRule: unknown): string {
   if (!source) return WORKFLOW_LABELS.MANUAL;
   
   const src = source.toLowerCase();
@@ -22,7 +22,12 @@ function getFriendlyLabel(source: string | null, matchedRule: any): string {
   if (src.includes("xgboost")) return WORKFLOW_LABELS.XGBOOST;
   if (src.includes("ai")) return WORKFLOW_LABELS.AI;
 
-  if (src.includes("internal bank") || src.includes("bank rule") || src.includes("bank feed")) {
+  if (
+    src.includes("internal bank") ||
+    src.includes("bank rule") ||
+    src.includes("bank feed") ||
+    src.includes("bank_transfer")
+  ) {
     return WORKFLOW_LABELS.BANK_RULES;
   }
 
@@ -47,8 +52,8 @@ function getAmount(row: ImportPreviewRow): number {
 }
 
 export function isBankOrCreditCard(row: ImportPreviewRow): boolean {
-  if (row.account_review && typeof row.account_review.is_bank_transaction === "boolean") {
-    return row.account_review.is_bank_transaction;
+  if (typeof row.is_bank_line === "boolean") {
+    return row.is_bank_line;
   }
 
   const code = (row.account_number || "").trim();
@@ -64,8 +69,8 @@ export function isBankOrCreditCard(row: ImportPreviewRow): boolean {
   }
 
   // Check account type if it exists in the raw data
-  const type = ((row as any).account_type || "").toLowerCase();
-  if (type === "bank" || type === "creditcard") {
+  const type = ((row as ImportPreviewRow & { account_type?: string }).account_type || "").toLowerCase();
+  if (type === "bank" || type === "creditcard" || type === "credit card") {
     return true;
   }
 
@@ -111,8 +116,8 @@ export function compareGLSplitResults(
     const origNormName = normalizeText(origRow.name);
     
     // First try: Match by transaction number
-    let matchedExpRows: any[] = [];
-    let matchedSameLines: any[] = [];
+    let matchedExpRows: (ImportPreviewRow & { _excel_row: number })[] = [];
+    let matchedSameLines: (ImportPreviewRow & { _excel_row: number })[] = [];
 
     if (origRow.transaction_number) {
       const sameTxn = unmatchedExpected.filter(e => e.transaction_number === origRow.transaction_number);
@@ -131,8 +136,8 @@ export function compareGLSplitResults(
       }
     }
 
-    const extractSplitsFromExpectedBankLine = (expectedBankLine: any) => {
-      let sameTxn: any[] = [];
+    const extractSplitsFromExpectedBankLine = (expectedBankLine: ImportPreviewRow & { _excel_row: number }) => {
+      let sameTxn: (ImportPreviewRow & { _excel_row: number })[];
       // Use gl_id to reliably find all lines of the split transaction, even if transaction_number is missing
       if (expectedBankLine.gl_id !== undefined && expectedBankLine.gl_id !== null) {
         sameTxn = unmatchedExpected.filter(e => e.gl_id === expectedBankLine.gl_id);
@@ -180,8 +185,9 @@ export function compareGLSplitResults(
       if (idx !== -1) unmatchedExpected.splice(idx, 1);
     });
 
-    const getExpectedAccount = (e: any) => {
-      return e.Split || e.split || e.split_account_name || e.account_review?.current_target_account_name || e.account_review?.current_target_account_number || e.account_name || e.account_number;
+    const getExpectedAccount = (e: ImportPreviewRow) => {
+      const extra = e as ImportPreviewRow & { Split?: string; split?: string; split_account_name?: string };
+      return extra.Split || extra.split || extra.split_account_name || e.account_review?.current_target_account_name || e.account_review?.current_target_account_number || e.account_name || e.account_number;
     };
 
     const expectedAccount = matchedExpRows.length === 1 
@@ -194,6 +200,31 @@ export function compareGLSplitResults(
       || origRow.account_number;
 
     let source = origRow.account_review?.source || null;
+
+    // Check if the source or matched rule indicates an internal bank/bank transfer rule
+    const ruleStr = (() => {
+      const matchedRule = origRow.account_review?.matched_rule as unknown;
+      if (typeof matchedRule === "string") return matchedRule.toLowerCase();
+      if (matchedRule && typeof matchedRule === "object") return JSON.stringify(matchedRule).toLowerCase();
+      return "";
+    })();
+
+    const isInternalBankRule = (
+      (source && (
+        source.toLowerCase().includes("internal bank") ||
+        source.toLowerCase().includes("bank rule") ||
+        source.toLowerCase().includes("bank feed") ||
+        source.toLowerCase().includes("bank_transfer")
+      )) ||
+      ruleStr.includes("bank_transfer") ||
+      ruleStr.includes("bank_service_charge") ||
+      ruleStr.includes("internal_bank")
+    );
+
+    if (isInternalBankRule) {
+      source = "bank_transfer";
+    }
+
     const confidence = origRow.account_review?.confidence || null;
 
     let status: GLSplitCompareStatus = "MATCH";
@@ -241,7 +272,8 @@ export function compareGLSplitResults(
     }
 
     if (!source) {
-      if ((origRow as any).split_account_number || (origRow as any).ledger_account_number) {
+      const extra = origRow as ImportPreviewRow & { split_account_number?: string; ledger_account_number?: string };
+      if (extra.split_account_number || extra.ledger_account_number) {
         source = "lookup";
       } else {
         source = "unmapped";
@@ -249,7 +281,7 @@ export function compareGLSplitResults(
     }
 
     results.push({
-      row_number: (origRow as any)._excel_row,
+      row_number: (origRow as ImportPreviewRow & { _excel_row: number })._excel_row,
       date: origDate,
       transaction_type: origRow.type || null,
       name: origRow.name || null,
@@ -294,7 +326,7 @@ export function compareGLSplitResults(
     summary.suspicious_rows++;
   });
 
-  summary.total_rows = results.length;
+  summary.total_rows = originalRows.length;
   summary.match_rate = summary.total_rows > 0 ? (summary.matched_rows / summary.total_rows) * 100 : 0;
 
   const sourceStats: Record<string, { total: number; matched: number }> = {
@@ -310,7 +342,7 @@ export function compareGLSplitResults(
     // Only track accuracy for rows that had a prediction
     if (row.status === "NOT_FOUND" && !row.dry_run_account) return;
     
-    const label = getFriendlyLabel(row.source, (row.original_row?.account_review as any)?.matched_rule);
+    const label = getFriendlyLabel(row.source, row.original_row?.account_review?.matched_rule);
     sourceStats[label].total++;
     if (row.status === "MATCH") {
       sourceStats[label].matched++;
