@@ -13,6 +13,7 @@ import type {
   ImportPreviewAccountReview,
   ImportPreviewAccountTransaction,
   ManualGlEntryRequest,
+  ParseImportResponse,
 } from "@/types/gl";
 import {
   useBooks,
@@ -103,6 +104,8 @@ type ReviewFinderKind =
   | "human_review"
   | "differences";
 
+type AiReviewRunState = "disabled" | "running" | "completed" | "not_run" | "incomplete";
+
 type AccountReviewProgress = {
   current: number;
   total: number;
@@ -154,6 +157,8 @@ function isPreviewExpiredError(err: unknown): boolean {
 
 const PREVIEW_EXPIRED_NOTICE =
   "This import preview has expired or was already saved. Please upload the file again.";
+const PREVIEW_EXPIRED_RERUN_NOTICE =
+  "This import preview has expired or was already saved. The selected file is still available, so rerun Account Review or upload the file again.";
 
 export default function GeneralLedgerUpload() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -362,12 +367,21 @@ export default function GeneralLedgerUpload() {
   const hasReconciliationMismatch = reconciliationChecks.some((check) => check.status !== "match");
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending || isAccountReviewJobRunning;
+  const aiReviewRunState = getAiReviewRunState(accountSuggestions, isReviewingAccounts, useGeminiReview);
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
   const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
   const isBackgroundParsing = parseImportBackgroundMutation.isPending;
   const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending || saveDryRunPreviewMutation.isPending;
   const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isTrainingXgboost || isReviewingAccounts || isSavingImport;
   const canSaveDryRun = Boolean(summary?.dry_run_preview_token || (selectedBook && file));
+  const activePreviewToken = preview?.pagination?.preview_token ?? summary?.dry_run_preview_token ?? null;
+  const canRerunAccountReview = Boolean(summary && selectedBook && (file || activePreviewToken)) &&
+    !isReviewingAccounts &&
+    !isSavingImport &&
+    !isPreviewPageLoading &&
+    !isTrainingXgboost &&
+    !parseImportMutation.isPending &&
+    !isBackgroundParsing;
   const accountReviewProgressLabel = accountReviewProgress
     ? formatAccountReviewProgress(accountReviewProgress, accountReviewJobId)
     : null;
@@ -542,6 +556,35 @@ export default function GeneralLedgerUpload() {
     }, 50);
   }
 
+  function applyDryRunParseResponse(response: ParseImportResponse) {
+    const previewToken =
+      response.dry_run_preview_token ??
+      response.summary.dry_run_preview_token ??
+      response.preview?.pagination?.preview_token ??
+      null;
+    setSummary({
+      ...response.summary,
+      dry_run_preview_token: previewToken ?? response.summary.dry_run_preview_token,
+    });
+    setBookId(response.summary.company_book_id);
+    setLocalPreview(response.preview ?? null);
+    setAccountFilter("all");
+    setFocusedReviewRowId(null);
+    setActiveReviewFinder(null);
+    setShowWorkbookPreview(false);
+
+    if (previewToken) {
+      window.history.replaceState(
+        null,
+        "",
+        `/general-ledger/upload?dry_run_preview_token=${encodeURIComponent(previewToken)}#import-review`
+      );
+    } else {
+      window.history.replaceState(null, "", "/general-ledger/upload#import-review");
+    }
+    scrollToImportReview();
+  }
+
   function handleGlFileChange(event: ChangeEvent<HTMLInputElement>) {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
@@ -604,26 +647,42 @@ export default function GeneralLedgerUpload() {
     autoAccountReviewKeyRef.current = null;
 
     try {
-      const backgroundParse = await parseImportBackgroundMutation.mutateAsync({
-        companyBookId: currentBook.book_id,
-        file: currentFile,
-        dryRun: true,
-        previewLimit: null,
-      });
-      if (parseRunIdRef.current !== parseRunId) return;
-      addJob(
-        "GL dry-run preview",
-        Promise.resolve(backgroundParse),
-        {
-          description: "Backend worker is parsing the GL file...",
-          type: "upload",
-        }
-      );
-      setBackgroundUploadMessage(
-        "The backend worker is parsing this GL dry-run preview. You can leave this page and open the notification when it is ready."
-      );
-      setIsUploadDrawerOpen(false); // Close drawer
-      void refetchUploadQueue();
+      try {
+        const backgroundParse = await parseImportBackgroundMutation.mutateAsync({
+          companyBookId: currentBook.book_id,
+          file: currentFile,
+          dryRun: true,
+          previewLimit: null,
+        });
+        if (parseRunIdRef.current !== parseRunId) return;
+        addJob(
+          "GL dry-run preview",
+          Promise.resolve(backgroundParse),
+          {
+            description: "Backend worker is parsing the GL file...",
+            type: "upload",
+          }
+        );
+        setBackgroundUploadMessage(
+          "The backend worker is parsing this GL dry-run preview. You can leave this page and open the notification when it is ready."
+        );
+        setIsUploadDrawerOpen(false);
+        void refetchUploadQueue();
+      } catch (backgroundErr) {
+        if (parseRunIdRef.current !== parseRunId) return;
+        console.warn("[GL Upload] Background parse queue failed; falling back to direct parse.", backgroundErr);
+        setBackgroundUploadMessage("Background queue failed. Parsing this GL file in this tab instead...");
+        const directParse = await parseImportMutation.mutateAsync({
+          companyBookId: currentBook.book_id,
+          file: currentFile,
+          dryRun: true,
+          previewLimit: null,
+        });
+        if (parseRunIdRef.current !== parseRunId) return;
+        applyDryRunParseResponse(directParse);
+        setBackgroundUploadMessage(null);
+        setIsUploadDrawerOpen(false);
+      }
 
       if (trainXgboostTestModel) {
         const training = await xgboostTrainingMutation.mutateAsync({
@@ -656,6 +715,7 @@ export default function GeneralLedgerUpload() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
+      setBackgroundUploadMessage(null);
     }
   }
 
@@ -764,12 +824,55 @@ export default function GeneralLedgerUpload() {
         setAccountReviewProgress({ current: 100, total: 100 });
         return job.result;
       }
-      if (["failed", "cancel_requested", "canceled", "discarded"].includes(job.status)) {
+      if (["cancel_requested", "canceled", "discarded"].includes(job.status)) {
+        throw new Error("Dry-run preview expired or was not found.");
+      }
+      if (job.status === "failed") {
         throw new Error(job.error?.message || `Account review ${job.status}.`);
       }
 
       await wait(ACCOUNT_REVIEW_POLL_MS);
     }
+  }
+
+  function handleRerunAccountReview() {
+    if (!summary || !selectedBook) return;
+    const reviewPreviewToken = file ? null : activePreviewToken;
+    if (!file && !reviewPreviewToken) {
+      setSuggestionError(PREVIEW_EXPIRED_NOTICE);
+      return;
+    }
+
+    const parseRunId = parseRunIdRef.current + 1;
+    parseRunIdRef.current = parseRunId;
+    autoAccountReviewKeyRef.current = null;
+    setError(null);
+    setSuggestionError(null);
+    setAccountSuggestions(null);
+    setAccountReviewProgress(null);
+    setAccountReviewJobId(null);
+    setIsAccountReviewJobRunning(false);
+    setApplyingSuggestionKey(null);
+    setAppliedSuggestionRows(new Set());
+    setAppliedSuggestionChanges(new Map());
+    setFocusedReviewRowId(null);
+    setActiveReviewFinder(null);
+
+    void reviewAccountSuggestions({
+      file,
+      previewToken: reviewPreviewToken,
+      formatCode: selectedBook.format_code,
+      parseRunId,
+      rowCount: summary.gl_entry_lines,
+      context: {
+        filename: file?.name ?? `dry-run-preview-${reviewPreviewToken}`,
+        companyId: selectedBook.company_id,
+        companyName: selectedBook.company_name,
+        formatCode: selectedBook.format_code,
+        sourceFileId: summary.source_file_id,
+        useGemini: useGeminiReview,
+      },
+    });
   }
 
   async function reviewAccountSuggestions({
@@ -857,7 +960,7 @@ export default function GeneralLedgerUpload() {
         if (isPreviewExpiredError(suggestionErr)) {
           window.history.replaceState(null, "", "/general-ledger/upload");
           loadedPreviewTokenRef.current = null;
-          setSuggestionError(PREVIEW_EXPIRED_NOTICE);
+          setSuggestionError(file ? PREVIEW_EXPIRED_RERUN_NOTICE : PREVIEW_EXPIRED_NOTICE);
         } else {
           setSuggestionError(`Account review failed after the GL upload was staged: ${message}`);
         }
@@ -1760,7 +1863,17 @@ export default function GeneralLedgerUpload() {
                     </p>
                   </div>
                   <Badge variant={suggestionError ? "destructive" : accountSuggestions ? "default" : "outline"}>
-                    {isReviewingAccounts ? "Running" : suggestionError ? "Failed" : accountSuggestions ? "Complete" : "Pending"}
+                    {isReviewingAccounts
+                      ? "Running"
+                      : suggestionError
+                        ? "Failed"
+                        : accountSuggestions && aiReviewRunState === "incomplete"
+                          ? "Incomplete"
+                          : accountSuggestions && aiReviewRunState === "not_run"
+                            ? "AI not run"
+                            : accountSuggestions
+                              ? "Complete"
+                              : "Pending"}
                   </Badge>
                 </div>
               </div>
@@ -1771,6 +1884,10 @@ export default function GeneralLedgerUpload() {
                 isLoading={isReviewingAccounts}
                 progressLabel={accountReviewProgressLabel}
                 error={suggestionError}
+                aiReviewRunState={aiReviewRunState}
+                onRerun={handleRerunAccountReview}
+                canRerun={canRerunAccountReview}
+                rerunLabel={useGeminiReview ? "Rerun AI Review" : "Rerun Review"}
                 onApplySuggestedTarget={!isDryRun && summary ? handleApplySuggestedTarget : undefined}
                 onUnapplySuggestedTarget={!isDryRun && summary ? handleUnapplySuggestedTarget : undefined}
                 applyingSuggestionKey={applyingSuggestionKey}
@@ -1898,6 +2015,7 @@ export default function GeneralLedgerUpload() {
                         onFilter={() => setAccountFilter(account.account_key)}
                         suggestionByTransaction={suggestionByTransaction}
                         focusedReviewRowId={focusedReviewRowId}
+                        aiReviewRunState={aiReviewRunState}
                       />
                     ))}
                   </div>
@@ -1998,6 +2116,7 @@ export default function GeneralLedgerUpload() {
           open={showWorkbookPreview}
           filename={file?.name ?? "Uploaded GL"}
           rows={workbookRows}
+          aiReviewRunState={aiReviewRunState}
           onClose={() => setShowWorkbookPreview(false)}
         />
       )}
@@ -2006,6 +2125,7 @@ export default function GeneralLedgerUpload() {
           kind={activeReviewFinder}
           rows={activeReviewFinderRows}
           focusedReviewRowId={focusedReviewRowId}
+          aiReviewRunState={aiReviewRunState}
           onGoTo={goToReviewFinderRow}
           onClose={() => setActiveReviewFinder(null)}
         />
@@ -2027,12 +2147,14 @@ function ReviewFinderPanel({
   kind,
   rows,
   focusedReviewRowId,
+  aiReviewRunState,
   onGoTo,
   onClose,
 }: {
   kind: ReviewFinderKind;
   rows: WorkbookPreviewRow[];
   focusedReviewRowId: string | null;
+  aiReviewRunState: AiReviewRunState;
   onGoTo: (row: WorkbookPreviewRow) => void;
   onClose: () => void;
 }) {
@@ -2099,10 +2221,11 @@ function ReviewFinderPanel({
             const rowId = previewRowDomId(row.account, row.txn);
             const isFocused = focusedReviewRowId === rowId;
             const label = row.txn.name || row.txn.memo || row.txn.transaction_type || "Transaction";
-            const marker = formatReviewFinderMarker(kind, row);
+            const marker = formatReviewFinderMarker(kind, row, aiReviewRunState);
             const suggested = formatReviewSuggestedTarget(
               row.suggestion ?? undefined,
-              row.txn.account_review
+              row.txn.account_review,
+              aiReviewRunState
             );
             const confidence = formatReviewConfidence(
               row.suggestion ?? undefined,
@@ -2250,12 +2373,14 @@ function ReviewAccountGroup({
   onFilter,
   suggestionByTransaction,
   focusedReviewRowId,
+  aiReviewRunState,
 }: {
   account: ImportPreviewAccount;
   isFiltered: boolean;
   onFilter: () => void;
   suggestionByTransaction: Map<string, GLAccountSuggestion>;
   focusedReviewRowId?: string | null;
+  aiReviewRunState: AiReviewRunState;
 }) {
   const transactions = account.transactions ?? [];
   const closingBalance = getPreviewAccountClosingBalance(account);
@@ -2331,8 +2456,9 @@ function ReviewAccountGroup({
                 );
                 const previewReview = txn.account_review;
                 const currentTargetTitle = formatReviewCurrentTarget(txn, suggestion, previewReview);
-                const suggestedTargetTitle = formatReviewSuggestedTarget(suggestion, previewReview);
-                const rowTitle = formatAccountReviewTransactionTitle(txn, suggestion, previewReview);
+                const suggestedTargetTitle = formatReviewSuggestedTarget(suggestion, previewReview, aiReviewRunState);
+                const missingSuggestedTargetLabel = formatMissingSuggestedTargetLabel(previewReview, aiReviewRunState);
+                const rowTitle = formatAccountReviewTransactionTitle(txn, suggestion, previewReview, aiReviewRunState);
                 const rowDomId = previewRowDomId(account, txn);
                 const rowIsFocused = focusedReviewRowId === rowDomId;
 
@@ -2365,7 +2491,7 @@ function ReviewAccountGroup({
                   </TableCell>
                   <TableCell className="min-w-[220px] max-w-[280px]" title={suggestedTargetTitle}>
                     {suggestion ? (
-                      <SuggestedAccountValue suggestion={suggestion} />
+                      <SuggestedAccountValue suggestion={suggestion} aiReviewRunState={aiReviewRunState} />
                     ) : previewReview?.suggested_account_number ? (
                       <div className="min-w-0">
                         <AccountValue
@@ -2376,11 +2502,11 @@ function ReviewAccountGroup({
                       </div>
                     ) : previewReview ? (
                       <div className="min-w-0">
-                        <span className="text-muted-foreground">No change</span>
+                        <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
                         <ConfidenceValue review={previewReview} className="mt-1" />
                       </div>
                     ) : (
-                      <span className="text-muted-foreground">No change</span>
+                      <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -2395,6 +2521,7 @@ function ReviewAccountGroup({
                       suggestion={suggestion ?? null}
                       fallbackNumber={txn.split_account_number}
                       fallbackName={txn.split_account_name}
+                      aiReviewRunState={aiReviewRunState}
                     />
                     {txn.split_account_number ? `${txn.split_account_number} · ${txn.split_account_name || ""}` : "-"}
                   </TableCell>
@@ -2492,6 +2619,41 @@ function getGeminiReviewedRowNumbers(
         .filter((rowNumber) => Number.isFinite(rowNumber) && rowNumber > 0)
     )
   ).sort((a, b) => a - b);
+}
+
+function getAiReviewRunState(
+  response: GLAccountSuggestionsResponse | null,
+  isLoading: boolean,
+  useAiReview: boolean
+): AiReviewRunState {
+  if (!useAiReview) return "disabled";
+  if (isLoading) return "running";
+  if (!response) return "not_run";
+
+  const aiReview = response.ai_review;
+  if (!aiReview || !aiReview.enabled) return "not_run";
+
+  const completedChunks = aiReview.completed_chunk_count ?? 0;
+  const failedChunks = aiReview.failed_chunk_count ?? 0;
+  const hasChunkError = (aiReview.chunks ?? []).some((chunk) => Boolean(chunk.error));
+  const hasEscalationError = Boolean(aiReview.escalation?.error) ||
+    (aiReview.escalation?.chunks ?? []).some((chunk) => Boolean(chunk.error));
+  const reviewedRows = aiReview.reviewed_row_count > 0 ||
+    (aiReview.reviewed_row_numbers?.length ?? 0) > 0 ||
+    (aiReview.suggestions?.length ?? 0) > 0 ||
+    completedChunks > 0;
+
+  if (!aiReview.available) return reviewedRows ? "incomplete" : "not_run";
+  if (aiReview.error || failedChunks > 0 || hasChunkError || hasEscalationError) {
+    return reviewedRows ? "incomplete" : "not_run";
+  }
+
+  const requestedRows = aiReview.requested_row_count ??
+    aiReview.total_transaction_count ??
+    response.transaction_count;
+  if (requestedRows > 0 && !reviewedRows) return "not_run";
+
+  return "completed";
 }
 
 function formatRowNumberRanges(rowNumbers: number[]) {
@@ -2649,6 +2811,10 @@ function AccountSuggestionReview({
   isLoading,
   progressLabel,
   error,
+  aiReviewRunState,
+  onRerun,
+  canRerun = false,
+  rerunLabel = "Rerun Review",
   onApplySuggestedTarget,
   onUnapplySuggestedTarget,
   applyingSuggestionKey,
@@ -2659,6 +2825,10 @@ function AccountSuggestionReview({
   isLoading: boolean;
   progressLabel?: string | null;
   error: string | null;
+  aiReviewRunState: AiReviewRunState;
+  onRerun?: () => void;
+  canRerun?: boolean;
+  rerunLabel?: string;
   onApplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   applyingSuggestionKey?: string | null;
@@ -2692,7 +2862,7 @@ function AccountSuggestionReview({
           : ""
       }`
     : null;
-  if (!response && !isLoading && !error) {
+  if (!response && !isLoading && !error && !onRerun) {
     return null;
   }
 
@@ -2707,10 +2877,29 @@ function AccountSuggestionReview({
           <p className="mt-1 text-sm text-muted-foreground">
             {response
               ? `${response.suggestion_count.toLocaleString("en-US")} reviewed rows from ${response.transaction_count.toLocaleString("en-US")} parsed transactions`
-              : "Reviewing imported rows against the shared chart of accounts"}
+              : isLoading
+                ? "Reviewing imported rows against the shared chart of accounts"
+                : "Review imported rows against the shared chart of accounts"}
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          {onRerun && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onRerun}
+              disabled={!canRerun || isLoading}
+            >
+              <RotateCcw className="h-4 w-4" />
+              {isLoading ? "Reviewing..." : rerunLabel}
+            </Button>
+          )}
+          {!isLoading && isAiReviewPendingState(aiReviewRunState) && (
+            <Badge variant={aiReviewRunState === "incomplete" ? "destructive" : "secondary"}>
+              {formatAiReviewPendingLabel(aiReviewRunState)}
+            </Badge>
+          )}
           <Badge variant={modelLoaded ? "outline" : "secondary"}>
             {modelLoaded ? "XGBoost loaded" : "XGBoost not loaded"}
           </Badge>
@@ -2797,7 +2986,9 @@ function AccountSuggestionReview({
 
       {!isLoading && !error && response && suggestions.length === 0 && (
         <div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
-          No account corrections were flagged.
+          {isAiReviewPendingState(aiReviewRunState)
+            ? `${formatAiReviewPendingLabel(aiReviewRunState)}. Rerun AI Review to check for corrections.`
+            : "No account corrections were flagged."}
         </div>
       )}
 
@@ -2824,8 +3015,8 @@ function AccountSuggestionReview({
                   suggestion.current_target_account_number,
                   suggestion.current_target_account_name
                 );
-                const suggestedTargetTitle = formatSuggestionLabel(suggestion);
-                const rowTitle = formatAccountSuggestionTitle(suggestion);
+                const suggestedTargetTitle = formatSuggestionLabel(suggestion, aiReviewRunState);
+                const rowTitle = formatAccountSuggestionTitle(suggestion, aiReviewRunState);
                 const wasGeminiReviewed = geminiReviewedRowSet.has(suggestion.row_number);
                 const hasXgboostSuggestion = isXgboostSuggestion(suggestion);
                 const hasPlainSuggestion = Boolean(
@@ -2850,7 +3041,7 @@ function AccountSuggestionReview({
                   onApplySuggestedTarget &&
                     visibleSuggestedTargetNumber &&
                     visibleSuggestedTargetNumber !== "MANUAL_REVIEW" &&
-                    !isNoChangeSuggestion(suggestion) &&
+                    isChangedSuggestion(suggestion) &&
                     !isApplied
                 );
                 const canUnapplySuggestedTarget = Boolean(
@@ -2993,11 +3184,13 @@ function DraggableWorkbookPreview({
   open,
   filename,
   rows,
+  aiReviewRunState,
   onClose,
 }: {
   open: boolean;
   filename: string;
   rows: WorkbookPreviewRow[];
+  aiReviewRunState: AiReviewRunState;
   onClose: () => void;
 }) {
   const [position, setPosition] = useState({ x: 32, y: 96 });
@@ -3097,7 +3290,8 @@ function DraggableWorkbookPreview({
                 title={formatAccountReviewTransactionTitle(
                   row.txn,
                   row.suggestion ?? undefined,
-                  row.txn.account_review
+                  row.txn.account_review,
+                  aiReviewRunState
                 )}
               >
                 <TableCell className="">{row.txn.entry_date || "-"}</TableCell>
@@ -3128,7 +3322,7 @@ function DraggableWorkbookPreview({
                 </TableCell>
                 <TableCell className="min-w-[220px] max-w-[280px]">
                   {row.suggestion ? (
-                    <SuggestedAccountValue suggestion={row.suggestion} />
+                    <SuggestedAccountValue suggestion={row.suggestion} aiReviewRunState={aiReviewRunState} />
                   ) : row.txn.account_review?.suggested_account_number ? (
                     <div className="min-w-0">
                       <AccountValue
@@ -3139,11 +3333,15 @@ function DraggableWorkbookPreview({
                     </div>
                   ) : row.txn.account_review ? (
                     <div className="min-w-0">
-                      <span className="text-muted-foreground">No change</span>
+                      <span className="text-muted-foreground">
+                        {formatMissingSuggestedTargetLabel(row.txn.account_review, aiReviewRunState)}
+                      </span>
                       <ConfidenceValue review={row.txn.account_review} className="mt-1" />
                     </div>
                   ) : (
-                    <span className="text-muted-foreground">No change</span>
+                    <span className="text-muted-foreground">
+                      {formatMissingSuggestedTargetLabel(null, aiReviewRunState)}
+                    </span>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
@@ -3180,10 +3378,12 @@ function AccountComparison({
   suggestion,
   fallbackNumber,
   fallbackName,
+  aiReviewRunState,
 }: {
   suggestion: GLAccountSuggestion | null;
   fallbackNumber: string | null;
   fallbackName: string | null;
+  aiReviewRunState: AiReviewRunState;
 }) {
   return (
     <div className="space-y-1 text-sm">
@@ -3202,9 +3402,9 @@ function AccountComparison({
           Suggested
         </span>
         {suggestion ? (
-          <SuggestedAccountValue suggestion={suggestion} />
+          <SuggestedAccountValue suggestion={suggestion} aiReviewRunState={aiReviewRunState} />
         ) : (
-          <span className="text-muted-foreground">No change</span>
+          <span className="text-muted-foreground">{formatMissingSuggestedTargetLabel(null, aiReviewRunState)}</span>
         )}
       </div>
     </div>
@@ -3232,12 +3432,33 @@ function AccountValue({
 
 function SuggestedAccountValue({
   suggestion,
+  aiReviewRunState,
 }: {
   suggestion: GLAccountSuggestion;
+  aiReviewRunState: AiReviewRunState;
 }) {
   const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
   const suggestedName = getVisibleSuggestedTargetName(suggestion);
+  const noChangeLabel = formatNoChangeSuggestionLabel(suggestion, aiReviewRunState);
 
+  if (shouldShowAiPendingForSuggestion(suggestion, aiReviewRunState)) {
+    return (
+      <div className="min-w-0">
+        <span className="font-medium text-violet-700 dark:text-violet-300">
+          {formatAiReviewPendingLabel(aiReviewRunState)}
+        </span>
+        <ConfidenceValue suggestion={suggestion} className="mt-1" />
+      </div>
+    );
+  }
+  if (isAiFallbackSuggestion(suggestion) && !suggestedNumber) {
+    return (
+      <div className="min-w-0">
+        <span className="font-medium text-violet-700 dark:text-violet-300">AI review required</span>
+        <ConfidenceValue suggestion={suggestion} className="mt-1" />
+      </div>
+    );
+  }
   if (suggestion.requires_manual_review && !suggestedNumber) {
     return (
       <div className="min-w-0">
@@ -3249,7 +3470,7 @@ function SuggestedAccountValue({
   if (isNoChangeSuggestion(suggestion)) {
     return (
       <div className="min-w-0">
-        <span className="text-muted-foreground">No change</span>
+        <span className="text-muted-foreground">{noChangeLabel}</span>
         <ConfidenceValue suggestion={suggestion} className="mt-1" />
       </div>
     );
@@ -3594,7 +3815,11 @@ function isWorkbookHumanReviewRow(row: WorkbookPreviewRow) {
   );
 }
 
-function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRow) {
+function formatReviewFinderMarker(
+  kind: ReviewFinderKind,
+  row: WorkbookPreviewRow,
+  aiReviewRunState: AiReviewRunState = "completed"
+) {
   const review = row.txn.account_review;
   if (kind === "ai_changed" || kind === "differences") {
     const current = formatReviewCurrentTarget(
@@ -3604,7 +3829,8 @@ function formatReviewFinderMarker(kind: ReviewFinderKind, row: WorkbookPreviewRo
     );
     const suggested = formatReviewSuggestedTarget(
       row.suggestion ?? undefined,
-      review
+      review,
+      aiReviewRunState
     );
     const prefix = kind === "differences" ? "Change" : "AI changed";
     return `${prefix}: ${current} -> ${suggested}`;
@@ -3686,14 +3912,84 @@ function getVisibleSuggestedTargetName(suggestion: GLAccountSuggestion) {
     : suggestion.suggested_target_account_name;
 }
 
-function formatSuggestionLabel(suggestion: GLAccountSuggestion) {
+function isAiReviewPendingState(aiReviewRunState: AiReviewRunState) {
+  return aiReviewRunState === "running" || aiReviewRunState === "not_run" || aiReviewRunState === "incomplete";
+}
+
+function formatAiReviewPendingLabel(aiReviewRunState: AiReviewRunState) {
+  if (aiReviewRunState === "running") return "AI running";
+  if (aiReviewRunState === "incomplete") return "AI incomplete";
+  return "AI not run";
+}
+
+function isAiReviewedSuggestion(suggestion: GLAccountSuggestion) {
+  const source = String(suggestion.review_source ?? "").toLowerCase();
+  return (
+    source === "ai" ||
+    source === "gemini" ||
+    suggestion.rule.startsWith("ai_") ||
+    suggestion.rule.startsWith("gemini_ai_") ||
+    Boolean(suggestion.ai_provider)
+  );
+}
+
+function shouldShowAiPendingForSuggestion(
+  suggestion: GLAccountSuggestion,
+  aiReviewRunState: AiReviewRunState
+) {
+  if (!isAiReviewPendingState(aiReviewRunState)) return false;
+  if (isAiReviewedSuggestion(suggestion)) return false;
+  return (
+    isAiFallbackSuggestion(suggestion) ||
+    suggestion.rule === "needs_ai_review" ||
+    suggestion.rule === "keep_current" ||
+    suggestion.review_status === "needs_ai_review"
+  );
+}
+
+function formatNoChangeSuggestionLabel(
+  suggestion: GLAccountSuggestion,
+  aiReviewRunState: AiReviewRunState = "completed"
+) {
+  return shouldShowAiPendingForSuggestion(suggestion, aiReviewRunState)
+    ? formatAiReviewPendingLabel(aiReviewRunState)
+    : "No change";
+}
+
+function formatMissingSuggestedTargetLabel(
+  review?: ImportPreviewAccountReview | null,
+  aiReviewRunState: AiReviewRunState = "completed"
+) {
+  if (review?.requires_ai_review) {
+    return isAiReviewPendingState(aiReviewRunState)
+      ? formatAiReviewPendingLabel(aiReviewRunState)
+      : "AI review required";
+  }
+  if (!review && isAiReviewPendingState(aiReviewRunState)) {
+    return formatAiReviewPendingLabel(aiReviewRunState);
+  }
+  return "No change";
+}
+
+function formatSuggestionLabel(
+  suggestion: GLAccountSuggestion,
+  aiReviewRunState: AiReviewRunState = "completed"
+) {
   const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
   const suggestedName = getVisibleSuggestedTargetName(suggestion);
 
+  if (shouldShowAiPendingForSuggestion(suggestion, aiReviewRunState)) {
+    return formatAiReviewPendingLabel(aiReviewRunState);
+  }
+  if (isAiFallbackSuggestion(suggestion) && !suggestedNumber) {
+    return "AI review required";
+  }
   if (suggestion.requires_manual_review && !suggestedNumber) {
     return "Manual review";
   }
-  if (isNoChangeSuggestion(suggestion)) return "No change";
+  if (isNoChangeSuggestion(suggestion)) {
+    return formatNoChangeSuggestionLabel(suggestion, aiReviewRunState);
+  }
   return formatSuggestionAccount(
     suggestedNumber,
     suggestedName
@@ -3723,13 +4019,14 @@ function formatReviewCurrentTarget(
 
 function formatReviewSuggestedTarget(
   suggestion?: GLAccountSuggestion,
-  review?: ImportPreviewAccountReview | null
+  review?: ImportPreviewAccountReview | null,
+  aiReviewRunState: AiReviewRunState = "completed"
 ) {
-  if (suggestion) return formatSuggestionLabel(suggestion);
+  if (suggestion) return formatSuggestionLabel(suggestion, aiReviewRunState);
   if (review?.suggested_account_number || review?.suggested_account_name) {
     return formatSuggestionAccount(review.suggested_account_number, review.suggested_account_name);
   }
-  return "No change";
+  return formatMissingSuggestedTargetLabel(review, aiReviewRunState);
 }
 
 function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
@@ -3937,7 +4234,10 @@ function formatAiReviewTitle(suggestion: GLAccountSuggestion) {
   ].join("\n");
 }
 
-function formatAccountSuggestionTitle(suggestion: GLAccountSuggestion) {
+function formatAccountSuggestionTitle(
+  suggestion: GLAccountSuggestion,
+  aiReviewRunState: AiReviewRunState = "completed"
+) {
   const lines = [
     `Row: ${suggestion.row_number}`,
     formatSuggestionTransactionTitle(suggestion),
@@ -3946,7 +4246,7 @@ function formatAccountSuggestionTitle(suggestion: GLAccountSuggestion) {
       suggestion.current_target_account_number,
       suggestion.current_target_account_name
     )}`,
-    `Suggested target: ${formatSuggestionLabel(suggestion)}`,
+    `Suggested target: ${formatSuggestionLabel(suggestion, aiReviewRunState)}`,
     `Confidence: ${formatPercent(suggestion.confidence)}`,
     `Status: ${formatSuggestionStatus(suggestion)}`,
     `Review label: ${formatReviewText(suggestion.review_label)}`,
@@ -3969,7 +4269,8 @@ function formatAccountSuggestionTitle(suggestion: GLAccountSuggestion) {
 function formatAccountReviewTransactionTitle(
   txn: ImportPreviewAccountTransaction,
   suggestion?: GLAccountSuggestion,
-  review?: ImportPreviewAccountReview | null
+  review?: ImportPreviewAccountReview | null,
+  aiReviewRunState: AiReviewRunState = "completed"
 ) {
   const lines = [
     `Date: ${formatReviewText(txn.entry_date)}`,
@@ -3982,7 +4283,7 @@ function formatAccountReviewTransactionTitle(
     `Credit: ${formatOptionalMoney(txn.credit)}`,
     `Balance: ${formatOptionalMoney(txn.balance_after)}`,
     `Current target: ${formatReviewCurrentTarget(txn, suggestion, review)}`,
-    `Suggested target: ${formatReviewSuggestedTarget(suggestion, review)}`,
+    `Suggested target: ${formatReviewSuggestedTarget(suggestion, review, aiReviewRunState)}`,
     `Status: ${formatReviewStatus(suggestion, review)}`,
     `Review marker: ${formatReviewMarker(suggestion, review)}`,
   ];
