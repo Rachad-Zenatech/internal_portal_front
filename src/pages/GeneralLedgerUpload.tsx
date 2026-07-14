@@ -228,6 +228,8 @@ export default function GeneralLedgerUpload() {
   const parseRunIdRef = useRef(0);
   const loadedPreviewTokenRef = useRef<string | null>(null);
   const autoAccountReviewKeyRef = useRef<string | null>(null);
+  const accountReviewHistoryTokenRef = useRef<string | null>(null);
+  const [isRestoringAccountReviewHistory, setIsRestoringAccountReviewHistory] = useState(false);
   const pendingImportReviewScrollRef = useRef(false);
   const glFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -394,7 +396,7 @@ export default function GeneralLedgerUpload() {
   const reconciliationChecks = preview?.reconciliation?.checks ?? [];
   const hasReconciliationMismatch = reconciliationChecks.some((check) => check.status !== "match");
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
-  const isReviewingAccounts = accountSuggestionsMutation.isPending || isAccountReviewJobRunning;
+  const isReviewingAccounts = accountSuggestionsMutation.isPending || isAccountReviewJobRunning || isRestoringAccountReviewHistory;
   const aiReviewRunState = getAiReviewRunState(accountSuggestions, isReviewingAccounts, useGeminiReview);
   const missingAiReviewRowNumbers = useMemo(
     () => getAiReviewMissingRowNumbers(accountSuggestions?.ai_review ?? null),
@@ -497,6 +499,7 @@ export default function GeneralLedgerUpload() {
     applySuggestedTargetMutation.isPending,
     canSaveDryRun,
     isDryRun,
+    isRestoringAccountReviewHistory,
     isReviewingAccounts,
     isSavingImport,
     preview,
@@ -563,10 +566,127 @@ export default function GeneralLedgerUpload() {
 
 
   useEffect(() => {
+    if (!preview || !summary || !selectedBook || file || accountSuggestions || isReviewingAccounts) return;
+    const previewToken =
+      preview.pagination?.preview_token ?? summary.dry_run_preview_token ?? null;
+    if (!previewToken) return;
+
+    const loadingKey = `loading:${previewToken}`;
+    const doneKey = `done:${previewToken}`;
+    if (
+      accountReviewHistoryTokenRef.current === loadingKey ||
+      accountReviewHistoryTokenRef.current === doneKey
+    ) {
+      return;
+    }
+
+    accountReviewHistoryTokenRef.current = loadingKey;
+    setIsRestoringAccountReviewHistory(true);
+    const restoreParseRunId = parseRunIdRef.current;
+    void GLService.getAccountSuggestionsHistory(previewToken)
+      .then(async (history) => {
+        if (accountReviewHistoryTokenRef.current !== loadingKey) return;
+        let restored: GLAccountSuggestionsResponse | null = null;
+        for (const run of history.runs) {
+          const retryRows = normalizeRowNumbers(run.retry_row_numbers ?? []);
+          restored = restored && retryRows.length > 0
+            ? mergeAiRetryAccountSuggestions(restored, run.result, retryRows)
+            : run.result;
+        }
+        if (restored) {
+          setAccountSuggestions(restored);
+          const issues = logGeminiReviewIssues(restored, {
+            filename: `dry-run-preview-${previewToken}`,
+            companyId: selectedBook.company_id,
+            companyName: selectedBook.company_name,
+            formatCode: selectedBook.format_code,
+            sourceFileId: summary.source_file_id,
+            useGemini: useGeminiReview,
+          });
+          setSuggestionError(
+            issues.length > 0 ? formatGeminiReviewIssueNotice(issues) : null
+          );
+        }
+        if (history.active_job) {
+          const activeJob = history.active_job;
+          setIsAccountReviewJobRunning(true);
+          setAccountReviewJobId(activeJob.job_id);
+          setAccountReviewProgress({
+            current: Math.min(99, Math.max(1, activeJob.progress ?? 1)),
+            total: 100,
+          });
+          try {
+            const activeResult = await pollAccountReviewJob(
+              activeJob.job_id,
+              restoreParseRunId
+            );
+            const activeRetryRows = normalizeRowNumbers(
+              activeJob.retry_row_numbers ?? []
+            );
+            restored = restored && activeRetryRows.length > 0
+              ? mergeAiRetryAccountSuggestions(restored, activeResult, activeRetryRows)
+              : activeResult;
+            if (parseRunIdRef.current === restoreParseRunId) {
+              setAccountSuggestions(restored);
+              setAccountReviewProgress({ current: 100, total: 100 });
+              const activeIssues = logGeminiReviewIssues(restored, {
+                filename: `dry-run-preview-${previewToken}`,
+                companyId: selectedBook.company_id,
+                companyName: selectedBook.company_name,
+                formatCode: selectedBook.format_code,
+                sourceFileId: summary.source_file_id,
+                useGemini: useGeminiReview,
+              });
+              setSuggestionError(
+                activeIssues.length > 0
+                  ? formatGeminiReviewIssueNotice(activeIssues)
+                  : null
+              );
+            }
+          } catch (activeJobError) {
+            if (parseRunIdRef.current === restoreParseRunId) {
+              setSuggestionError(
+                activeJobError instanceof Error
+                  ? activeJobError.message
+                  : "Failed to restore the running AI account review."
+              );
+            }
+          } finally {
+            if (parseRunIdRef.current === restoreParseRunId) {
+              setIsAccountReviewJobRunning(false);
+              setAccountReviewJobId(null);
+            }
+          }
+        }
+        accountReviewHistoryTokenRef.current = doneKey;
+      })
+      .catch((restoreError) => {
+        console.warn("[GL Account Suggestions] history restore failed", restoreError);
+        if (accountReviewHistoryTokenRef.current === loadingKey) {
+          accountReviewHistoryTokenRef.current = doneKey;
+        }
+      })
+      .finally(() => {
+        if (accountReviewHistoryTokenRef.current !== loadingKey) {
+          setIsRestoringAccountReviewHistory(false);
+        }
+      });
+  }, [
+    accountSuggestions,
+    file,
+    isReviewingAccounts,
+    preview,
+    selectedBook,
+    summary,
+    useGeminiReview,
+  ]);
+  useEffect(() => {
     if (!preview || !summary || !selectedBook) return;
     const previewToken =
       preview.pagination?.preview_token ?? summary.dry_run_preview_token ?? null;
     if (!file && !previewToken) return;
+    if (!file && previewToken && accountReviewHistoryTokenRef.current !== `done:${previewToken}`) return;
+    if (isRestoringAccountReviewHistory) return;
     if (accountSuggestions || suggestionError || isReviewingAccounts) return;
     if (isSavingImport || isPreviewPageLoading || isTrainingXgboost || parseImportMutation.isPending || isBackgroundParsing) return;
 
@@ -601,6 +721,7 @@ export default function GeneralLedgerUpload() {
     file,
     isBackgroundParsing,
     isPreviewPageLoading,
+    isRestoringAccountReviewHistory,
     isReviewingAccounts,
     isSavingImport,
     isTrainingXgboost,
@@ -631,6 +752,7 @@ export default function GeneralLedgerUpload() {
     setXgboostTrainingResult(null);
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
+    accountReviewHistoryTokenRef.current = null;
   }
 
   function toggleReviewFinder(kind: ReviewFinderKind, rows: WorkbookPreviewRow[]) {
@@ -803,6 +925,7 @@ export default function GeneralLedgerUpload() {
     setXgboostTrainingResult(null);
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
+    accountReviewHistoryTokenRef.current = null;
 
     try {
       try {
@@ -1008,6 +1131,7 @@ export default function GeneralLedgerUpload() {
     const parseRunId = parseRunIdRef.current + 1;
     parseRunIdRef.current = parseRunId;
     autoAccountReviewKeyRef.current = null;
+    accountReviewHistoryTokenRef.current = null;
     setError(null);
     setSuggestionError(null);
     if (!previousResponse) {

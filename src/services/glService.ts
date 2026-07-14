@@ -17,6 +17,7 @@ import type {
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsBackgroundResponse,
   GLAccountSuggestionsJobResponse,
+  GLAccountSuggestionsHistoryResponse,
   GLAccountSuggestionsResponse,
   GLParseImportRequest,
   GLUploadQueueCancelResponse,
@@ -419,6 +420,13 @@ export const GLService = {
   async getAccountSuggestionsJob(jobId: string | number): Promise<GLAccountSuggestionsJobResponse> {
     return apiClient.get<GLAccountSuggestionsJobResponse>(
       `/accounting/gl/imports/account-suggestions/jobs/${encodeURIComponent(String(jobId))}`
+    );
+  },
+  async getAccountSuggestionsHistory(
+    previewToken: string
+  ): Promise<GLAccountSuggestionsHistoryResponse> {
+    return apiClient.get<GLAccountSuggestionsHistoryResponse>(
+      `/accounting/gl/imports/dry-run-preview/${encodeURIComponent(previewToken)}/account-suggestions-history`
     );
   },
 

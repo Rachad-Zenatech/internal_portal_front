@@ -148,6 +148,23 @@ export type GLAccountSuggestionsJobResponse = {
   completed_at?: string | null;
   updated_at?: string | null;
 };
+export type GLAccountSuggestionsHistoryResponse = {
+  preview_token: string;
+  runs: Array<{
+    job_id: string;
+    retry_row_numbers: number[];
+    result: GLAccountSuggestionsResponse;
+    created_at?: string | null;
+    completed_at?: string | null;
+  }>;
+  active_job?: {
+    job_id: string;
+    status: string;
+    progress: number;
+    retry_row_numbers: number[];
+    created_at?: string | null;
+  } | null;
+};
 
 export type GLXgboostTestTrainingRequest = {
   file: File;
