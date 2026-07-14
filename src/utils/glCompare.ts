@@ -52,44 +52,105 @@ function getAmount(row: ImportPreviewRow): number {
 }
 
 export function isBankOrCreditCard(row: ImportPreviewRow): boolean {
-  if (typeof row.is_bank_line === "boolean") {
-    return row.is_bank_line;
+  const ledgerType = (
+    (row as any).ledger_account_type ||
+    (row as any).account_type ||
+    ""
+  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  const splitType = (
+    (row as any).split_account_type ||
+    ""
+  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  const isLedgerBankOrCard = ledgerType === "bank" || ledgerType === "creditcard";
+  const isSplitBankOrCard = splitType === "bank" || splitType === "creditcard";
+
+  return isLedgerBankOrCard || isSplitBankOrCard || !!row.is_bank_line;
+}
+
+export function getChargeAccount(row: ImportPreviewRow): string {
+  const ledgerType = (
+    (row as any).ledger_account_type ||
+    (row as any).account_type ||
+    ""
+  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  const splitType = (
+    (row as any).split_account_type ||
+    ""
+  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  const isLedgerBankOrCard = ledgerType === "bank" || ledgerType === "creditcard";
+  const isSplitBankOrCard = splitType === "bank" || splitType === "creditcard";
+
+  const formatAccount = (num: string | null | undefined, name: string | null | undefined) => {
+    if (num && name && String(name).indexOf(String(num)) === -1) return `${num} · ${name}`;
+    if (num && name) return `${num} · ${name}`;
+    return num || name || "Unassigned Bank Account";
+  };
+
+  if (isLedgerBankOrCard) {
+    return formatAccount((row as any).ledger_account_number || row.account_number, (row as any).ledger_account_name || row.account_name);
+  }
+  if (isSplitBankOrCard) {
+    const extra = row as any;
+    return formatAccount(extra.split_account_number || row.account_number, extra.split_account_name || row.account_name);
+  }
+  return formatAccount((row as any).ledger_account_number || row.account_number, (row as any).ledger_account_name || row.account_name);
+}
+
+export function getTargetAccount(row: ImportPreviewRow, isDryRun: boolean = false): string | null {
+  // If it's a dry run, we prefer the suggestion over anything else
+  if (isDryRun && (row.account_review?.suggested_account_name || row.account_review?.suggested_account_number)) {
+    const sNum = row.account_review.suggested_account_number;
+    const sName = row.account_review.suggested_account_name;
+    if (sNum && sName && String(sName).indexOf(String(sNum)) === -1) return `${sNum} · ${sName}`;
+    return sNum && sName ? `${sNum} · ${sName}` : sNum || sName || null;
   }
 
-  const code = (row.account_number || "").trim();
-  const numericStr = code.replace(/\D/g, "");
-  if (numericStr) {
-    const num = parseInt(numericStr, 10);
-    if (num >= 1000 && num <= 1099) return true;
-    const strNum = num.toString();
-    if (strNum.startsWith("10") && strNum.length >= 4) {
-      const prefix = parseInt(strNum.substring(0, 4), 10);
-      if (prefix >= 1000 && prefix <= 1099) return true;
-    }
+  const ledgerType = (
+    (row as any).ledger_account_type ||
+    (row as any).account_type ||
+    ""
+  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  const splitType = (
+    (row as any).split_account_type ||
+    ""
+  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
+
+  const isLedgerBankOrCard = ledgerType === "bank" || ledgerType === "creditcard";
+  const isSplitBankOrCard = splitType === "bank" || splitType === "creditcard";
+
+  let tNum: string | null = null;
+  let tName: string | null = null;
+  const extra = row as any;
+
+  // If the ledger is bank/card, the target is the split
+  if (isLedgerBankOrCard) {
+    tNum = extra.split_account_number || row.account_review?.current_target_account_number || null;
+    tName = extra.Split || extra.split || extra.split_account_name || row.account_review?.current_target_account_name || null;
+  }
+  // If the split is bank/card, the target is the ledger
+  else if (isSplitBankOrCard) {
+    tNum = row.account_number || null;
+    tName = row.account_name || null;
+  }
+  // Fallback
+  else {
+    tNum = extra.split_account_number || row.account_number || null;
+    tName = extra.split_account_name || row.account_name || null;
   }
 
-  // Check account type if it exists in the raw data
-  const type = ((row as ImportPreviewRow & { account_type?: string }).account_type || "").toLowerCase();
-  if (type === "bank" || type === "creditcard" || type === "credit card") {
-    return true;
-  }
-
-  // Fallback to checking account_name for keywords, but exclude common expense keywords
-  const name = (row.account_name || "").toLowerCase();
-  const hasBankKeyword = /\b(bank|checking|savings|cash|credit\s*card|visa|mastercard|amex|discover)\b/.test(name);
-  const hasExpenseKeyword = /\b(fee|fees|charge|charges|interest|expense|payable)\b/.test(name);
-  
-  if (hasBankKeyword && !hasExpenseKeyword) {
-    return true;
-  }
-  
-  return false;
+  if (tNum && tName && String(tName).indexOf(String(tNum)) === -1) return `${tNum} · ${tName}`;
+  if (tNum && tName) return `${tNum} · ${tName}`;
+  return tNum || tName || null;
 }
 
 export function compareGLSplitResults(
   originalRowsAll: ImportPreviewRow[],
-  expectedRowsAll: ImportPreviewRow[],
-  confidenceThreshold: number = 0.75
+  expectedRowsAll: ImportPreviewRow[]
 ): GLSplitComparisonResult {
   const originalRowsWithLine = originalRowsAll.map((r, i) => ({ ...r, _excel_row: i + 1 }));
   const originalRows = originalRowsWithLine.filter(isBankOrCreditCard);
@@ -122,16 +183,24 @@ export function compareGLSplitResults(
     if (origRow.transaction_number) {
       const sameTxn = unmatchedExpected.filter(e => e.transaction_number === origRow.transaction_number);
       if (sameTxn.length > 0) {
-        const origSign = Math.sign(origAmount) || 1;
-        const oppositeLines = sameTxn.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
-        const sameLines = sameTxn.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
+        let bankLines = sameTxn.filter(e => isBankOrCreditCard(e));
+        let expenseLines = sameTxn.filter(e => !isBankOrCreditCard(e));
         
-        if (oppositeLines.length > 0) {
-          // The opposite lines represent the actual target accounts (splits)
-          matchedExpRows = oppositeLines;
-          matchedSameLines = sameLines; // We will remove these from unmatched so they don't show as NOT FOUND
-        } else if (sameLines.length > 0) {
-          matchedExpRows = [sameLines[0]];
+        if (expenseLines.length === 0 && bankLines.length > 1) {
+          const origSign = Math.sign(origAmount) || 1;
+          expenseLines = bankLines.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
+          bankLines = bankLines.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
+        }
+        
+        if (expenseLines.length > 0) {
+          matchedExpRows = expenseLines;
+          matchedSameLines = bankLines; // We will remove these from unmatched so they don't show as NOT FOUND
+        } else if (bankLines.length > 0) {
+          matchedExpRows = [bankLines[0]];
+          matchedSameLines = bankLines.slice(1);
+        } else if (sameTxn.length > 0) {
+          matchedExpRows = [sameTxn[0]];
+          matchedSameLines = sameTxn.slice(1);
         }
       }
     }
@@ -144,25 +213,60 @@ export function compareGLSplitResults(
       } else if (expectedBankLine.transaction_number) {
         sameTxn = unmatchedExpected.filter(e => e.transaction_number === expectedBankLine.transaction_number);
       } else {
+        // Fallback for QBO exports parsed as Amex statements (no transaction numbers):
+        // Find adjacent rows with the same Date and exactly the OPPOSITE amount.
         sameTxn = [expectedBankLine];
+        const currentIndex = expectedRowsWithLine.findIndex(r => r._excel_row === expectedBankLine._excel_row);
+        if (currentIndex !== -1) {
+          const oppositeAmount = -getAmount(expectedBankLine);
+          
+          // Check up to 5 rows above and below
+          for (const direction of [-1, 1]) {
+            for (let i = 1; i <= 5; i++) {
+              const idx = currentIndex + (i * direction);
+              if (idx < 0 || idx >= expectedRowsWithLine.length) break;
+              
+              const r = expectedRowsWithLine[idx];
+              if (r.date !== expectedBankLine.date) break; // Break if we leave the contiguous date block
+              
+              if (Math.abs(getAmount(r) - oppositeAmount) < 0.005) {
+                const uMatch = unmatchedExpected.find(u => u._excel_row === r._excel_row);
+                if (uMatch && uMatch._excel_row !== expectedBankLine._excel_row) {
+                  sameTxn.push(uMatch);
+                }
+              }
+            }
+          }
+        }
       }
 
-      const origSign = Math.sign(origAmount) || 1;
-      const oppositeLines = sameTxn.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
-      const sameLines = sameTxn.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
+      let bankLines = sameTxn.filter(e => isBankOrCreditCard(e));
+      let expenseLines = sameTxn.filter(e => !isBankOrCreditCard(e));
       
-      if (oppositeLines.length > 0) {
-        matchedExpRows = oppositeLines;
-        matchedSameLines = sameLines;
-      } else if (sameLines.length > 0) {
-        matchedExpRows = [sameLines[0]];
+      // If the expected file was forcefully parsed as a bank statement, EVERYTHING is a bank line.
+      // We must fallback to using mathematical signs to separate the true bank line from the true expense line.
+      if (expenseLines.length === 0 && bankLines.length > 1) {
+        const origSign = Math.sign(origAmount) || 1;
+        expenseLines = bankLines.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
+        bankLines = bankLines.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
+      }
+      
+      if (expenseLines.length > 0) {
+        matchedExpRows = expenseLines;
+        matchedSameLines = bankLines;
+      } else if (bankLines.length > 0) {
+        matchedExpRows = [bankLines[0]];
+        matchedSameLines = bankLines.slice(1);
+      } else if (sameTxn.length > 0) {
+        matchedExpRows = [sameTxn[0]];
+        matchedSameLines = sameTxn.slice(1);
       }
     };
 
     // Second try: Exact match (1-to-1) using findIndex to avoid capturing duplicates
     if (matchedExpRows.length === 0) {
       const exactIndex = unmatchedExpected.findIndex(
-        (exp) => exp.date === origDate && getAmount(exp) === origAmount && normalizeText(exp.name) === origNormName
+        (exp) => exp.date === origDate && Math.abs(getAmount(exp) - origAmount) < 0.005 && normalizeText(exp.name) === origNormName
       );
       if (exactIndex !== -1) {
         extractSplitsFromExpectedBankLine(unmatchedExpected[exactIndex]);
@@ -172,7 +276,7 @@ export function compareGLSplitResults(
     // Third try: Match by date and amount only (1-to-1)
     if (matchedExpRows.length === 0) {
       const partialIndex = unmatchedExpected.findIndex(
-        (exp) => exp.date === origDate && getAmount(exp) === origAmount
+        (exp) => exp.date === origDate && Math.abs(getAmount(exp) - origAmount) < 0.005
       );
       if (partialIndex !== -1) {
         extractSplitsFromExpectedBankLine(unmatchedExpected[partialIndex]);
@@ -185,19 +289,12 @@ export function compareGLSplitResults(
       if (idx !== -1) unmatchedExpected.splice(idx, 1);
     });
 
-    const getExpectedAccount = (e: ImportPreviewRow) => {
-      const extra = e as ImportPreviewRow & { Split?: string; split?: string; split_account_name?: string };
-      return extra.Split || extra.split || extra.split_account_name || e.account_review?.current_target_account_name || e.account_review?.current_target_account_number || e.account_name || e.account_number;
-    };
-
     const expectedAccount = matchedExpRows.length === 1 
-      ? getExpectedAccount(matchedExpRows[0])
-      : matchedExpRows.length > 1 ? matchedExpRows.map(e => getExpectedAccount(e)).filter(Boolean).join(" | ") : null;
+      ? getTargetAccount(matchedExpRows[0])
+      : matchedExpRows.length > 1 ? matchedExpRows.map(e => getTargetAccount(e)).filter(Boolean).join(" | ") : null;
+    
     // The dry run account comes from account_review or fallback to account_name
-    const dryRunAccount = origRow.account_review?.suggested_account_name 
-      || origRow.account_review?.suggested_account_number 
-      || origRow.account_name 
-      || origRow.account_number;
+    const dryRunAccount = getTargetAccount(origRow, true);
 
     let source = origRow.account_review?.source || null;
 
@@ -254,10 +351,7 @@ export function compareGLSplitResults(
         differenceReason = `Expected account '${expectedAccount}' but dry-run assigned '${dryRunAccount}'.`;
         isSuspicious = true;
         summary.account_mismatch_rows++;
-      } else if (confidence !== null && confidence < confidenceThreshold) {
-        status = "LOW_CONFIDENCE";
-        differenceReason = `Confidence (${confidence.toFixed(2)}) is below threshold (${confidenceThreshold}).`;
-        isSuspicious = true;
+
       } else if (!origRow.date) {
         status = "SUSPICIOUS";
         differenceReason = "Date is missing.";
@@ -288,6 +382,9 @@ export function compareGLSplitResults(
       memo: origRow.memo || null,
       description: origRow.name || origRow.memo || "",
       amount: origAmount,
+      debit: origRow.debit,
+      credit: origRow.credit,
+      charge_account: getChargeAccount(origRow),
       expected_account: expectedAccount,
       dry_run_account: dryRunAccount,
       source,
@@ -312,6 +409,9 @@ export function compareGLSplitResults(
       memo: exp.memo || null,
       description: exp.name || exp.memo || "",
       amount: expAmount,
+      debit: exp.debit,
+      credit: exp.credit,
+      charge_account: getChargeAccount(exp),
       expected_account: exp.account_name || exp.account_number,
       dry_run_account: null,
       source: null,

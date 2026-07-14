@@ -18,6 +18,9 @@ export interface GLSplitComparisonRow {
   memo: string | null;
   description: string;
   amount: number;
+  debit?: number | null;
+  credit?: number | null;
+  charge_account?: string | null;
   expected_account: string | null;
   dry_run_account: string | null;
   source: string | null;

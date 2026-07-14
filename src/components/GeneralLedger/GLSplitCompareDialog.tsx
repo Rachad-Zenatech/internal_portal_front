@@ -9,27 +9,20 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DataTablePagination } from "@/components/ui/data-table-pagination";
 import { GLService } from "@/services/glService";
 import { compareGLSplitResults } from "@/utils/glCompare";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { GLSplitComparisonResult, GLSplitComparisonRow } from "@/types/glCompare";
+import type { GLSplitComparisonResult } from "@/types/glCompare";
 import type { CompanyBook, GLAccountSuggestion } from "@/types/gl";
 import { toast } from "sonner";
-import { Loader2, FileSpreadsheet } from "lucide-react";
-import {
-  flexRender,
-  getCoreRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { Loader2, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface GLSplitCompareDialogProps {
   books: CompanyBook[];
@@ -37,6 +30,10 @@ interface GLSplitCompareDialogProps {
   localPreview?: any; // ImportPreview
   localSuggestions?: GLAccountSuggestion[];
 }
+
+const formatMoney = (val: number) => {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
+};
 
 export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggestions }: GLSplitCompareDialogProps) {
   const [open, setOpen] = useState(false);
@@ -47,11 +44,14 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
   const [reviewProgress, setReviewProgress] = useState<number | null>(null);
   const [skipAi, setSkipAi] = useState(false);
   const [result, setResult] = useState<GLSplitComparisonResult | null>(null);
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [tab, setTab] = useState("suspicious");
 
+  const activeBookId = localPreview ? String(bookId || "") : companyBookId;
+  const activeBook = useMemo(() => {
+    return books.find((b) => String(b.book_id) === activeBookId) || null;
+  }, [books, activeBookId]);
+
   const handleCompare = async () => {
-    const activeBookId = localPreview ? String(bookId || "") : companyBookId;
     if ((!localPreview && !originalFile) || !expectedFile || !activeBookId) {
       toast.error("Please select a book and both files.");
       return;
@@ -62,7 +62,71 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
     setResult(null);
 
     try {
-      let origRows = localPreview?.rows || [];
+      let origRows: any[] = [];
+      let origRes: any = null;
+
+      if (localPreview) {
+        const localRawRows = localPreview.rows || [];
+        let lastLocalDate = "";
+        const localDateByLine = new Map<number, string>();
+        localRawRows.forEach((r: any) => {
+          if (r.date) lastLocalDate = r.date;
+          localDateByLine.set(r.line_id, lastLocalDate);
+        });
+
+        if (localPreview.accounts && localPreview.accounts.length > 0) {
+          origRows = localPreview.accounts.flatMap((acc: any) => 
+            (acc.transactions || []).map((txn: any) => ({
+              ...txn,
+              date: txn.date || localDateByLine.get(txn.line_id) || null,
+              ledger_account_number: acc.account_number || txn.ledger_account_number,
+              ledger_account_name: acc.account_name || txn.ledger_account_name,
+              account_number: acc.account_number || txn.account_number,
+              account_name: acc.account_name || txn.account_name
+            }))
+          );
+        } else {
+          origRows = localRawRows.map((txn: any) => ({
+            ...txn,
+            date: txn.date || localDateByLine.get(txn.line_id) || null
+          }));
+        }
+      }
+
+      // 1. Parse Original File (if no localPreview)
+      if (!localPreview) {
+        origRes = await GLService.parseImport({
+          companyBookId: Number(activeBookId),
+          file: originalFile!,
+          dryRun: true,
+        });
+        const origRawRows = origRes.preview?.rows || [];
+        let lastOrigDate = "";
+        const origDateByLine = new Map<number, string>();
+        origRawRows.forEach((r: any) => {
+          if (r.date) lastOrigDate = r.date;
+          origDateByLine.set(r.line_id, lastOrigDate);
+        });
+
+        if (origRes.preview?.accounts && origRes.preview.accounts.length > 0) {
+          origRows = origRes.preview.accounts.flatMap((acc: any) => 
+            (acc.transactions || []).map((txn: any) => ({
+              ...txn,
+              date: txn.date || origDateByLine.get(txn.line_id) || null,
+              ledger_account_number: acc.account_number || txn.ledger_account_number,
+              ledger_account_name: acc.account_name || txn.ledger_account_name,
+              account_number: txn.account_number,
+              account_name: txn.account_name
+            }))
+          );
+        } else {
+          origRows = origRawRows.map((txn: any) => ({
+            ...txn,
+            date: txn.date || origDateByLine.get(txn.line_id) || null
+          }));
+        }
+      }
+
       if (localPreview && localSuggestions && localSuggestions.length > 0) {
         // Deep copy rows to prevent mutating the original parent state
         origRows = JSON.parse(JSON.stringify(origRows));
@@ -93,8 +157,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
           }
         });
       }
-      let origRes: any = null;
-
+      
       // 1. Parse Original File (if no localPreview)
       if (!localPreview) {
         origRes = await GLService.parseImport({
@@ -102,7 +165,31 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
           file: originalFile!,
           dryRun: true,
         });
-        origRows = origRes.preview?.rows || [];
+        const origRawRows = origRes.preview?.rows || [];
+        let lastOrigDate = "";
+        const origDateByLine = new Map<number, string>();
+        origRawRows.forEach((r: any) => {
+          if (r.date) lastOrigDate = r.date;
+          origDateByLine.set(r.line_id, lastOrigDate);
+        });
+
+        if (origRes.preview?.accounts && origRes.preview.accounts.length > 0) {
+          origRows = origRes.preview.accounts.flatMap((acc: any) => 
+            (acc.transactions || []).map((txn: any) => ({
+              ...txn,
+              date: txn.date || origDateByLine.get(txn.line_id) || null,
+              ledger_account_number: acc.account_number || txn.ledger_account_number,
+              ledger_account_name: acc.account_name || txn.ledger_account_name,
+              account_number: txn.account_number,
+              account_name: txn.account_name
+            }))
+          );
+        } else {
+          origRows = origRawRows.map((txn: any) => ({
+            ...txn,
+            date: txn.date || origDateByLine.get(txn.line_id) || null
+          }));
+        }
       }
 
       // 2. Parse Expected File
@@ -112,13 +199,40 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
         dryRun: true,
       });
 
-      const expRows = expRes.preview?.rows || [];
+      const expRawRows = expRes.preview?.rows || [];
+      let lastExpDate = "";
+      const expDateByLine = new Map<number, string>();
+      expRawRows.forEach((r: any) => {
+        if (r.date) lastExpDate = r.date;
+        expDateByLine.set(r.line_id, lastExpDate);
+      });
+
+      let expRows: any[] = [];
+      if (expRes.preview?.accounts && expRes.preview.accounts.length > 0) {
+        expRows = expRes.preview.accounts.flatMap((acc: any) => 
+          (acc.transactions || []).map((txn: any) => ({
+            ...txn,
+            date: txn.date || expDateByLine.get(txn.line_id) || null,
+            ledger_account_number: acc.account_number || txn.ledger_account_number,
+            ledger_account_name: acc.account_name || txn.ledger_account_name,
+            account_number: txn.account_number,
+            account_name: txn.account_name
+          }))
+        );
+      } else {
+        expRows = expRawRows.map((txn: any) => ({
+          ...txn,
+          date: txn.date || expDateByLine.get(txn.line_id) || null
+        }));
+      }
 
       if (!origRows.length || !expRows.length) {
         toast.error("One of the files contained no parsable rows.");
         setIsLoading(false);
         return;
       }
+
+
 
       // 3. Run Dry-Run Account Suggestions (XGBoost/Rules/AI) on Original File if we don't have localPreview
       if (!localPreview && origRes) {
@@ -192,50 +306,22 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
     }
   };
 
-  const columns = useMemo<ColumnDef<GLSplitComparisonRow>[]>(() => [
-    { accessorKey: "row_number", header: "Row #" },
-    { accessorKey: "expected_row_number", header: "Expected Row #", cell: ({ row }) => row.original.expected_rows?.map((r: any) => r._excel_row).filter(Boolean).join(", ") || "-" },
-    { accessorKey: "date", header: "Date" },
-    { accessorKey: "transaction_type", header: "Type" },
-    { accessorKey: "name", header: "Name" },
-    { accessorKey: "memo", header: "Memo", cell: ({ row }) => <div className="max-w-[200px] whitespace-normal break-words">{row.original.memo}</div> },
-    { accessorKey: "amount", header: "Amount", cell: ({ row }) => row.original.amount.toFixed(2) },
-    { accessorKey: "expected_account", header: "Expected Account" },
-    { accessorKey: "dry_run_account", header: "Dry-Run Account" },
-    { accessorKey: "source", header: "Applied By", cell: ({ row }) => <span className="capitalize">{String(row.original.source || "unknown").replace(/_/g, " ")}</span> },
-    { accessorKey: "confidence", header: "Confidence", cell: ({ row }) => row.original.confidence ? (row.original.confidence * 100).toFixed(1) + "%" : "-" },
-    { accessorKey: "status", header: "Status", cell: ({ row }) => (
-        <span className={`font-semibold ${
-          row.original.status === "MATCH" ? "text-green-600" :
-          row.original.is_suspicious ? "text-red-600" : "text-yellow-600"
-        }`}>
-          {row.original.status}
-        </span>
-      )
-    },
-    { accessorKey: "difference_reason", header: "Reason", cell: ({ row }) => <div className="text-xs max-w-[250px] truncate" title={row.original.difference_reason || ""}>{row.original.difference_reason}</div> },
-  ], []);
-
-  const data = useMemo(() => {
-    if (!result) return [];
-    if (tab === "suspicious") return result.rows.filter((r) => r.is_suspicious);
-    return result.rows;
+  const groupedComparisonRows = useMemo(() => {
+    if (!result) return {};
+    const rows = tab === "suspicious" ? result.rows.filter((r) => r.is_suspicious) : result.rows;
+    const groups: Record<string, typeof rows> = {};
+    rows.forEach((r) => {
+      const key = r.charge_account || "Unassigned Bank Account";
+      groups[key] = groups[key] || [];
+      groups[key].push(r);
+    });
+    return groups;
   }, [result, tab]);
-
-  const table = useReactTable({
-    data,
-    columns,
-    state: { sorting },
-    onSortingChange: setSorting,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
-  });
 
   const handleExportCSV = () => {
     if (!result) return;
     const headers = [
-      "Row #", "Expected Row #", "Date", "Type", "Name", "Memo", "Amount", "Expected Account",
+      "Row #", "Expected Row #", "Date", "Type", "Name", "Memo", "Debit", "Credit", "Expected Account",
       "Dry-Run Account", "Applied By", "Confidence", "Status", "Difference Reason"
     ];
 
@@ -246,7 +332,8 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
       r.transaction_type || "",
       `"${(r.name || "").replace(/"/g, '""')}"`,
       `"${(r.memo || "").replace(/"/g, '""')}"`,
-      r.amount.toFixed(2),
+      r.debit ? r.debit.toFixed(2) : "-",
+      r.credit ? r.credit.toFixed(2) : "-",
       `"${(r.expected_account || "").replace(/"/g, '""')}"`,
       `"${(r.dry_run_account || "").replace(/"/g, '""')}"`,
       r.source || "",
@@ -309,6 +396,11 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
           )}
           <div className="space-y-2 min-w-0">
             <Label className="truncate block">Expected GL File (With Splits)</Label>
+            {activeBook && (
+              <span className="text-xs text-muted-foreground block -mt-1 truncate">
+                Method: <strong>{activeBook.format_name}</strong> ({activeBook.company_name})
+              </span>
+            )}
             <Input type="file" accept=".csv,.xlsx,.xls" className="w-full truncate" onChange={(e) => setExpectedFile(e.target.files?.[0] || null)} />
           </div>
         </div>
@@ -419,40 +511,105 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
 
               {(tab === "all" || tab === "suspicious") && (
                 <TabsContent value={tab} className="flex-1 flex flex-col overflow-hidden m-0 p-0">
-                  <div className="flex-1 overflow-auto border rounded-md mt-4">
-                    <Table>
-                      <TableHeader>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                          <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => (
-                              <TableHead key={header.id}>
-                                {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </TableHeader>
-                      <TableBody>
-                        {table.getRowModel().rows?.length ? (
-                          table.getRowModel().rows.map((row) => (
-                            <TableRow key={row.id} className={row.original.is_suspicious ? "bg-red-50/50 dark:bg-red-950/20" : "bg-green-50/50 dark:bg-green-950/20"}>
-                              {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} className="py-2">
-                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </TableCell>
+                  <div className="flex-1 overflow-auto mt-4 space-y-6">
+                    {Object.keys(groupedComparisonRows).length === 0 ? (
+                      <div className="border rounded-md p-8 text-center text-muted-foreground bg-slate-50/50">
+                        No results.
+                      </div>
+                    ) : (
+                      Object.entries(groupedComparisonRows).map(([accountName, accountRows]) => (
+                        <Collapsible key={accountName} defaultOpen className="border rounded-lg bg-card text-card-foreground shadow-sm overflow-hidden mb-6">
+                          <CollapsibleTrigger className="group w-full bg-muted/40 p-4 border-b flex flex-col md:flex-row md:items-start md:justify-between hover:bg-muted/60 transition-colors cursor-pointer text-left [&[data-state=open]_.chevron-icon]:rotate-180">
+                            <div>
+                              <h4 className="font-medium flex items-center gap-2">
+                                <ChevronDown className="chevron-icon h-4 w-4 text-muted-foreground transition-transform duration-200" />
+                                {accountName.includes("·") || accountName.includes("-") ? accountName.replace(/·/g, "-") : accountName}
+                              </h4>
+                              <p className="mt-1 text-xs text-muted-foreground ml-6">
+                                {(() => {
+                                  const type = (accountRows[0] as any).ledger_account_type || (accountRows[0] as any).account_type || "Unknown account type";
+                                  const dates = accountRows.map(r => r.date).filter(Boolean).sort();
+                                  const firstDate = dates[0] || "-";
+                                  const lastDate = dates[dates.length - 1] || "-";
+                                  const dateRange = firstDate === lastDate ? firstDate : `${firstDate} to ${lastDate}`;
+                                  return `${type} · ${dateRange}`;
+                                })()}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm mt-3 md:mt-0">
+                              <Badge variant="secondary" className="bg-background text-muted-foreground">
+                                {accountRows.length.toLocaleString("en-US")} lines
+                              </Badge>
+                              {(() => {
+                                const totalDebit = accountRows.reduce((sum, r) => sum + (r.debit || 0), 0);
+                                const totalCredit = accountRows.reduce((sum, r) => sum + (r.credit || 0), 0);
+                                const netAmount = totalCredit - totalDebit;
+                                return (
+                                  <>
+                                    <span className="font-semibold text-muted-foreground">Debit {formatMoney(totalDebit)}</span>
+                                    <span className="font-semibold text-muted-foreground">Credit {formatMoney(totalCredit)}</span>
+                                    <span className={`font-semibold ${Math.abs(netAmount) < 0.005 ? "text-muted-foreground" : netAmount > 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                                      Net {formatMoney(netAmount)}
+                                    </span>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                          <Table className="[&_td]:whitespace-normal [&_td]:break-words [&_td]:min-w-[120px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Row #</TableHead>
+                                <TableHead>Expected Row #</TableHead>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Memo</TableHead>
+                                <TableHead className="text-right">Debit</TableHead>
+                                <TableHead className="text-right">Credit</TableHead>
+                                <TableHead>Expected Account</TableHead>
+                                <TableHead>Dry-Run Account</TableHead>
+                                <TableHead>Applied By</TableHead>
+                                <TableHead>Confidence</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Reason</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {accountRows.map((r) => (
+                                <TableRow key={r.row_number} className={r.is_suspicious ? "bg-red-50/50 dark:bg-red-950/20" : "bg-green-50/50 dark:bg-green-950/20"}>
+                                  <TableCell>{r.row_number}</TableCell>
+                                  <TableCell>{r.expected_rows?.map((exp: any) => exp._excel_row).filter(Boolean).join(", ") || "-"}</TableCell>
+                                  <TableCell>{r.date || "-"}</TableCell>
+                                  <TableCell>{r.transaction_type || "-"}</TableCell>
+                                  <TableCell>{r.name || "-"}</TableCell>
+                                  <TableCell className="max-w-[200px] whitespace-normal break-words">{r.memo || "-"}</TableCell>
+                                  <TableCell className="text-right">{r.debit ? r.debit.toFixed(2) : "-"}</TableCell>
+                                  <TableCell className="text-right">{r.credit ? r.credit.toFixed(2) : "-"}</TableCell>
+                                  <TableCell>{r.expected_account || "-"}</TableCell>
+                                  <TableCell>{r.dry_run_account || "-"}</TableCell>
+                                  <TableCell className="capitalize">{String(r.source || "unknown").replace(/_/g, " ")}</TableCell>
+                                  <TableCell>{r.confidence ? (r.confidence * 100).toFixed(1) + "%" : "-"}</TableCell>
+                                  <TableCell>
+                                    <span className={`font-semibold ${
+                                      r.status === "MATCH" ? "text-green-600" :
+                                      r.is_suspicious ? "text-red-600" : "text-yellow-600"
+                                    }`}>
+                                      {r.status}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="text-xs max-w-[250px] truncate" title={r.difference_reason || ""}>
+                                    {r.difference_reason || "-"}
+                                  </TableCell>
+                                </TableRow>
                               ))}
-                            </TableRow>
-                          ))
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={columns.length} className="h-24 text-center">No results.</TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                  <div className="border-t border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 py-3 mt-2">
-                    <DataTablePagination table={table} noun="row(s)" />
+                            </TableBody>
+                          </Table>
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ))
+                    )}
                   </div>
                 </TabsContent>
               )}
