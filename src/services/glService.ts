@@ -266,6 +266,12 @@ export const GLService = {
       formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 5));
       formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
       formData.append("ai_review_all", String(params.aiReviewAll ?? true));
+      if (params.aiRetryRowNumbers?.length) {
+        formData.append(
+          "ai_retry_row_numbers_json",
+          JSON.stringify(params.aiRetryRowNumbers),
+        );
+      }
       if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
         formData.append("ai_max_rows", String(params.aiMaxRows));
       }
@@ -308,6 +314,7 @@ export const GLService = {
       aiRowsPerRequest: useAi ? params.aiRowsPerRequest ?? 100 : null,
       aiConcurrencyLimit: useAi ? params.aiConcurrencyLimit ?? 5 : null,
       aiMaxRows: useAi ? params.aiMaxRows ?? null : null,
+      aiRetryRowCount: useAi ? params.aiRetryRowNumbers?.length ?? 0 : 0,
     });
 
     try {
@@ -368,6 +375,12 @@ export const GLService = {
       formData.append("ai_concurrency_limit", String(params.aiConcurrencyLimit ?? 5));
       formData.append("ai_use_google_search", String(params.aiUseGoogleSearch ?? true));
       formData.append("ai_review_all", String(params.aiReviewAll ?? true));
+      if (params.aiRetryRowNumbers?.length) {
+        formData.append(
+          "ai_retry_row_numbers_json",
+          JSON.stringify(params.aiRetryRowNumbers),
+        );
+      }
       if (params.aiMaxRows !== undefined && params.aiMaxRows !== null) {
         formData.append("ai_max_rows", String(params.aiMaxRows));
       }
@@ -398,6 +411,7 @@ export const GLService = {
       companyId: params.companyId ?? null,
       formatCode: params.formatCode,
       useAi,
+      aiRetryRowCount: useAi ? params.aiRetryRowNumbers?.length ?? 0 : 0,
     });
     return apiClient.post<GLAccountSuggestionsBackgroundResponse>(endpoint, formData);
   },

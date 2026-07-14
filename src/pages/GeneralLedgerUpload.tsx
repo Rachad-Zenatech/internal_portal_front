@@ -145,6 +145,9 @@ type AccountReviewLogContext = {
   useGemini: boolean;
 };
 
+type AiReview = NonNullable<GLAccountSuggestionsResponse["ai_review"]>;
+type AiReviewChunk = AiReview["chunks"][number];
+
 const AI_ROWS_PER_REQUEST = 100;
 const GEMINI_CONCURRENCY_LIMIT = 5;
 const DRY_RUN_PREVIEW_LIMIT = 5000;
@@ -393,6 +396,12 @@ export default function GeneralLedgerUpload() {
   const reviewReady = Boolean(preview) && Boolean(preview?.reconciliation?.is_balanced) && !hasReconciliationMismatch;
   const isReviewingAccounts = accountSuggestionsMutation.isPending || isAccountReviewJobRunning;
   const aiReviewRunState = getAiReviewRunState(accountSuggestions, isReviewingAccounts, useGeminiReview);
+  const missingAiReviewRowNumbers = useMemo(
+    () => getAiReviewMissingRowNumbers(accountSuggestions?.ai_review ?? null),
+    [accountSuggestions]
+  );
+  const shouldRetryMissingAiRows =
+    aiReviewRunState === "incomplete" && missingAiReviewRowNumbers.length > 0;
   const isTrainingXgboost = xgboostTrainingMutation.isPending;
   const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
   const isBackgroundParsing = parseImportBackgroundMutation.isPending;
@@ -992,12 +1001,18 @@ export default function GeneralLedgerUpload() {
       return;
     }
 
+    const retryAiRowNumbers = shouldRetryMissingAiRows
+      ? missingAiReviewRowNumbers
+      : [];
+    const previousResponse = retryAiRowNumbers.length > 0 ? accountSuggestions : null;
     const parseRunId = parseRunIdRef.current + 1;
     parseRunIdRef.current = parseRunId;
     autoAccountReviewKeyRef.current = null;
     setError(null);
     setSuggestionError(null);
-    setAccountSuggestions(null);
+    if (!previousResponse) {
+      setAccountSuggestions(null);
+    }
     setAccountReviewProgress(null);
     setAccountReviewJobId(null);
     setIsAccountReviewJobRunning(false);
@@ -1012,7 +1027,9 @@ export default function GeneralLedgerUpload() {
       previewToken: reviewPreviewToken,
       formatCode: selectedBook.format_code,
       parseRunId,
-      rowCount: summary.gl_entry_lines,
+      rowCount: retryAiRowNumbers.length || summary.gl_entry_lines,
+      retryAiRowNumbers,
+      previousResponse,
       context: {
         filename: file?.name ?? `dry-run-preview-${reviewPreviewToken}`,
         companyId: selectedBook.company_id,
@@ -1030,6 +1047,8 @@ export default function GeneralLedgerUpload() {
     formatCode,
     parseRunId,
     rowCount,
+    retryAiRowNumbers,
+    previousResponse,
     context,
   }: {
     file?: File | null;
@@ -1037,6 +1056,8 @@ export default function GeneralLedgerUpload() {
     formatCode: string;
     parseRunId: number;
     rowCount: number;
+    retryAiRowNumbers?: number[];
+    previousResponse?: GLAccountSuggestionsResponse | null;
     context: AccountReviewLogContext;
   }) {
     if (previewToken) {
@@ -1070,11 +1091,14 @@ export default function GeneralLedgerUpload() {
         aiRowsPerRequest: useGemini ? AI_ROWS_PER_REQUEST : undefined,
         aiConcurrencyLimit: useGemini ? GEMINI_CONCURRENCY_LIMIT : undefined,
         aiUseGoogleSearch: useGemini ? AI_USE_WEB_SEARCH : undefined,
-        aiReviewAll: useGemini,
+        aiReviewAll: false,
         aiMaxRows: useGemini ? AI_REVIEW_MAX_ROWS : null,
         aiEnableEscalation: useGemini ? AI_ENABLE_ESCALATION : false,
         aiEscalationConfidence: useGemini ? 0.85 : undefined,
         applyAiSuggestions: useGemini,
+        aiRetryRowNumbers: useGemini && retryAiRowNumbers?.length
+          ? retryAiRowNumbers
+          : undefined,
       };
       let review: GLAccountSuggestionsResponse;
       if (previewToken) {
@@ -1091,9 +1115,13 @@ export default function GeneralLedgerUpload() {
         review = await accountSuggestionsMutation.mutateAsync(request);
       }
 
-      const geminiIssues = logGeminiReviewIssues(review, context);
+      const mergedReview =
+        previousResponse && retryAiRowNumbers?.length
+          ? mergeAiRetryAccountSuggestions(previousResponse, review, retryAiRowNumbers)
+          : review;
+      const geminiIssues = logGeminiReviewIssues(mergedReview, context);
       if (parseRunIdRef.current !== parseRunId) return;
-      setAccountSuggestions(review);
+      setAccountSuggestions(mergedReview);
       setAccountReviewProgress({ current: 100, total: 100 });
       reviewCompleted = true;
       if (geminiIssues.length > 0) {
@@ -2044,7 +2072,13 @@ export default function GeneralLedgerUpload() {
                 aiReviewRunState={aiReviewRunState}
                 onRerun={handleRerunAccountReview}
                 canRerun={canRerunAccountReview}
-                rerunLabel={useGeminiReview ? "Rerun AI Review" : "Rerun Review"}
+                rerunLabel={
+                  shouldRetryMissingAiRows
+                    ? "Run Missing AI Batch"
+                    : useGeminiReview
+                      ? "Rerun AI Review"
+                      : "Rerun Review"
+                }
                 onApplySuggestedTarget={!isDryRun && summary ? handleApplySuggestedTarget : undefined}
                 onUnapplySuggestedTarget={!isDryRun && summary ? handleUnapplySuggestedTarget : undefined}
                 applyingSuggestionKey={applyingSuggestionKey}
@@ -2954,6 +2988,170 @@ function getGeminiReviewedRowNumbers(
   ).sort((a, b) => a - b);
 }
 
+function normalizeRowNumbers(values: Array<number | string | null | undefined>) {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+        .map((value) => Math.trunc(value))
+    )
+  ).sort((a, b) => a - b);
+}
+
+function getAiReviewChunkRowNumbers(chunk: AiReviewChunk) {
+  if (chunk.row_numbers?.length) {
+    return normalizeRowNumbers(chunk.row_numbers);
+  }
+
+  const start = Number(chunk.start_row);
+  const end = Number(chunk.end_row);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
+    return [];
+  }
+
+  return Array.from(
+    { length: Math.max(0, Math.trunc(end) - Math.trunc(start) + 1) },
+    (_, index) => Math.trunc(start) + index
+  );
+}
+
+function getAiReviewMissingRowNumbers(
+  aiReview: GLAccountSuggestionsResponse["ai_review"]
+) {
+  if (!aiReview) return [];
+
+  const explicitFailedRows = normalizeRowNumbers(aiReview.failed_row_numbers ?? []);
+  if (explicitFailedRows.length > 0) return explicitFailedRows;
+
+  const failedRows = [
+    ...(aiReview.chunks ?? [])
+      .filter((chunk) => chunk.status === "failed" || Boolean(chunk.error))
+      .flatMap(getAiReviewChunkRowNumbers),
+    ...(aiReview.escalation?.chunks ?? [])
+      .filter((chunk) => chunk.status === "failed" || Boolean(chunk.error))
+      .flatMap(getAiReviewChunkRowNumbers),
+  ];
+  return normalizeRowNumbers(failedRows);
+}
+
+function mergeAiRetryAccountSuggestions(
+  previous: GLAccountSuggestionsResponse,
+  retry: GLAccountSuggestionsResponse,
+  retryRowNumbers: number[]
+): GLAccountSuggestionsResponse {
+  const retryRows = new Set(normalizeRowNumbers(retryRowNumbers));
+  if (retryRows.size === 0) return retry;
+
+  const retrySuggestionByRow = new Map<number, GLAccountSuggestion>();
+  for (const suggestion of retry.suggestions ?? []) {
+    if (retryRows.has(suggestion.row_number)) {
+      retrySuggestionByRow.set(suggestion.row_number, suggestion);
+    }
+  }
+
+  const mergedSuggestions: GLAccountSuggestion[] = [];
+  const seenRows = new Set<number>();
+  for (const suggestion of previous.suggestions ?? []) {
+    const retrySuggestion = retryRows.has(suggestion.row_number)
+      ? retrySuggestionByRow.get(suggestion.row_number)
+      : null;
+    const nextSuggestion = retrySuggestion ?? suggestion;
+    mergedSuggestions.push(nextSuggestion);
+    seenRows.add(nextSuggestion.row_number);
+  }
+  for (const suggestion of retry.suggestions ?? []) {
+    if (retryRows.has(suggestion.row_number) && !seenRows.has(suggestion.row_number)) {
+      mergedSuggestions.push(suggestion);
+      seenRows.add(suggestion.row_number);
+    }
+  }
+
+  const previousAi = previous.ai_review;
+  const retryAi = retry.ai_review;
+  const aiReview = previousAi && retryAi
+    ? mergeAiRetryReviewMetadata(previousAi, retryAi, retryRows)
+    : retryAi ?? previousAi ?? null;
+
+  return {
+    ...retry,
+    suggestions: mergedSuggestions,
+    suggestion_count: mergedSuggestions.length,
+    changed_suggestion_count: countChangedSuggestions(mergedSuggestions),
+    manual_review_count: mergedSuggestions.filter((suggestion) => suggestion.requires_manual_review).length,
+    ai_review: aiReview,
+  };
+}
+
+function mergeAiRetryReviewMetadata(
+  previousAi: AiReview,
+  retryAi: AiReview,
+  retryRows: Set<number>
+): AiReview {
+  const keptPreviousChunks = (previousAi.chunks ?? []).filter((chunk) => {
+    const rowNumbers = getAiReviewChunkRowNumbers(chunk);
+    return !rowNumbers.some((rowNumber) => retryRows.has(rowNumber));
+  });
+  const chunks = [...keptPreviousChunks, ...(retryAi.chunks ?? [])].sort(
+    (left, right) => (left.start_row ?? 0) - (right.start_row ?? 0)
+  );
+
+  const reviewedRowNumbers = normalizeRowNumbers(
+    chunks
+      .filter((chunk) => chunk.status === "completed")
+      .flatMap(getAiReviewChunkRowNumbers)
+  );
+  const failedRowNumbers = normalizeRowNumbers(
+    chunks
+      .filter((chunk) => chunk.status === "failed" || Boolean(chunk.error))
+      .flatMap(getAiReviewChunkRowNumbers)
+  );
+  const requestedRowNumbers = normalizeRowNumbers([
+    ...(previousAi.requested_row_numbers ?? []),
+    ...(retryAi.requested_row_numbers ?? []),
+    ...retryRows,
+  ]);
+
+  const aiSuggestionByRow = new Map<number, AiReview["suggestions"][number]>();
+  for (const suggestion of previousAi.suggestions ?? []) {
+    if (!retryRows.has(suggestion.row_number)) {
+      aiSuggestionByRow.set(suggestion.row_number, suggestion);
+    }
+  }
+  for (const suggestion of retryAi.suggestions ?? []) {
+    aiSuggestionByRow.set(suggestion.row_number, suggestion);
+  }
+  const aiSuggestions = [...aiSuggestionByRow.values()].sort(
+    (left, right) => left.row_number - right.row_number
+  );
+
+  const failedChunkCount = chunks.filter(
+    (chunk) => chunk.status === "failed" || Boolean(chunk.error)
+  ).length;
+
+  return {
+    ...previousAi,
+    ...retryAi,
+    running: false,
+    status: failedChunkCount > 0 ? "completed_with_errors" : "completed",
+    error: failedChunkCount > 0
+      ? retryAi.error || previousAi.error || "One or more AI review chunks failed."
+      : null,
+    chunks,
+    requested_row_numbers: requestedRowNumbers,
+    requested_row_count: requestedRowNumbers.length,
+    reviewed_row_numbers: reviewedRowNumbers,
+    reviewed_row_count: reviewedRowNumbers.length,
+    failed_row_numbers: failedRowNumbers,
+    submitted_chunk_count: chunks.length,
+    completed_chunk_count: chunks.filter((chunk) => chunk.status === "completed").length,
+    failed_chunk_count: failedChunkCount,
+    suggestions: aiSuggestions,
+    suggestion_count: aiSuggestions.length,
+    retry_row_numbers: retryAi.retry_row_numbers ?? [...retryRows],
+  };
+}
+
 function getAiReviewRunState(
   response: GLAccountSuggestionsResponse | null,
   isLoading: boolean,
@@ -2985,6 +3183,9 @@ function getAiReviewRunState(
     aiReview.total_transaction_count ??
     response.transaction_count;
   if (requestedRows > 0 && !reviewedRows) return "not_run";
+  if (requestedRows > 0 && (aiReview.reviewed_row_count ?? 0) < requestedRows) {
+    return reviewedRows ? "incomplete" : "not_run";
+  }
 
   return "completed";
 }
@@ -3167,9 +3368,10 @@ function AccountSuggestionReview({
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
 }) {
-  const previewRows = suggestions;
+  const previewRows = useMemo(() => sortAccountSuggestionRows(suggestions), [suggestions]);
   const modelLoaded = response?.xgboost_model_status?.model_loaded;
   const aiReview = response?.ai_review;
+  const missingAiReviewRowCount = getAiReviewMissingRowNumbers(aiReview).length;
   const geminiReviewedRowNumbers = useMemo(
     () => getGeminiReviewedRowNumbers(aiReview),
     [aiReview]
@@ -3231,6 +3433,11 @@ function AccountSuggestionReview({
           {!isLoading && isAiReviewPendingState(aiReviewRunState) && (
             <Badge variant={aiReviewRunState === "incomplete" ? "destructive" : "secondary"}>
               {formatAiReviewPendingLabel(aiReviewRunState)}
+            </Badge>
+          )}
+          {!isLoading && missingAiReviewRowCount > 0 && (
+            <Badge variant="secondary">
+              {missingAiReviewRowCount.toLocaleString("en-US")} missing AI rows
             </Badge>
           )}
           <Badge variant={modelLoaded ? "outline" : "secondary"}>
@@ -3320,7 +3527,11 @@ function AccountSuggestionReview({
       {!isLoading && !error && response && suggestions.length === 0 && (
         <div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
           {isAiReviewPendingState(aiReviewRunState)
-            ? `${formatAiReviewPendingLabel(aiReviewRunState)}. Rerun AI Review to check for corrections.`
+            ? `${formatAiReviewPendingLabel(aiReviewRunState)}. ${
+                missingAiReviewRowCount > 0
+                  ? "Run Missing AI Batch to retry only the missing rows."
+                  : "Rerun AI Review to check for corrections."
+              }`
             : "No account corrections were flagged."}
         </div>
       )}
@@ -4258,6 +4469,37 @@ function sortDifferenceFinderRows(rows: WorkbookPreviewRow[]) {
 
 function differenceFinderStatusRank(status: string) {
   return DIFFERENCE_FINDER_STATUS_ORDER[status] ?? 50;
+}
+
+function sortAccountSuggestionRows(rows: GLAccountSuggestion[]) {
+  return [...rows].sort((left, right) => {
+    const priorityCompare =
+      accountSuggestionReviewPriority(left) -
+      accountSuggestionReviewPriority(right);
+    if (priorityCompare !== 0) return priorityCompare;
+    return Number(left.row_number ?? 0) - Number(right.row_number ?? 0);
+  });
+}
+
+function accountSuggestionReviewPriority(suggestion: GLAccountSuggestion) {
+  if (isBankTransferSuggestion(suggestion)) return 0;
+  if (isOneToOneSplitLookupSuggestion(suggestion)) return 1;
+  if (
+    suggestion.rule === "quickbooks_rule" ||
+    suggestion.review_source === "quickbooks_rule"
+  ) {
+    return 2;
+  }
+  if (isXgboostSuggestion(suggestion)) return 3;
+  if (
+    isGeminiSuggestion(suggestion) ||
+    isAiFallbackSuggestion(suggestion) ||
+    suggestion.ai_provider
+  ) {
+    return 4;
+  }
+  if (isHumanReviewSuggestion(suggestion)) return 5;
+  return 6;
 }
 
 function compareFinderText(

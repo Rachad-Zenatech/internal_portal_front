@@ -71,6 +71,7 @@ export const navigation = [
       { label: "Bank", path: "/configurations/bank", navigationCode: "CONFIG_BANK" },
       { label: "Bank Account", path: "/configurations/bank-account", navigationCode: "CONFIG_BANK_ACCOUNT" },
       { label: "Bank Feed Rules", path: "/configurations/bank-feed-rules", navigationCode: "CONFIG_BANK_FEED_RULES" },
+      { label: "Business Contacts", path: "/configurations/business-contacts", navigationCode: "CONFIG_BUSINESS_CONTACTS" },
       { label: "Chart of Accounts", path: "/configurations/chart-of-accounts", navigationCode: "CONFIG_CHART_OF_ACCOUNTS" },
     ]
   },

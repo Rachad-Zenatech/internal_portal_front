@@ -119,6 +119,7 @@ export type GLAccountSuggestionsRequest = {
   aiConcurrencyLimit?: number;
   aiUseGoogleSearch?: boolean;
   aiReviewAll?: boolean;
+  aiRetryRowNumbers?: number[] | null;
   aiMaxRows?: number | null;
   aiEnableEscalation?: boolean;
   aiEscalationModel?: string | null;
@@ -245,6 +246,7 @@ export type GLAccountReviewAiChunk = {
   chunk_index?: number;
   start_row: number;
   end_row: number;
+  row_numbers?: number[];
   transaction_count: number;
   status?: string;
   model_response_received?: boolean;
@@ -268,6 +270,7 @@ export type GLAccountReviewAi = {
   model_attempt_count?: number;
   rows_per_request: number;
   requested_row_count?: number;
+  requested_row_numbers?: number[];
   submitted_chunk_count?: number;
   completed_chunk_count?: number;
   failed_chunk_count?: number;
@@ -277,6 +280,8 @@ export type GLAccountReviewAi = {
   scope_note?: string | null;
   total_transaction_count?: number | null;
   reviewed_row_numbers?: number[];
+  failed_row_numbers?: number[];
+  retry_row_numbers?: number[];
   test_forced_manual_review_enabled?: boolean;
   test_forced_manual_review_row_number?: number | null;
   test_empty_current_target_suggestion_enabled?: boolean;

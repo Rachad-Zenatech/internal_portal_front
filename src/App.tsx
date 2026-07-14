@@ -12,6 +12,7 @@ import CompanySettings from "./pages/Configurations/CompanySettings";
 import BankSettings from "./pages/Configurations/BankSettings";
 import BankAccountSettings from "./pages/Configurations/BankAccountSettings";
 import BankFeedRules from "./pages/Configurations/BankFeedRules";
+import BusinessContacts from "./pages/Configurations/BusinessContacts";
 import BankStatementPreview from "./pages/BankStatementPreview";
 import Users from "./pages/Configurations/Users";
 import Roles from "./pages/Configurations/Roles";
@@ -61,6 +62,7 @@ function App() {
             <Route path="/configurations/bank" element={<ProtectedRoute navigationCode="CONFIG_BANK"><BankSettings /></ProtectedRoute>} />
             <Route path="/configurations/bank-account" element={<ProtectedRoute navigationCode="CONFIG_BANK_ACCOUNT"><BankAccountSettings /></ProtectedRoute>} />
             <Route path="/configurations/bank-feed-rules" element={<ProtectedRoute navigationCode="CONFIG_BANK_FEED_RULES"><BankFeedRules /></ProtectedRoute>} />
+            <Route path="/configurations/business-contacts" element={<ProtectedRoute navigationCode="CONFIG_BUSINESS_CONTACTS"><BusinessContacts /></ProtectedRoute>} />
 
             <Route path="/configurations/users" element={<ProtectedRoute navigationCode="CONFIG_USERS"><Users /></ProtectedRoute>} />
             <Route path="/configurations/roles" element={<ProtectedRoute navigationCode="CONFIG_ROLES"><Roles /></ProtectedRoute>} />
