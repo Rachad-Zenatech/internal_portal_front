@@ -4367,6 +4367,9 @@ function isChangedSuggestion(suggestion: GLAccountSuggestion) {
 }
 
 function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) {
+  if (review.source === "quickbooks_rule") {
+    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">QB Rule</Badge>;
+  }
   if (review.source === "bank_transfer") {
     return <Badge className="bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-500">Bank transfer</Badge>;
   }
@@ -4383,9 +4386,7 @@ function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) 
   if (review.requires_ai_review) {
     return <Badge className="bg-violet-600 text-white hover:bg-violet-600 dark:bg-violet-500 dark:text-violet-950 dark:hover:bg-violet-500">AI review</Badge>;
   }
-  if (review.source === "quickbooks_rule") {
-    return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">QB Rule</Badge>;
-  }
+
   if (review.categorized) {
     return <Badge variant="outline">Checked</Badge>;
   }
@@ -4456,12 +4457,15 @@ function isWorkbookXgboostReviewRow(row: WorkbookPreviewRow) {
 function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
   return (
     isWorkbookBankOrCreditCardRow(row) &&
-    row.txn.account_review?.source === "quickbooks_rule"
+    (row.txn.account_review?.source === "quickbooks_rule" ||
+      row.suggestion?.rule === "quickbooks_rule" ||
+      row.suggestion?.review_source === "quickbooks_rule")
   );
 }
 
 function isWorkbookSplitLookupRow(row: WorkbookPreviewRow) {
   return (
+    !isWorkbookQuickBooksRuleReviewRow(row) &&
     isWorkbookBankOrCreditCardRow(row) &&
     (row.txn.account_review?.source === "account_split_lookup" ||
       row.suggestion?.review_source === "account_split_lookup")
@@ -4646,14 +4650,14 @@ function sortAccountSuggestionRows(rows: GLAccountSuggestion[]) {
 }
 
 function accountSuggestionReviewPriority(suggestion: GLAccountSuggestion) {
-  if (isBankTransferSuggestion(suggestion)) return 0;
-  if (isOneToOneSplitLookupSuggestion(suggestion)) return 1;
   if (
     suggestion.rule === "quickbooks_rule" ||
     suggestion.review_source === "quickbooks_rule"
   ) {
-    return 2;
+    return 0;
   }
+  if (isBankTransferSuggestion(suggestion)) return 1;
+  if (isOneToOneSplitLookupSuggestion(suggestion)) return 2;
   if (isXgboostSuggestion(suggestion)) return 3;
   if (
     isGeminiSuggestion(suggestion) ||
@@ -4684,8 +4688,8 @@ function formatReviewFinderStatus(
   const review = row.txn.account_review ?? undefined;
 
   if (suggestion) {
-    if (isOneToOneSplitLookupSuggestion(suggestion)) return "1-to-1 mapping";
     if (suggestion.rule === "quickbooks_rule" || suggestion.review_source === "quickbooks_rule") return "QB Rule";
+    if (isOneToOneSplitLookupSuggestion(suggestion)) return "1-to-1 mapping";
     if (isBankTransferSuggestion(suggestion)) return "Bank transfer";
     if (isSplitLookupSuggestion(suggestion)) return suggestion.review_label || "Split Lookup";
     if (isXgboostSuggestion(suggestion)) return shouldUseXgboostFallbackSuggestion(suggestion) ? "XGBoost suggested" : "XGBoost";
@@ -4705,9 +4709,9 @@ function formatReviewFinderStatus(
   }
 
   if (review) {
+    if (review.source === "quickbooks_rule") return "QB Rule";
     if (isOneToOneSplitLookupReview(review)) return "1-to-1 mapping";
     if (review.source === "bank_transfer") return "Bank transfer";
-    if (review.source === "quickbooks_rule") return "QB Rule";
     if (review.source === "account_split_lookup") return "Split Lookup";
     if (review.source === "xgboost") return "XGBoost";
     if (review.requires_human_review) return "Human review";
