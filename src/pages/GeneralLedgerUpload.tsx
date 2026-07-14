@@ -1086,6 +1086,10 @@ export default function GeneralLedgerUpload() {
         companyName: context.companyName,
         formatCode,
         includeAll: true,
+        // AI review does not depend on XGBoost. Once a response confirms that
+        // no model is loaded, reruns call AI directly.
+        useXgboost:
+          accountSuggestions?.xgboost_model_status?.model_loaded ?? true,
         useAi: useGemini,
         aiProvider: useGemini ? "ai" : undefined,
         aiRowsPerRequest: useGemini ? AI_ROWS_PER_REQUEST : undefined,
@@ -2075,6 +2079,8 @@ export default function GeneralLedgerUpload() {
                 rerunLabel={
                   shouldRetryMissingAiRows
                     ? "Run Missing AI Batch"
+                    : aiReviewRunState === "not_run"
+                      ? "Run AI Review"
                     : useGeminiReview
                       ? "Rerun AI Review"
                       : "Rerun Review"
@@ -3441,7 +3447,7 @@ function AccountSuggestionReview({
             </Badge>
           )}
           <Badge variant={modelLoaded ? "outline" : "secondary"}>
-            {modelLoaded ? "XGBoost loaded" : "XGBoost not loaded"}
+            {modelLoaded ? "XGBoost loaded" : "XGBoost unavailable · AI can still run"}
           </Badge>
           {aiReview?.max_rows != null && (
             <Badge variant="secondary">
