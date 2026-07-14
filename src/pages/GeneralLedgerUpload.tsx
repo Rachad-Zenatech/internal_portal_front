@@ -1520,7 +1520,7 @@ export default function GeneralLedgerUpload() {
           className="mb-2 text-sm text-muted-foreground hover:underline"
           onClick={() => window.location.assign("/general-ledger")}
         >
-          ← Back to General Ledger Dashboard
+          â† Back to General Ledger Dashboard
         </button>
 
         <h1 className="text-3xl font-bold tracking-tight">Upload General Ledger</h1>
@@ -1607,7 +1607,7 @@ export default function GeneralLedgerUpload() {
                 <SelectContent>
                   {books.map((book) => (
                     <SelectItem key={book.book_id} value={String(book.book_id)}>
-                      {book.book_name} — {book.format_name}
+                      {book.book_name} â€” {book.format_name}
                       {book.is_default ? " (default)" : ""}
                     </SelectItem>
                   ))}
@@ -2588,7 +2588,7 @@ function ReviewFinderPanel({
                       {index + 1}. {label}
                     </div>
                     <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
-                      {row.txn.entry_date || "-"} · {row.txn.transaction_type || "-"} · {formatAccountLabel(row.account)}
+                      {row.txn.entry_date || "-"} Â· {row.txn.transaction_type || "-"} Â· {formatAccountLabel(row.account)}
                     </div>
                   </div>
                   <div className="shrink-0 text-right text-xs font-medium">
@@ -2736,7 +2736,7 @@ function ReviewAccountGroup({
         <div>
           <h4 className="font-medium">{formatAccountLabel(account)}</h4>
           <p className="mt-1 text-xs text-muted-foreground">
-            {account.account_type || "Unknown account type"} · {formatDateRange(account)}
+            {account.account_type || "Unknown account type"} Â· {formatDateRange(account)}
           </p>
         </div>
 
@@ -2867,7 +2867,7 @@ function ReviewAccountGroup({
                       fallbackName={txn.split_account_name}
                       aiReviewRunState={aiReviewRunState}
                     />
-                    {txn.split_account_number ? `${txn.split_account_number} · ${txn.split_account_name || ""}` : "-"}
+                    {txn.split_account_number ? `${txn.split_account_number} Â· ${txn.split_account_name || ""}` : "-"}
                   </TableCell>
                   <TableCell className="text-right" title={formatOptionalMoney(txn.debit)}>{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
                   <TableCell className="text-right" title={formatOptionalMoney(txn.credit)}>{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
@@ -3027,18 +3027,19 @@ function getAiReviewMissingRowNumbers(
 ) {
   if (!aiReview) return [];
 
-  const explicitFailedRows = normalizeRowNumbers(aiReview.failed_row_numbers ?? []);
-  if (explicitFailedRows.length > 0) return explicitFailedRows;
-
-  const failedRows = [
+  const failedChunkRows = normalizeRowNumbers([
     ...(aiReview.chunks ?? [])
       .filter((chunk) => chunk.status === "failed" || Boolean(chunk.error))
       .flatMap(getAiReviewChunkRowNumbers),
     ...(aiReview.escalation?.chunks ?? [])
       .filter((chunk) => chunk.status === "failed" || Boolean(chunk.error))
       .flatMap(getAiReviewChunkRowNumbers),
-  ];
-  return normalizeRowNumbers(failedRows);
+  ]);
+  if (failedChunkRows.length > 0) return failedChunkRows;
+
+  // Older responses may not include per-chunk row metadata. Use their
+  // explicit failed rows only as a compatibility fallback.
+  return normalizeRowNumbers(aiReview.failed_row_numbers ?? []);
 }
 
 function mergeAiRetryAccountSuggestions(
@@ -3094,28 +3095,61 @@ function mergeAiRetryReviewMetadata(
   retryAi: AiReview,
   retryRows: Set<number>
 ): AiReview {
-  const keptPreviousChunks = (previousAi.chunks ?? []).filter((chunk) => {
-    const rowNumbers = getAiReviewChunkRowNumbers(chunk);
-    return !rowNumbers.some((rowNumber) => retryRows.has(rowNumber));
-  });
+  const overlapsRetry = (chunk: AiReviewChunk) =>
+    getAiReviewChunkRowNumbers(chunk).some((rowNumber) => retryRows.has(rowNumber));
+
+  // Successful chunks from the original run never overlap retryRows and are
+  // retained byte-for-byte. Only failed chunks selected for retry are replaced.
+  const keptPreviousChunks = (previousAi.chunks ?? []).filter(
+    (chunk) => !overlapsRetry(chunk)
+  );
   const chunks = [...keptPreviousChunks, ...(retryAi.chunks ?? [])].sort(
     (left, right) => (left.start_row ?? 0) - (right.start_row ?? 0)
   );
 
+  const previousEscalation = previousAi.escalation;
+  const keptEscalationChunks = (previousEscalation?.chunks ?? []).filter(
+    (chunk) => !overlapsRetry(chunk)
+  );
+  const escalationFailedChunks = keptEscalationChunks.filter(
+    (chunk) => chunk.status === "failed" || Boolean(chunk.error)
+  );
+  const escalation = previousEscalation
+    ? {
+        ...previousEscalation,
+        chunks: keptEscalationChunks,
+        submitted_chunk_count: keptEscalationChunks.length,
+        completed_chunk_count: keptEscalationChunks.filter(
+          (chunk) => chunk.status === "completed"
+        ).length,
+        failed_chunk_count: escalationFailedChunks.length,
+        reviewed_row_count: normalizeRowNumbers(
+          keptEscalationChunks
+            .filter((chunk) => chunk.status === "completed")
+            .flatMap(getAiReviewChunkRowNumbers)
+        ).length,
+        error: escalationFailedChunks.length > 0
+          ? previousEscalation.error || "One or more escalation chunks failed."
+          : null,
+        status: escalationFailedChunks.length > 0 ? "completed_with_errors" : "completed",
+        running: false,
+      }
+    : retryAi.escalation ?? null;
+
+  const completedChunks = chunks.filter((chunk) => chunk.status === "completed");
+  const failedChunks = chunks.filter(
+    (chunk) => chunk.status === "failed" || Boolean(chunk.error)
+  );
   const reviewedRowNumbers = normalizeRowNumbers(
-    chunks
-      .filter((chunk) => chunk.status === "completed")
-      .flatMap(getAiReviewChunkRowNumbers)
+    completedChunks.flatMap(getAiReviewChunkRowNumbers)
   );
-  const failedRowNumbers = normalizeRowNumbers(
-    chunks
-      .filter((chunk) => chunk.status === "failed" || Boolean(chunk.error))
-      .flatMap(getAiReviewChunkRowNumbers)
-  );
+  const failedRowNumbers = normalizeRowNumbers([
+    ...failedChunks.flatMap(getAiReviewChunkRowNumbers),
+    ...escalationFailedChunks.flatMap(getAiReviewChunkRowNumbers),
+  ]);
   const requestedRowNumbers = normalizeRowNumbers([
     ...(previousAi.requested_row_numbers ?? []),
     ...(retryAi.requested_row_numbers ?? []),
-    ...retryRows,
   ]);
 
   const aiSuggestionByRow = new Map<number, AiReview["suggestions"][number]>();
@@ -3125,33 +3159,33 @@ function mergeAiRetryReviewMetadata(
     }
   }
   for (const suggestion of retryAi.suggestions ?? []) {
-    aiSuggestionByRow.set(suggestion.row_number, suggestion);
+    if (retryRows.has(suggestion.row_number)) {
+      aiSuggestionByRow.set(suggestion.row_number, suggestion);
+    }
   }
   const aiSuggestions = [...aiSuggestionByRow.values()].sort(
     (left, right) => left.row_number - right.row_number
   );
-
-  const failedChunkCount = chunks.filter(
-    (chunk) => chunk.status === "failed" || Boolean(chunk.error)
-  ).length;
+  const totalFailedChunkCount = failedChunks.length + escalationFailedChunks.length;
 
   return {
     ...previousAi,
     ...retryAi,
     running: false,
-    status: failedChunkCount > 0 ? "completed_with_errors" : "completed",
-    error: failedChunkCount > 0
+    status: totalFailedChunkCount > 0 ? "completed_with_errors" : "completed",
+    error: totalFailedChunkCount > 0
       ? retryAi.error || previousAi.error || "One or more AI review chunks failed."
       : null,
     chunks,
+    escalation,
     requested_row_numbers: requestedRowNumbers,
     requested_row_count: requestedRowNumbers.length,
     reviewed_row_numbers: reviewedRowNumbers,
     reviewed_row_count: reviewedRowNumbers.length,
     failed_row_numbers: failedRowNumbers,
     submitted_chunk_count: chunks.length,
-    completed_chunk_count: chunks.filter((chunk) => chunk.status === "completed").length,
-    failed_chunk_count: failedChunkCount,
+    completed_chunk_count: completedChunks.length,
+    failed_chunk_count: failedChunks.length,
     suggestions: aiSuggestions,
     suggestion_count: aiSuggestions.length,
     retry_row_numbers: retryAi.retry_row_numbers ?? [...retryRows],
@@ -3447,7 +3481,7 @@ function AccountSuggestionReview({
             </Badge>
           )}
           <Badge variant={modelLoaded ? "outline" : "secondary"}>
-            {modelLoaded ? "XGBoost loaded" : "XGBoost unavailable · AI can still run"}
+            {modelLoaded ? "XGBoost loaded" : "XGBoost unavailable Â· AI can still run"}
           </Badge>
           {aiReview?.max_rows != null && (
             <Badge variant="secondary">
@@ -3637,7 +3671,7 @@ function AccountSuggestionReview({
                       {suggestion.name || suggestion.memo || suggestion.transaction_type || "-"}
                     </div>
                     <div className="text-xs text-muted-foreground" title={transactionTitle}>
-                      {suggestion.date || "-"} · {suggestion.transaction_type || "-"}
+                      {suggestion.date || "-"} Â· {suggestion.transaction_type || "-"}
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[360px]" title={descriptionTitle}>
@@ -4694,7 +4728,7 @@ function previewRowDomId(
 }
 
 function formatSuggestionAccount(number: string | null, name: string | null) {
-  if (number && name) return `${number} · ${name}`;
+  if (number && name) return `${number} Â· ${name}`;
   return number || name || "-";
 }
 
