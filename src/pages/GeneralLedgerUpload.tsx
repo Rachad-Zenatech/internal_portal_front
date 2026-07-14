@@ -1520,7 +1520,7 @@ export default function GeneralLedgerUpload() {
           className="mb-2 text-sm text-muted-foreground hover:underline"
           onClick={() => window.location.assign("/general-ledger")}
         >
-          â† Back to General Ledger Dashboard
+          ← Back to General Ledger Dashboard
         </button>
 
         <h1 className="text-3xl font-bold tracking-tight">Upload General Ledger</h1>
@@ -1607,7 +1607,7 @@ export default function GeneralLedgerUpload() {
                 <SelectContent>
                   {books.map((book) => (
                     <SelectItem key={book.book_id} value={String(book.book_id)}>
-                      {book.book_name} â€” {book.format_name}
+                      {book.book_name} — {book.format_name}
                       {book.is_default ? " (default)" : ""}
                     </SelectItem>
                   ))}
@@ -2588,7 +2588,7 @@ function ReviewFinderPanel({
                       {index + 1}. {label}
                     </div>
                     <div className={`mt-1 truncate text-xs ${isFocused ? "text-accent-foreground/80" : "text-muted-foreground group-hover:text-accent-foreground/80"}`}>
-                      {row.txn.entry_date || "-"} Â· {row.txn.transaction_type || "-"} Â· {formatAccountLabel(row.account)}
+                      {row.txn.entry_date || "-"} · {row.txn.transaction_type || "-"} · {formatAccountLabel(row.account)}
                     </div>
                   </div>
                   <div className="shrink-0 text-right text-xs font-medium">
@@ -2736,7 +2736,7 @@ function ReviewAccountGroup({
         <div>
           <h4 className="font-medium">{formatAccountLabel(account)}</h4>
           <p className="mt-1 text-xs text-muted-foreground">
-            {account.account_type || "Unknown account type"} Â· {formatDateRange(account)}
+            {account.account_type || "Unknown account type"} · {formatDateRange(account)}
           </p>
         </div>
 
@@ -2867,7 +2867,7 @@ function ReviewAccountGroup({
                       fallbackName={txn.split_account_name}
                       aiReviewRunState={aiReviewRunState}
                     />
-                    {txn.split_account_number ? `${txn.split_account_number} Â· ${txn.split_account_name || ""}` : "-"}
+                    {txn.split_account_number ? `${txn.split_account_number} · ${txn.split_account_name || ""}` : "-"}
                   </TableCell>
                   <TableCell className="text-right" title={formatOptionalMoney(txn.debit)}>{txn.debit ? formatMoney(txn.debit) : "-"}</TableCell>
                   <TableCell className="text-right" title={formatOptionalMoney(txn.credit)}>{txn.credit ? formatMoney(txn.credit) : "-"}</TableCell>
@@ -3481,7 +3481,7 @@ function AccountSuggestionReview({
             </Badge>
           )}
           <Badge variant={modelLoaded ? "outline" : "secondary"}>
-            {modelLoaded ? "XGBoost loaded" : "XGBoost unavailable Â· AI can still run"}
+            {modelLoaded ? "XGBoost loaded" : "XGBoost unavailable · AI can still run"}
           </Badge>
           {aiReview?.max_rows != null && (
             <Badge variant="secondary">
@@ -3671,7 +3671,7 @@ function AccountSuggestionReview({
                       {suggestion.name || suggestion.memo || suggestion.transaction_type || "-"}
                     </div>
                     <div className="text-xs text-muted-foreground" title={transactionTitle}>
-                      {suggestion.date || "-"} Â· {suggestion.transaction_type || "-"}
+                      {suggestion.date || "-"} · {suggestion.transaction_type || "-"}
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[360px]" title={descriptionTitle}>
@@ -4728,7 +4728,7 @@ function previewRowDomId(
 }
 
 function formatSuggestionAccount(number: string | null, name: string | null) {
-  if (number && name) return `${number} Â· ${name}`;
+  if (number && name) return `${number} · ${name}`;
   return number || name || "-";
 }
 
