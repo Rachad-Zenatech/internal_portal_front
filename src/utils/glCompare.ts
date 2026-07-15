@@ -402,7 +402,7 @@ export function compareGLSplitResults(
       charge_account: getChargeAccount(origRow),
       expected_account: expectedAccount,
       dry_run_account: dryRunAccount,
-      source,
+      source: source === "ai" ? "AI Review" : source,
       confidence,
       status,
       difference_reason: differenceReason,

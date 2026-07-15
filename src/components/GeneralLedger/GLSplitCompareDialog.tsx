@@ -597,7 +597,9 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                                   <TableCell className="text-right">{r.credit ? r.credit.toFixed(2) : "-"}</TableCell>
                                   <TableCell>{r.expected_account || "-"}</TableCell>
                                   <TableCell>{r.dry_run_account || "-"}</TableCell>
-                                  <TableCell className="capitalize">{String(r.source || "unknown").replace(/_/g, " ")}</TableCell>
+                                  <TableCell className={r.source === "ai" ? "" : "capitalize"}>
+                                    {r.source === "ai" ? "AI Review" : String(r.source || "unknown").replace(/_/g, " ")}
+                                  </TableCell>
                                   <TableCell>{r.confidence ? (r.confidence * 100).toFixed(1) + "%" : "-"}</TableCell>
                                   <TableCell>
                                     <div className="flex flex-col items-start gap-1">
