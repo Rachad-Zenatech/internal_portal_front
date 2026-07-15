@@ -15,6 +15,7 @@ import type {
   ManualGlEntryRequest,
   ParseImportResponse,
 } from "@/types/gl";
+import type { ChartOfAccount } from "@/types/chartOfAccount";
 import {
   useBooks,
   useImportSummary,
@@ -36,6 +37,7 @@ import {
   useSaveImportFromUpload,
   useSaveDryRunPreview,
 } from "@/hooks/useGL";
+import { useChartOfAccounts } from "@/hooks/useChartOfAccount";
 import { GLService } from "@/services/glService";
 import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
 import { GLSplitCompareDialog } from "@/components/GeneralLedger/GLSplitCompareDialog";
@@ -97,6 +99,8 @@ type WorkbookPreviewRow = {
 
 type ReviewFinderKind =
   | "quickbooks_rule"
+  | "accounts_receivable"
+  | "accounts_payable"
   | "xgboost"
   | "split_lookup"
   | "ai"
@@ -235,6 +239,7 @@ export default function GeneralLedgerUpload() {
 
   // Queries & Mutations
   const { data: books = [], isLoading: isLoadingBooks, error: booksError } = useBooks();
+  const { data: chartOfAccountsResponse } = useChartOfAccounts();
   const urlSourceFileId = searchParams.get("source_file_id")
     ? Number(searchParams.get("source_file_id"))
     : null;
@@ -324,6 +329,23 @@ export default function GeneralLedgerUpload() {
     () => accountSuggestions?.suggestions ?? [],
     [accountSuggestions]
   );
+  const manualTargetAccounts = useMemo(() => {
+    const byNumber = new Map<string, ChartOfAccount>();
+    for (const account of chartOfAccountsResponse?.chart_of_accounts ?? []) {
+      const accountNumber = account.account_number.trim();
+      if (accountNumber && !byNumber.has(accountNumber)) {
+        byNumber.set(accountNumber, {
+          ...account,
+          account_number: accountNumber,
+        });
+      }
+    }
+    return [...byNumber.values()].sort((left, right) =>
+      left.account_number.localeCompare(right.account_number, undefined, {
+        numeric: true,
+      })
+    );
+  }, [chartOfAccountsResponse]);
   const suggestionByTransaction = useMemo(() => {
     const map = new Map<string, GLAccountSuggestion>();
     for (const suggestion of suggestions) {
@@ -352,6 +374,14 @@ export default function GeneralLedgerUpload() {
     () => workbookRows.filter(isWorkbookQuickBooksRuleReviewRow),
     [workbookRows]
   );
+  const accountsPayableWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookAccountsPayableReviewRow),
+    [workbookRows]
+  );
+  const accountsReceivableWorkbookRows = useMemo(
+    () => workbookRows.filter(isWorkbookAccountsReceivableReviewRow),
+    [workbookRows]
+  );
   const aiReviewWorkbookRows = useMemo(
     () => workbookRows.filter(isWorkbookAiReviewRow),
     [workbookRows]
@@ -374,6 +404,8 @@ export default function GeneralLedgerUpload() {
   );
   const activeReviewFinderRows = useMemo(() => {
     if (activeReviewFinder === "quickbooks_rule") return qbRuleWorkbookRows;
+    if (activeReviewFinder === "accounts_receivable") return accountsReceivableWorkbookRows;
+    if (activeReviewFinder === "accounts_payable") return accountsPayableWorkbookRows;
     if (activeReviewFinder === "ai") return aiReviewWorkbookRows;
     if (activeReviewFinder === "ai_changed") return aiChangedWorkbookRows;
     if (activeReviewFinder === "xgboost") return xgboostWorkbookRows;
@@ -383,6 +415,8 @@ export default function GeneralLedgerUpload() {
     return [];
   }, [
     activeReviewFinder,
+    accountsReceivableWorkbookRows,
+    accountsPayableWorkbookRows,
     aiChangedWorkbookRows,
     aiReviewWorkbookRows,
     differencesWorkbookRows,
@@ -1385,14 +1419,39 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleApplySuggestedTarget(suggestion: GLAccountSuggestion) {
-    if (!summary || isDryRun || summary.source_file_id === null) return;
+    if (!summary) return;
     const suggestedAccountNumber = getVisibleSuggestedTargetNumber(suggestion)?.trim();
     if (!suggestedAccountNumber || suggestedAccountNumber === "MANUAL_REVIEW") {
       setError("Choose a valid suggested target before applying.");
       return;
     }
 
+    const currentTargetNumber = String(
+      suggestion.current_target_account_number ??
+        (suggestion.target_field === "ledger_account"
+          ? suggestion.ledger_account_number
+          : suggestion.current_split_account_number) ??
+        ""
+    ).trim();
+    if (suggestedAccountNumber === currentTargetNumber) {
+      setError("This QuickBooks result is already on the current target; there is no change to apply.");
+      return;
+    }
+
     const suggestionKey = applySuggestionKey(suggestion);
+    if (isDryRun || summary.source_file_id === null) {
+      setError(null);
+      setApplyingSuggestionKey(suggestionKey);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+      setAppliedSuggestionRows((current) => {
+        const next = new Set(current);
+        next.add(suggestion.row_number);
+        return next;
+      });
+      setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
+      return;
+    }
+
     setError(null);
     setApplyingSuggestionKey(suggestionKey);
 
@@ -1470,12 +1529,24 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleUnapplySuggestedTarget(suggestion: GLAccountSuggestion) {
-    if (!summary || isDryRun || summary.source_file_id === null) return;
+    if (!summary) return false;
     const suggestionKey = applySuggestionKey(suggestion);
+    if (isDryRun || summary.source_file_id === null) {
+      setError(null);
+      setApplyingSuggestionKey(suggestionKey);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 300));
+      setAppliedSuggestionRows((current) => {
+        const next = new Set(current);
+        next.delete(suggestion.row_number);
+        return next;
+      });
+      setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
+      return true;
+    }
     const appliedChange = appliedSuggestionChanges.get(suggestionKey);
     if (!appliedChange) {
       setError("This suggested target is not available to undo in the current review session.");
-      return;
+      return false;
     }
 
     setError(null);
@@ -1547,14 +1618,79 @@ export default function GeneralLedgerUpload() {
           manual_review_count: updatedSuggestions.filter((row) => row.requires_manual_review).length,
         };
       });
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to undo suggested target");
+      return false;
     } finally {
       setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
     }
   }
 
-  function changedSuggestionPayloads(): ApplySuggestedTargetRequest[] {
+  async function handleManualSuggestedTarget(
+    suggestion: GLAccountSuggestion,
+    accountNumber: string
+  ) {
+    const selectedAccount = manualTargetAccounts.find(
+      (account) => account.account_number === accountNumber
+    );
+    if (!selectedAccount) {
+      setError("Choose an account from the shared chart of accounts.");
+      return;
+    }
+
+    if (appliedSuggestionRows.has(suggestion.row_number)) {
+      const wasUnapplied = await handleUnapplySuggestedTarget(suggestion);
+      if (!wasUnapplied) return;
+    }
+
+    const selectedName = selectedAccount.account_name || null;
+    setError(null);
+    setAppliedSuggestionRows((current) => {
+      const next = new Set(current);
+      next.delete(suggestion.row_number);
+      return next;
+    });
+    setAccountSuggestions((current) => {
+      if (!current) return current;
+      const updatedSuggestions = current.suggestions.map((row) => {
+        if (applySuggestionKey(row) !== applySuggestionKey(suggestion)) return row;
+
+        const updatedRow: GLAccountSuggestion = {
+          ...row,
+          suggested_target_account_number: accountNumber,
+          suggested_target_account_name: selectedName,
+          suggested_account_number: accountNumber,
+          suggested_account_name: selectedName,
+          confidence: 1,
+          reason: "Target account selected manually by the user.",
+          rule: "manual_account_override",
+          review_source: "manual",
+          review_status: "manual_override",
+          review_label: "Manual selection",
+          requires_manual_review: false,
+          is_suggested_change: true,
+        };
+
+        if (row.target_field === "split_account") {
+          updatedRow.suggested_split_account_number = accountNumber;
+          updatedRow.suggested_split_account_name = selectedName;
+        }
+        return updatedRow;
+      });
+
+      return {
+        ...current,
+        suggestions: updatedSuggestions,
+        changed_suggestion_count: countChangedSuggestions(updatedSuggestions),
+        manual_review_count: updatedSuggestions.filter((row) => row.requires_manual_review).length,
+      };
+    });
+  }
+
+  function changedSuggestionPayloads(
+    selectedDryRunChangesOnly = isDryRun || summary?.source_file_id === null
+  ): ApplySuggestedTargetRequest[] {
     if (!accountSuggestions) return [];
     const seenRows = new Set<number>();
     const payloads: ApplySuggestedTargetRequest[] = [];
@@ -1571,6 +1707,13 @@ export default function GeneralLedgerUpload() {
           ""
       ).trim();
       if (suggestedAccountNumber === currentTargetNumber) continue;
+      if (
+        selectedDryRunChangesOnly &&
+        (isDryRun || summary?.source_file_id === null) &&
+        !appliedSuggestionRows.has(suggestion.row_number)
+      ) {
+        continue;
+      }
       if (seenRows.has(suggestion.row_number)) continue;
       seenRows.add(suggestion.row_number);
       payloads.push({
@@ -1582,6 +1725,33 @@ export default function GeneralLedgerUpload() {
     }
 
     return payloads.filter((payload) => payload.company_id > 0);
+  }
+
+  function handleApplyAllSuggestedTargets() {
+    const changes = changedSuggestionPayloads(false);
+    setError(null);
+    setAppliedSuggestionRows((current) => {
+      const next = new Set(current);
+      for (const change of changes) next.add(change.row_number);
+      return next;
+    });
+  }
+
+  async function handleUnapplyAllSuggestedTargets() {
+    if (!accountSuggestions) return;
+    const appliedSuggestions = accountSuggestions.suggestions.filter(
+      (suggestion) => appliedSuggestionRows.has(suggestion.row_number)
+    );
+
+    if (isDryRun || summary?.source_file_id === null) {
+      setError(null);
+      setAppliedSuggestionRows(new Set());
+      return;
+    }
+
+    for (const suggestion of appliedSuggestions) {
+      await handleUnapplySuggestedTarget(suggestion);
+    }
   }
   async function handleSave() {
     if (!summary) return;
@@ -2003,7 +2173,7 @@ export default function GeneralLedgerUpload() {
               </div>
 
               {preview.account_review_summary && (
-                <div className="sticky top-0 z-40 grid border-b bg-background md:grid-cols-9 md:divide-x shadow-sm">
+                <div className="sticky top-0 z-40 grid border-b bg-background md:grid-cols-11 md:divide-x shadow-sm">
                   <ReviewStat
                     label="Bank Txns"
                     value={preview.account_review_summary.bank_transaction_count.toLocaleString("en-US")}
@@ -2020,6 +2190,34 @@ export default function GeneralLedgerUpload() {
                       qbRuleWorkbookRows.length > 0
                         ? "Open QuickBooks rule reviewed transaction finder"
                         : "No QuickBooks rule-reviewed transactions in this preview"
+                    }
+                  />
+                  <ReviewStat
+                    label="A/R Customers"
+                    value={(preview.account_review_summary.accounts_receivable_contact_count ?? accountsReceivableWorkbookRows.length).toLocaleString("en-US")}
+                    onClick={
+                      accountsReceivableWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("accounts_receivable", accountsReceivableWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      accountsReceivableWorkbookRows.length > 0
+                        ? "Open A/R customer receipt matches"
+                        : "No A/R customer receipts matched in this preview"
+                    }
+                  />
+                  <ReviewStat
+                    label="A/P Payees"
+                    value={(preview.account_review_summary.accounts_payable_contact_count ?? accountsPayableWorkbookRows.length).toLocaleString("en-US")}
+                    onClick={
+                      accountsPayableWorkbookRows.length > 0
+                        ? () => toggleReviewFinder("accounts_payable", accountsPayableWorkbookRows)
+                        : undefined
+                    }
+                    title={
+                      accountsPayableWorkbookRows.length > 0
+                        ? "Open A/P Bill Payment matches"
+                        : "No A/P Bill Payment contacts matched in this preview"
                     }
                   />
                   <ReviewStat
@@ -2209,10 +2407,14 @@ export default function GeneralLedgerUpload() {
                       ? "Rerun AI Review"
                       : "Rerun Review"
                 }
-                onApplySuggestedTarget={!isDryRun && summary ? handleApplySuggestedTarget : undefined}
-                onUnapplySuggestedTarget={!isDryRun && summary ? handleUnapplySuggestedTarget : undefined}
+                onApplySuggestedTarget={summary ? handleApplySuggestedTarget : undefined}
+                onUnapplySuggestedTarget={summary ? handleUnapplySuggestedTarget : undefined}
+                onApplyChanges={summary ? handleApplyAllSuggestedTargets : undefined}
+                onUnapplyChanges={summary ? handleUnapplyAllSuggestedTargets : undefined}
                 applyingSuggestionKey={applyingSuggestionKey}
                 appliedSuggestionRows={appliedSuggestionRows}
+                manualTargetAccounts={manualTargetAccounts}
+                onManualSuggestedTarget={handleManualSuggestedTarget}
               />
 
               <div className="sticky top-0 z-30 border-b bg-background/95 p-6 backdrop-blur-sm shadow-sm">
@@ -2337,6 +2539,12 @@ export default function GeneralLedgerUpload() {
                         suggestionByTransaction={suggestionByTransaction}
                         focusedReviewRowId={focusedReviewRowId}
                         aiReviewRunState={aiReviewRunState}
+                        onApplySuggestedTarget={summary ? handleApplySuggestedTarget : undefined}
+                        onUnapplySuggestedTarget={summary ? handleUnapplySuggestedTarget : undefined}
+                        applyingSuggestionKey={applyingSuggestionKey}
+                        appliedSuggestionRows={appliedSuggestionRows}
+                        manualTargetAccounts={manualTargetAccounts}
+                        onManualSuggestedTarget={handleManualSuggestedTarget}
                       />
                     ))}
                   </div>
@@ -2743,6 +2951,8 @@ function ReviewFinderPanel({
 
 function reviewFinderTitle(kind: ReviewFinderKind) {
   if (kind === "quickbooks_rule") return "QB Rules finder";
+  if (kind === "accounts_receivable") return "A/R Customer Receipts finder";
+  if (kind === "accounts_payable") return "A/P Bill Payments finder";
   if (kind === "split_lookup") return "Split account finder";
   if (kind === "ai") return "AI Review finder";
   if (kind === "ai_changed") return "AI Changed finder";
@@ -2761,6 +2971,12 @@ function reviewFinderCountLabel(kind: ReviewFinderKind) {
 function reviewFinderEmptyText(kind: ReviewFinderKind) {
   if (kind === "quickbooks_rule") {
     return "No QuickBooks rule-reviewed transactions are available in this preview.";
+  }
+  if (kind === "accounts_receivable") {
+    return "No A/R customer receipt matches are available in this preview.";
+  }
+  if (kind === "accounts_payable") {
+    return "No A/P payee Bill Payments are available in this preview.";
   }
   if (kind === "ai") {
     return "No AI-reviewed transactions are available in this preview.";
@@ -2835,6 +3051,49 @@ function ReviewStat({
   );
 }
 
+function ManualTargetAccountSelect({
+  accounts,
+  value,
+  disabled,
+  onValueChange,
+}: {
+  accounts: ChartOfAccount[];
+  value: string;
+  disabled?: boolean;
+  onValueChange: (accountNumber: string) => void;
+}) {
+  return (
+    <div className="mt-2" onClick={(event) => event.stopPropagation()}>
+      <Select
+        value={value || undefined}
+        onValueChange={onValueChange}
+        disabled={disabled || accounts.length === 0}
+      >
+        <SelectTrigger
+          className="h-8 w-full min-w-[220px] bg-background text-xs"
+          title="Manually choose any account from the shared chart of accounts"
+        >
+          <SelectValue
+            placeholder={
+              accounts.length > 0 ? "Change account manually" : "Chart of accounts unavailable"
+            }
+          />
+        </SelectTrigger>
+        <SelectContent className="max-h-[320px]">
+          {accounts.map((account) => (
+            <SelectItem key={account.account_number} value={account.account_number}>
+              {account.account_number} · {account.account_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="mt-1 text-[11px] text-muted-foreground">
+        Manual account override
+      </div>
+    </div>
+  );
+}
+
 function ReviewAccountGroup({
   account,
   isFiltered,
@@ -2842,6 +3101,12 @@ function ReviewAccountGroup({
   suggestionByTransaction,
   focusedReviewRowId,
   aiReviewRunState,
+  onApplySuggestedTarget,
+  onUnapplySuggestedTarget,
+  applyingSuggestionKey,
+  appliedSuggestionRows,
+  manualTargetAccounts,
+  onManualSuggestedTarget,
 }: {
   account: ImportPreviewAccount;
   isFiltered: boolean;
@@ -2849,6 +3114,15 @@ function ReviewAccountGroup({
   suggestionByTransaction: Map<string, GLAccountSuggestion>;
   focusedReviewRowId?: string | null;
   aiReviewRunState: AiReviewRunState;
+  onApplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
+  onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
+  applyingSuggestionKey?: string | null;
+  appliedSuggestionRows?: Set<number>;
+  manualTargetAccounts: ChartOfAccount[];
+  onManualSuggestedTarget?: (
+    suggestion: GLAccountSuggestion,
+    accountNumber: string
+  ) => void | Promise<void>;
 }) {
   const transactions = account.transactions ?? [];
   const closingBalance = getPreviewAccountClosingBalance(account);
@@ -2929,6 +3203,27 @@ function ReviewAccountGroup({
                 const rowTitle = formatAccountReviewTransactionTitle(txn, suggestion, previewReview, aiReviewRunState);
                 const rowDomId = previewRowDomId(account, txn);
                 const rowIsFocused = focusedReviewRowId === rowDomId;
+                const suggestionKey = suggestion ? applySuggestionKey(suggestion) : null;
+                const isApplying = Boolean(
+                  suggestionKey && applyingSuggestionKey === suggestionKey
+                );
+                const isApplied = Boolean(
+                  suggestion && appliedSuggestionRows?.has(suggestion.row_number)
+                );
+                const visibleSuggestedTargetNumber = suggestion
+                  ? getVisibleSuggestedTargetNumber(suggestion)
+                  : null;
+                const canApplySuggestedTarget = Boolean(
+                  suggestion &&
+                    onApplySuggestedTarget &&
+                    visibleSuggestedTargetNumber &&
+                    visibleSuggestedTargetNumber !== "MANUAL_REVIEW" &&
+                    isChangedSuggestion(suggestion) &&
+                    !isApplied
+                );
+                const canUnapplySuggestedTarget = Boolean(
+                  suggestion && onUnapplySuggestedTarget && isApplied
+                );
 
                 return (
                 <TableRow
@@ -2958,23 +3253,82 @@ function ReviewAccountGroup({
                     />
                   </TableCell>
                   <TableCell className="min-w-[220px] max-w-[280px]" title={suggestedTargetTitle}>
-                    {suggestion ? (
-                      <SuggestedAccountValue suggestion={suggestion} aiReviewRunState={aiReviewRunState} />
-                    ) : previewReview?.suggested_account_number ? (
-                      <div className="min-w-0">
-                        <AccountValue
-                          number={previewReview.suggested_account_number}
-                          name={previewReview.suggested_account_name}
-                        />
-                        <ConfidenceValue review={previewReview} className="mt-1" />
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        {suggestion ? (
+                          <SuggestedAccountValue suggestion={suggestion} aiReviewRunState={aiReviewRunState} />
+                        ) : previewReview?.suggested_account_number ? (
+                          <div className="min-w-0">
+                            <AccountValue
+                              number={previewReview.suggested_account_number}
+                              name={previewReview.suggested_account_name}
+                            />
+                            <ConfidenceValue review={previewReview} className="mt-1" />
+                          </div>
+                        ) : previewReview ? (
+                          <div className="min-w-0">
+                            <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
+                            <ConfidenceValue review={previewReview} className="mt-1" />
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
+                        )}
                       </div>
-                    ) : previewReview ? (
-                      <div className="min-w-0">
-                        <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
-                        <ConfidenceValue review={previewReview} className="mt-1" />
+                      {suggestion &&
+                        (canApplySuggestedTarget ||
+                          canUnapplySuggestedTarget ||
+                          isApplying) && (
+                          <Button
+                            type="button"
+                            variant={isApplied ? "secondary" : "outline"}
+                            size="sm"
+                            className="shrink-0"
+                            disabled={isApplying}
+                            onClick={() =>
+                              isApplied
+                                ? onUnapplySuggestedTarget?.(suggestion)
+                                : onApplySuggestedTarget?.(suggestion)
+                            }
+                            title={
+                              isApplied
+                                ? "Remove this change from Save Import"
+                                : "Apply this suggested target"
+                            }
+                          >
+                            {isApplying ? (
+                              <RotateCcw className="h-4 w-4 animate-spin" />
+                            ) : isApplied ? (
+                              <RotateCcw className="h-4 w-4" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                            {isApplying
+                              ? "Applying..."
+                              : isApplied
+                                ? "Unapply"
+                                : "Apply"}
+                          </Button>
+                        )}
+                    </div>
+                    {isApplying && (
+                      <div className="mt-1 text-xs font-medium text-blue-700 dark:text-blue-300">
+                        {isApplied ? "Removing change..." : "Applying changes..."}
                       </div>
-                    ) : (
-                      <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
+                    )}
+                    {isApplied && !isApplying && (
+                      <div className="mt-1 text-xs font-medium text-green-700 dark:text-green-300">
+                        Applied · selected for Save Import
+                      </div>
+                    )}
+                    {suggestion && onManualSuggestedTarget && (
+                      <ManualTargetAccountSelect
+                        accounts={manualTargetAccounts}
+                        value={visibleSuggestedTargetNumber ?? ""}
+                        disabled={isApplying}
+                        onValueChange={(accountNumber) =>
+                          onManualSuggestedTarget(suggestion, accountNumber)
+                        }
+                      />
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -3176,23 +3530,28 @@ function mergeAiRetryAccountSuggestions(
 
   const retrySuggestionByRow = new Map<number, GLAccountSuggestion>();
   for (const suggestion of retry.suggestions ?? []) {
-    if (retryRows.has(suggestion.row_number)) {
-      retrySuggestionByRow.set(suggestion.row_number, suggestion);
-    }
+    retrySuggestionByRow.set(suggestion.row_number, suggestion);
   }
 
   const mergedSuggestions: GLAccountSuggestion[] = [];
   const seenRows = new Set<number>();
   for (const suggestion of previous.suggestions ?? []) {
-    const retrySuggestion = retryRows.has(suggestion.row_number)
-      ? retrySuggestionByRow.get(suggestion.row_number)
-      : null;
+    const freshSuggestion = retrySuggestionByRow.get(suggestion.row_number);
+    const retrySuggestion =
+      retryRows.has(suggestion.row_number) ||
+      isAuthoritativeAccountSuggestion(freshSuggestion)
+        ? freshSuggestion
+        : null;
     const nextSuggestion = retrySuggestion ?? suggestion;
     mergedSuggestions.push(nextSuggestion);
     seenRows.add(nextSuggestion.row_number);
   }
   for (const suggestion of retry.suggestions ?? []) {
-    if (retryRows.has(suggestion.row_number) && !seenRows.has(suggestion.row_number)) {
+    if (
+      (retryRows.has(suggestion.row_number) ||
+        isAuthoritativeAccountSuggestion(suggestion)) &&
+      !seenRows.has(suggestion.row_number)
+    ) {
       mergedSuggestions.push(suggestion);
       seenRows.add(suggestion.row_number);
     }
@@ -3212,6 +3571,20 @@ function mergeAiRetryAccountSuggestions(
     manual_review_count: mergedSuggestions.filter((suggestion) => suggestion.requires_manual_review).length,
     ai_review: aiReview,
   };
+}
+
+function isAuthoritativeAccountSuggestion(
+  suggestion: GLAccountSuggestion | null | undefined
+) {
+  return Boolean(
+    suggestion &&
+      (suggestion.rule === "quickbooks_rule" ||
+        suggestion.review_source === "quickbooks_rule" ||
+        suggestion.rule === "accounts_receivable_contact" ||
+        suggestion.review_source === "accounts_receivable_contact" ||
+        suggestion.rule === "accounts_payable_contact" ||
+        suggestion.review_source === "accounts_payable_contact")
+  );
 }
 
 function mergeAiRetryReviewMetadata(
@@ -3513,10 +3886,14 @@ function AccountSuggestionReview({
   onRerun,
   canRerun = false,
   rerunLabel = "Rerun Review",
+  onApplyChanges,
+  onUnapplyChanges,
   onApplySuggestedTarget,
   onUnapplySuggestedTarget,
   applyingSuggestionKey,
   appliedSuggestionRows,
+  manualTargetAccounts,
+  onManualSuggestedTarget,
 }: {
   suggestions: GLAccountSuggestion[];
   response: GLAccountSuggestionsResponse | null;
@@ -3527,12 +3904,44 @@ function AccountSuggestionReview({
   onRerun?: () => void;
   canRerun?: boolean;
   rerunLabel?: string;
+  onApplyChanges?: () => void;
+  onUnapplyChanges?: () => void;
   onApplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
+  manualTargetAccounts: ChartOfAccount[];
+  onManualSuggestedTarget?: (
+    suggestion: GLAccountSuggestion,
+    accountNumber: string
+  ) => void | Promise<void>;
 }) {
   const previewRows = useMemo(() => sortAccountSuggestionRows(suggestions), [suggestions]);
+  const unappliedChangeCount = useMemo(
+    () =>
+      suggestions.filter((suggestion) => {
+        const target = getVisibleSuggestedTargetNumber(suggestion)?.trim();
+        return Boolean(
+          !suggestion.requires_manual_review &&
+            target &&
+            target !== "MANUAL_REVIEW" &&
+            isChangedSuggestion(suggestion) &&
+            !appliedSuggestionRows?.has(suggestion.row_number)
+        );
+      }).length,
+    [appliedSuggestionRows, suggestions]
+  );
+  const appliedChangeCount = useMemo(
+    () =>
+      suggestions.filter(
+        (suggestion) =>
+          isChangedSuggestion(suggestion) &&
+          appliedSuggestionRows?.has(suggestion.row_number)
+      ).length,
+    [appliedSuggestionRows, suggestions]
+  );
+  const allEligibleChangesApplied =
+    appliedChangeCount > 0 && unappliedChangeCount === 0;
   const modelLoaded = response?.xgboost_model_status?.model_loaded;
   const aiReview = response?.ai_review;
   const missingAiReviewRowCount = getAiReviewMissingRowNumbers(aiReview).length;
@@ -3582,6 +3991,42 @@ function AccountSuggestionReview({
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
+          {onApplyChanges && (
+            <Button
+              type="button"
+              size="sm"
+              variant={allEligibleChangesApplied ? "secondary" : "default"}
+              onClick={
+                allEligibleChangesApplied
+                  ? onUnapplyChanges
+                  : onApplyChanges
+              }
+              disabled={
+                isLoading ||
+                (unappliedChangeCount === 0 && appliedChangeCount === 0) ||
+                (allEligibleChangesApplied && !onUnapplyChanges)
+              }
+              title={
+                allEligibleChangesApplied
+                  ? "Remove all selected account changes from Save Import"
+                  : unappliedChangeCount > 0
+                  ? "Select all eligible account changes for Save Import"
+                  : "No unapplied account changes"
+              }
+            >
+              {allEligibleChangesApplied ? (
+                <RotateCcw className="h-4 w-4" />
+              ) : (
+                <Check className="h-4 w-4" />
+              )}
+              {allEligibleChangesApplied ? "Unapply All" : "Apply Changes"}
+              {allEligibleChangesApplied
+                ? ` (${appliedChangeCount.toLocaleString("en-US")})`
+                : unappliedChangeCount > 0
+                  ? ` (${unappliedChangeCount.toLocaleString("en-US")})`
+                  : ""}
+            </Button>
+          )}
           {onRerun && (
             <Button
               type="button"
@@ -3835,6 +4280,16 @@ function AccountSuggestionReview({
                       <div className="mt-1 text-xs text-muted-foreground" title={formatAiReviewTitle(suggestion)}>
                         {suggestion.ai_provider} {formatPercent(suggestion.ai_confidence ?? 0)}
                       </div>
+                    )}
+                    {onManualSuggestedTarget && (
+                      <ManualTargetAccountSelect
+                        accounts={manualTargetAccounts}
+                        value={visibleSuggestedTargetNumber ?? ""}
+                        disabled={isApplying}
+                        onValueChange={(accountNumber) =>
+                          onManualSuggestedTarget(suggestion, accountNumber)
+                        }
+                      />
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -4370,6 +4825,12 @@ function PreviewReviewBadge({ review }: { review: ImportPreviewAccountReview }) 
   if (review.source === "quickbooks_rule") {
     return <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500">QB Rule</Badge>;
   }
+  if (review.source === "accounts_receivable_contact") {
+    return <Badge className="bg-teal-600 text-white hover:bg-teal-600 dark:bg-teal-500 dark:text-teal-950 dark:hover:bg-teal-500">A/R Customer</Badge>;
+  }
+  if (review.source === "accounts_payable_contact") {
+    return <Badge className="bg-indigo-600 text-white hover:bg-indigo-600 dark:bg-indigo-500 dark:text-indigo-950 dark:hover:bg-indigo-500">A/P Payee</Badge>;
+  }
   if (review.source === "bank_transfer") {
     return <Badge className="bg-amber-600 text-white hover:bg-amber-600 dark:bg-amber-500 dark:text-amber-950 dark:hover:bg-amber-500">Bank transfer</Badge>;
   }
@@ -4453,6 +4914,38 @@ function isWorkbookXgboostReviewRow(row: WorkbookPreviewRow) {
       row.txn.account_review?.source === "xgboost")
   );
 }
+
+function isAccountsPayableSuggestion(suggestion: GLAccountSuggestion) {
+  return (
+    suggestion.rule === "accounts_payable_contact" ||
+    suggestion.review_source === "accounts_payable_contact"
+  );
+}
+
+function isAccountsReceivableSuggestion(suggestion: GLAccountSuggestion) {
+  return (
+    suggestion.rule === "accounts_receivable_contact" ||
+    suggestion.review_source === "accounts_receivable_contact"
+  );
+}
+
+function isWorkbookAccountsReceivableReviewRow(row: WorkbookPreviewRow) {
+  return (
+    isWorkbookBankOrCreditCardRow(row) &&
+    (row.txn.account_review?.source === "accounts_receivable_contact" ||
+      (row.suggestion ? isAccountsReceivableSuggestion(row.suggestion) : false))
+  );
+}
+
+
+function isWorkbookAccountsPayableReviewRow(row: WorkbookPreviewRow) {
+  return (
+    isWorkbookBankOrCreditCardRow(row) &&
+    (row.txn.account_review?.source === "accounts_payable_contact" ||
+      (row.suggestion ? isAccountsPayableSuggestion(row.suggestion) : false))
+  );
+}
+
 
 function isWorkbookQuickBooksRuleReviewRow(row: WorkbookPreviewRow) {
   return (
@@ -4656,18 +5149,20 @@ function accountSuggestionReviewPriority(suggestion: GLAccountSuggestion) {
   ) {
     return 0;
   }
-  if (isBankTransferSuggestion(suggestion)) return 1;
-  if (isOneToOneSplitLookupSuggestion(suggestion)) return 2;
-  if (isXgboostSuggestion(suggestion)) return 3;
+  if (isAccountsReceivableSuggestion(suggestion)) return 1;
+  if (isAccountsPayableSuggestion(suggestion)) return 2;
+  if (isBankTransferSuggestion(suggestion)) return 3;
+  if (isOneToOneSplitLookupSuggestion(suggestion)) return 4;
+  if (isXgboostSuggestion(suggestion)) return 4;
   if (
     isGeminiSuggestion(suggestion) ||
     isAiFallbackSuggestion(suggestion) ||
     suggestion.ai_provider
   ) {
-    return 4;
+    return 5;
   }
-  if (isHumanReviewSuggestion(suggestion)) return 5;
-  return 6;
+  if (isHumanReviewSuggestion(suggestion)) return 6;
+  return 7;
 }
 
 function compareFinderText(
@@ -4689,6 +5184,8 @@ function formatReviewFinderStatus(
 
   if (suggestion) {
     if (suggestion.rule === "quickbooks_rule" || suggestion.review_source === "quickbooks_rule") return "QB Rule";
+    if (isAccountsReceivableSuggestion(suggestion)) return "A/R customer";
+    if (isAccountsPayableSuggestion(suggestion)) return "A/P payee";
     if (isOneToOneSplitLookupSuggestion(suggestion)) return "1-to-1 mapping";
     if (isBankTransferSuggestion(suggestion)) return "Bank transfer";
     if (isSplitLookupSuggestion(suggestion)) return suggestion.review_label || "Split Lookup";
@@ -4710,6 +5207,8 @@ function formatReviewFinderStatus(
 
   if (review) {
     if (review.source === "quickbooks_rule") return "QB Rule";
+    if (review.source === "accounts_receivable_contact") return "A/R customer";
+    if (review.source === "accounts_payable_contact") return "A/P payee";
     if (isOneToOneSplitLookupReview(review)) return "1-to-1 mapping";
     if (review.source === "bank_transfer") return "Bank transfer";
     if (review.source === "account_split_lookup") return "Split Lookup";
@@ -5032,6 +5531,8 @@ function formatSuggestionStatus(suggestion: GLAccountSuggestion) {
     );
   }
   if (isAiFallbackSuggestion(suggestion)) return "AI review required";
+  if (isAccountsReceivableSuggestion(suggestion)) return "A/R customer receipt";
+  if (isAccountsPayableSuggestion(suggestion)) return "A/P payee Bill Payment";
   if (isSplitLookupSuggestion(suggestion)) return "Split account lookup";
   if (isBankTransferSuggestion(suggestion)) return "Bank transfer";
   if (suggestion.requires_manual_review) return "Manual review required";

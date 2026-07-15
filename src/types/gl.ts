@@ -424,6 +424,8 @@ export type ImportPreviewAccountReview = {
 
 export type ImportPreviewAccountReviewSummary = {
   quickbooks_rule_count: number;
+  accounts_receivable_contact_count?: number;
+  accounts_payable_contact_count: number;
   xgboost_count: number;
   ai_review_count: number;
   human_review_count: number;
