@@ -1,6 +1,14 @@
 // src/pages/GeneralLedgerUpload.tsx
 
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
   ApplySuggestedTargetRequest,
   ApplySuggestedTargetResponse,
@@ -59,6 +67,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Check, FileSpreadsheet, Move, RotateCcw, Sparkles, UploadCloud, X } from "lucide-react";
 
 type ParseSummary = {
@@ -222,6 +237,7 @@ export default function GeneralLedgerUpload() {
   const [appliedSuggestionChanges, setAppliedSuggestionChanges] = useState<
     Map<string, ApplySuggestedTargetResponse["applied_change"]>
   >(() => new Map());
+  const manualTargetPickerRef = useRef<ManualTargetAccountPickerHandle | null>(null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [xgboostTrainingResult, setXgboostTrainingResult] =
     useState<GLXgboostTestTrainingResponse | null>(null);
@@ -1076,6 +1092,7 @@ export default function GeneralLedgerUpload() {
   }
 
   async function handleDryRunPreviewPage(page: number, explicitPreviewToken?: string) {
+    const openingCachedPreview = Boolean(explicitPreviewToken);
     const previewToken =
       explicitPreviewToken ??
       preview?.pagination?.preview_token ??
@@ -1092,6 +1109,27 @@ export default function GeneralLedgerUpload() {
         page,
         pageSize: DRY_RUN_PREVIEW_LIMIT,
       });
+      if (openingCachedPreview) {
+        // A queue preview belongs to the server-side upload and its already
+        // queued account-review job. Keeping the old local File here makes
+        // the auto-review effect treat this as a fresh upload and start the
+        // completed AI review again instead of restoring/joining it.
+        parseRunIdRef.current += 1;
+        setFile(null);
+        if (glFileInputRef.current) {
+          glFileInputRef.current.value = "";
+        }
+        setAccountSuggestions(null);
+        setAccountReviewProgress(null);
+        setAccountReviewJobId(null);
+        setIsAccountReviewJobRunning(false);
+        setSuggestionError(null);
+        setApplyingSuggestionKey(null);
+        setAppliedSuggestionRows(new Set());
+        setAppliedSuggestionChanges(new Map());
+        autoAccountReviewKeyRef.current = null;
+        accountReviewHistoryTokenRef.current = null;
+      }
       setSummary(data.summary);
       setBookId(data.summary.company_book_id);
       setLocalPreview(data.preview ?? null);
@@ -1809,6 +1847,13 @@ export default function GeneralLedgerUpload() {
 
   return (
     <main className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out">
+      <ManualTargetAccountPicker
+        ref={manualTargetPickerRef}
+        accounts={manualTargetAccounts}
+        onSelect={(suggestion, accountNumber) => {
+          void handleManualSuggestedTarget(suggestion, accountNumber);
+        }}
+      />
       <header>
         <button
           className="mb-2 text-sm text-muted-foreground hover:underline"
@@ -2413,8 +2458,9 @@ export default function GeneralLedgerUpload() {
                 onUnapplyChanges={summary ? handleUnapplyAllSuggestedTargets : undefined}
                 applyingSuggestionKey={applyingSuggestionKey}
                 appliedSuggestionRows={appliedSuggestionRows}
-                manualTargetAccounts={manualTargetAccounts}
-                onManualSuggestedTarget={handleManualSuggestedTarget}
+                onRequestManualTarget={(suggestion) =>
+                  manualTargetPickerRef.current?.open(suggestion)
+                }
               />
 
               <div className="sticky top-0 z-30 border-b bg-background/95 p-6 backdrop-blur-sm shadow-sm">
@@ -2543,8 +2589,9 @@ export default function GeneralLedgerUpload() {
                         onUnapplySuggestedTarget={summary ? handleUnapplySuggestedTarget : undefined}
                         applyingSuggestionKey={applyingSuggestionKey}
                         appliedSuggestionRows={appliedSuggestionRows}
-                        manualTargetAccounts={manualTargetAccounts}
-                        onManualSuggestedTarget={handleManualSuggestedTarget}
+                        onRequestManualTarget={(suggestion) =>
+                          manualTargetPickerRef.current?.open(suggestion)
+                        }
                       />
                     ))}
                   </div>
@@ -3051,44 +3098,151 @@ function ReviewStat({
   );
 }
 
+type ManualTargetAccountPickerHandle = {
+  open: (suggestion: GLAccountSuggestion) => void;
+};
+
+const ManualTargetAccountPicker = forwardRef<
+  ManualTargetAccountPickerHandle,
+  {
+    accounts: ChartOfAccount[];
+    onSelect: (suggestion: GLAccountSuggestion, accountNumber: string) => void;
+  }
+>(function ManualTargetAccountPicker({ accounts, onSelect }, ref) {
+  const [search, setSearch] = useState("");
+  const [suggestion, setSuggestion] = useState<GLAccountSuggestion | null>(null);
+  const open = suggestion !== null;
+  const currentAccountNumber = suggestion
+    ? getVisibleSuggestedTargetNumber(suggestion) ?? ""
+    : "";
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      open: (nextSuggestion) => setSuggestion(nextSuggestion),
+    }),
+    []
+  );
+
+  useEffect(() => {
+    if (open) setSearch("");
+  }, [open]);
+  const searchableAccounts = useMemo(
+    () =>
+      accounts.map((account) => ({
+        account,
+        searchText: [
+          account.account_number,
+          account.account_name,
+          account.account_type,
+          account.detail_type,
+        ]
+          .map((value) => String(value ?? "").toLowerCase())
+          .join("\n"),
+      })),
+    [accounts]
+  );
+  const matchingAccounts = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    const matches = needle
+      ? searchableAccounts.filter(({ searchText }) => searchText.includes(needle))
+      : searchableAccounts;
+    return matches.slice(0, 100).map(({ account }) => account);
+  }, [search, searchableAccounts]);
+
+  function closePicker() {
+    setSuggestion(null);
+  }
+
+  function selectAccount(accountNumber: string) {
+    if (!suggestion) return;
+    const selectedSuggestion = suggestion;
+    closePicker();
+    onSelect(selectedSuggestion, accountNumber);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && closePicker()}>
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-[720px]">
+        <DialogHeader>
+          <DialogTitle>Choose target account</DialogTitle>
+          <DialogDescription>
+            Search the shared chart of accounts by number, name, type, or detail type.
+          </DialogDescription>
+        </DialogHeader>
+        <Input
+          autoFocus
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search all chart accounts..."
+        />
+        <div className="text-xs text-muted-foreground">
+          Showing {matchingAccounts.length.toLocaleString("en-US")}
+          {matchingAccounts.length < accounts.length
+            ? ` of ${accounts.length.toLocaleString("en-US")}`
+            : ""} accounts
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-md border">
+          {matchingAccounts.length === 0 ? (
+            <div className="p-6 text-center text-sm text-muted-foreground">
+              No chart account matches this search.
+            </div>
+          ) : (
+            matchingAccounts.map((account) => (
+              <button
+                key={account.account_number}
+                type="button"
+                className={`flex w-full items-start justify-between gap-4 border-b px-4 py-3 text-left last:border-b-0 hover:bg-accent ${
+                  account.account_number === currentAccountNumber ? "bg-accent/60" : ""
+                }`}
+                onClick={() => selectAccount(account.account_number)}
+              >
+                <div>
+                  <div className="font-medium">
+                    {account.account_number} · {account.account_name}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {[account.account_type, account.detail_type].filter(Boolean).join(" · ")}
+                  </div>
+                </div>
+                {account.account_number === currentAccountNumber && (
+                  <Badge variant="secondary">Current</Badge>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+});
+
 function ManualTargetAccountSelect({
-  accounts,
   value,
+  name,
   disabled,
-  onValueChange,
+  onOpen,
 }: {
-  accounts: ChartOfAccount[];
   value: string;
+  name: string;
   disabled?: boolean;
-  onValueChange: (accountNumber: string) => void;
+  onOpen: () => void;
 }) {
   return (
     <div className="mt-2" onClick={(event) => event.stopPropagation()}>
-      <Select
-        value={value || undefined}
-        onValueChange={onValueChange}
-        disabled={disabled || accounts.length === 0}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-auto min-h-8 w-full min-w-[220px] justify-start whitespace-normal text-left"
+        disabled={disabled}
+        onClick={onOpen}
+        title="Choose any account from the shared chart of accounts"
       >
-        <SelectTrigger
-          className="h-8 w-full min-w-[220px] bg-background text-xs"
-          title="Manually choose any account from the shared chart of accounts"
-        >
-          <SelectValue
-            placeholder={
-              accounts.length > 0 ? "Change account manually" : "Chart of accounts unavailable"
-            }
-          />
-        </SelectTrigger>
-        <SelectContent className="max-h-[320px]">
-          {accounts.map((account) => (
-            <SelectItem key={account.account_number} value={account.account_number}>
-              {account.account_number} · {account.account_name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        {value ? `${value} · ${name || "Account name unavailable"}` : "Choose account"}
+      </Button>
       <div className="mt-1 text-[11px] text-muted-foreground">
-        Manual account override
+        Opens the shared account picker
       </div>
     </div>
   );
@@ -3105,8 +3259,7 @@ function ReviewAccountGroup({
   onUnapplySuggestedTarget,
   applyingSuggestionKey,
   appliedSuggestionRows,
-  manualTargetAccounts,
-  onManualSuggestedTarget,
+  onRequestManualTarget,
 }: {
   account: ImportPreviewAccount;
   isFiltered: boolean;
@@ -3118,11 +3271,7 @@ function ReviewAccountGroup({
   onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
-  manualTargetAccounts: ChartOfAccount[];
-  onManualSuggestedTarget?: (
-    suggestion: GLAccountSuggestion,
-    accountNumber: string
-  ) => void | Promise<void>;
+  onRequestManualTarget?: (suggestion: GLAccountSuggestion) => void;
 }) {
   const transactions = account.transactions ?? [];
   const closingBalance = getPreviewAccountClosingBalance(account);
@@ -3320,14 +3469,12 @@ function ReviewAccountGroup({
                         Applied · selected for Save Import
                       </div>
                     )}
-                    {suggestion && onManualSuggestedTarget && (
+                    {suggestion && onRequestManualTarget && (
                       <ManualTargetAccountSelect
-                        accounts={manualTargetAccounts}
                         value={visibleSuggestedTargetNumber ?? ""}
+                        name={getVisibleSuggestedTargetName(suggestion) ?? ""}
                         disabled={isApplying}
-                        onValueChange={(accountNumber) =>
-                          onManualSuggestedTarget(suggestion, accountNumber)
-                        }
+                        onOpen={() => onRequestManualTarget(suggestion)}
                       />
                     )}
                   </TableCell>
@@ -3892,8 +4039,7 @@ function AccountSuggestionReview({
   onUnapplySuggestedTarget,
   applyingSuggestionKey,
   appliedSuggestionRows,
-  manualTargetAccounts,
-  onManualSuggestedTarget,
+  onRequestManualTarget,
 }: {
   suggestions: GLAccountSuggestion[];
   response: GLAccountSuggestionsResponse | null;
@@ -3910,11 +4056,7 @@ function AccountSuggestionReview({
   onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
-  manualTargetAccounts: ChartOfAccount[];
-  onManualSuggestedTarget?: (
-    suggestion: GLAccountSuggestion,
-    accountNumber: string
-  ) => void | Promise<void>;
+  onRequestManualTarget?: (suggestion: GLAccountSuggestion) => void;
 }) {
   const previewRows = useMemo(() => sortAccountSuggestionRows(suggestions), [suggestions]);
   const unappliedChangeCount = useMemo(
@@ -4281,14 +4423,12 @@ function AccountSuggestionReview({
                         {suggestion.ai_provider} {formatPercent(suggestion.ai_confidence ?? 0)}
                       </div>
                     )}
-                    {onManualSuggestedTarget && (
+                    {onRequestManualTarget && (
                       <ManualTargetAccountSelect
-                        accounts={manualTargetAccounts}
                         value={visibleSuggestedTargetNumber ?? ""}
+                        name={getVisibleSuggestedTargetName(suggestion) ?? ""}
                         disabled={isApplying}
-                        onValueChange={(accountNumber) =>
-                          onManualSuggestedTarget(suggestion, accountNumber)
-                        }
+                        onOpen={() => onRequestManualTarget(suggestion)}
                       />
                     )}
                   </TableCell>

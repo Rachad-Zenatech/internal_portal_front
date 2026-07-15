@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Trash2, X, ChevronUp, ChevronDown, Play, RefreshCw } from "lucide-react";
+import { Trash2, X, ChevronUp, ChevronDown, Play, RefreshCw, Sparkles } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export function GLUploadQueuePanel({
@@ -99,6 +99,33 @@ export function GLUploadQueuePanel({
                       />
                     </div>
                   )}
+                  <div className="mt-2 rounded-md border bg-muted/30 px-2.5 py-2">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+                      <span className="font-medium">{aiReviewStatusLabel(job)}</span>
+                      {job.ai_review_status && (
+                        <Badge variant={aiReviewStatusVariant(job.ai_review_status)}>
+                          {aiReviewBadgeLabel(job.ai_review_status)}
+                        </Badge>
+                      )}
+                    </div>
+                    {job.ai_review_error_message && (
+                      <div className="mt-1 text-xs text-red-600 dark:text-red-300">
+                        {job.ai_review_error_message}
+                      </div>
+                    )}
+                    {isAiReviewActive(job.ai_review_status) && (
+                      <div
+                        className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+                        aria-label={`AI review ${aiReviewProgressPercent(job)}% complete`}
+                      >
+                        <div
+                          className="h-full rounded-full bg-violet-600 transition-all"
+                          style={{ width: `${aiReviewProgressPercent(job)}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     Started {formatQueueDate(job.created_at)}
                   </div>
@@ -199,6 +226,54 @@ function queueProgressText(job: GLUploadQueueItem) {
 
 function shouldShowQueueProgress(job: GLUploadQueueItem) {
   return job.status === "processing" || job.status === "cancel_requested" || job.status === "completed";
+}
+
+function isAiReviewActive(status?: string | null) {
+  return Boolean(
+    status && ["queued", "queued_local", "processing", "cancel_requested"].includes(status)
+  );
+}
+
+function aiReviewProgressPercent(job: GLUploadQueueItem) {
+  if (job.ai_review_status === "completed") return 100;
+  return Math.max(0, Math.min(100, Number(job.ai_review_progress) || 0));
+}
+
+function aiReviewBadgeLabel(status: string) {
+  if (status === "queued" || status === "queued_local") return "Queued";
+  if (status === "processing") return "Reviewing";
+  if (status === "completed") return "Complete";
+  if (status === "failed" || status === "failed_to_start") return "Failed";
+  if (status === "cancel_requested") return "Stopping";
+  return status;
+}
+
+function aiReviewStatusVariant(
+  status: string
+): "default" | "secondary" | "destructive" | "outline" {
+  if (status === "completed") return "default";
+  if (status === "failed" || status === "failed_to_start") return "destructive";
+  if (status === "processing") return "secondary";
+  return "outline";
+}
+
+function aiReviewStatusLabel(job: GLUploadQueueItem) {
+  const status = job.ai_review_status;
+  if (!status) {
+    if (["queued", "queued_local"].includes(job.status)) {
+      return "AI review waits for the upload worker";
+    }
+    if (["processing", "cancel_requested"].includes(job.status)) {
+      return "AI review starts as soon as parsed rows are ready";
+    }
+    return "AI review is starting";
+  }
+  if (status === "queued" || status === "queued_local") return "Parsed rows ready; AI review queued";
+  if (status === "processing") return `AI reviewing parsed chunks ? ${aiReviewProgressPercent(job)}%`;
+  if (status === "completed") return "AI review completed before preview opened";
+  if (status === "failed" || status === "failed_to_start") return "AI review could not complete";
+  if (status === "cancel_requested") return "AI review is stopping";
+  return `AI review: ${status}`;
 }
 
 function formatQueueDate(value?: string | null) {

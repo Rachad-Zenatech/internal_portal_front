@@ -173,7 +173,10 @@ export const useGLUploadQueue = (limit: number = 20) => {
       const data = query.state.data;
       if (!data || !data.jobs) return 1500;
       const isProcessing = data.jobs.some((job) =>
-        ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(job.status)
+        ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(job.status) ||
+        ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(
+          job.ai_review_status ?? ''
+        )
       );
       return isProcessing ? 1500 : 5000;
     },

@@ -67,6 +67,10 @@ export type GLUploadQueueItem = {
   preview_token?: string | null;
   preview_url?: string | null;
   error_message?: string | null;
+  ai_review_job_id?: number | null;
+  ai_review_status?: string | null;
+  ai_review_progress?: number | null;
+  ai_review_error_message?: string | null;
   can_cancel?: boolean;
   cancel_url?: string | null;
   can_delete?: boolean;
