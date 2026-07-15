@@ -138,12 +138,12 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
               source: suggestion.review_source || "unknown",
               categorized: true,
               target_field: suggestion.target_field || "split_account",
-              current_target_account_number: null,
-              current_target_account_name: null,
-              suggested_account_number: suggestion.suggested_split_account_number || suggestion.suggested_account_number,
-              suggested_account_name: suggestion.suggested_split_account_name || suggestion.suggested_account_name,
-              suggested_payee: null,
-              suggested_memo: null,
+              current_target_account_number: row.account_review?.current_target_account_number || null,
+              current_target_account_name: row.account_review?.current_target_account_name || null,
+              suggested_account_number: suggestion.suggested_account_number || suggestion.suggested_target_account_number || suggestion.suggested_split_account_number || suggestion.ai_suggested_account_number,
+              suggested_account_name: suggestion.suggested_account_name || suggestion.suggested_target_account_name || suggestion.suggested_split_account_name || suggestion.ai_suggested_account_name,
+              suggested_payee: row.account_review?.suggested_payee || null,
+              suggested_memo: row.account_review?.suggested_memo || null,
               confidence: suggestion.confidence,
               requires_ai_review: false,
               requires_human_review: suggestion.requires_manual_review,
@@ -265,12 +265,12 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                       source: suggestion.review_source || "unknown",
                       categorized: true,
                       target_field: suggestion.target_field || "split_account",
-                      current_target_account_number: null,
-                      current_target_account_name: null,
-                      suggested_account_number: suggestion.suggested_split_account_number || suggestion.suggested_account_number,
-                      suggested_account_name: suggestion.suggested_split_account_name || suggestion.suggested_account_name,
-                      suggested_payee: null,
-                      suggested_memo: null,
+                      current_target_account_number: row.account_review?.current_target_account_number || null,
+                      current_target_account_name: row.account_review?.current_target_account_name || null,
+                      suggested_account_number: suggestion.suggested_account_number || suggestion.suggested_target_account_number || suggestion.suggested_split_account_number || suggestion.ai_suggested_account_number,
+                      suggested_account_name: suggestion.suggested_account_name || suggestion.suggested_target_account_name || suggestion.suggested_split_account_name || suggestion.ai_suggested_account_name,
+                      suggested_payee: row.account_review?.suggested_payee || null,
+                      suggested_memo: row.account_review?.suggested_memo || null,
                       confidence: suggestion.confidence,
                       requires_ai_review: false,
                       requires_human_review: suggestion.requires_manual_review,
@@ -308,7 +308,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
 
   const groupedComparisonRows = useMemo(() => {
     if (!result) return {};
-    const rows = tab === "suspicious" ? result.rows.filter((r) => r.is_suspicious) : result.rows;
+    const rows = tab === "suspicious" ? result.rows.filter((r) => r.is_suspicious) : tab === "missing_split" ? result.rows.filter((r) => r.status === "MISSING_SPLIT") : result.rows;
     const groups: Record<string, typeof rows> = {};
     rows.forEach((r) => {
       const key = r.charge_account || "Unassigned Bank Account";
@@ -439,6 +439,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                 <TabsList>
                   <TabsTrigger value="summary">Summary</TabsTrigger>
                   <TabsTrigger value="suspicious">Suspicious Rows ({result.summary.suspicious_rows})</TabsTrigger>
+                  <TabsTrigger value="missing_split">Missing Split Rows ({result.rows.filter(r => r.status === "MISSING_SPLIT").length})</TabsTrigger>
                   <TabsTrigger value="all">All Rows ({result.summary.total_rows})</TabsTrigger>
                 </TabsList>
                 <Button onClick={handleExportCSV} variant="outline" size="sm" className="gap-2">
@@ -509,7 +510,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                 </div>
               </TabsContent>
 
-              {(tab === "all" || tab === "suspicious") && (
+              {(tab === "all" || tab === "suspicious" || tab === "missing_split") && (
                 <TabsContent value={tab} className="flex-1 flex flex-col overflow-hidden m-0 p-0">
                   <div className="flex-1 overflow-auto mt-4 space-y-6">
                     {Object.keys(groupedComparisonRows).length === 0 ? (
@@ -578,7 +579,11 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                             </TableHeader>
                             <TableBody>
                               {accountRows.map((r) => (
-                                <TableRow key={r.row_number} className={r.is_suspicious ? "bg-red-50/50 dark:bg-red-950/20" : "bg-green-50/50 dark:bg-green-950/20"}>
+                                <TableRow key={r.row_number} className={
+                                  r.status === "MISSING_SPLIT" ? "bg-orange-100/80 hover:bg-orange-100/80 dark:bg-orange-900/40 dark:hover:bg-orange-900/40 !border-x-4 border-orange-500" :
+                                  r.is_suspicious ? "bg-red-50/50 hover:bg-red-50/50 dark:bg-red-950/20 dark:hover:bg-red-950/20" : 
+                                  "bg-green-50/50 hover:bg-green-50/50 dark:bg-green-950/20 dark:hover:bg-green-950/20"
+                                }>
                                   <TableCell>{r.row_number}</TableCell>
                                   <TableCell>{r.expected_rows?.map((exp: any) => exp._excel_row).filter(Boolean).join(", ") || "-"}</TableCell>
                                   <TableCell>{r.date || "-"}</TableCell>
@@ -592,12 +597,14 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                                   <TableCell className="capitalize">{String(r.source || "unknown").replace(/_/g, " ")}</TableCell>
                                   <TableCell>{r.confidence ? (r.confidence * 100).toFixed(1) + "%" : "-"}</TableCell>
                                   <TableCell>
-                                    <span className={`font-semibold ${
-                                      r.status === "MATCH" ? "text-green-600" :
-                                      r.is_suspicious ? "text-red-600" : "text-yellow-600"
-                                    }`}>
-                                      {r.status}
-                                    </span>
+                                    <div className="flex flex-col items-start gap-1">
+                                      <span className={`font-semibold ${
+                                        r.status === "MATCH" ? "text-green-600" :
+                                        r.is_suspicious ? "text-red-600" : "text-yellow-600"
+                                      }`}>
+                                        {r.status}
+                                      </span>
+                                    </div>
                                   </TableCell>
                                   <TableCell className="text-xs max-w-[250px] truncate" title={r.difference_reason || ""}>
                                     {r.difference_reason || "-"}

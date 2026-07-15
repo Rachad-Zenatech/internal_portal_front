@@ -6,6 +6,7 @@ function normalizeText(text?: string | null): string {
 }
 
 const WORKFLOW_LABELS = {
+  CONTACTS: "A/R customers, A/P Payees",
   LOOKUP: "1-to-1 Mappings (Lookups)",
   QB_RULES: "QuickBooks Rules (from the approved rules cache)",
   BANK_RULES: "Bank Transfer",
@@ -18,7 +19,19 @@ function getFriendlyLabel(source: string | null, matchedRule: unknown): string {
   if (!source) return WORKFLOW_LABELS.MANUAL;
   
   const src = source.toLowerCase();
-  if (src.includes("lookup")) return WORKFLOW_LABELS.LOOKUP;
+  
+  if (src.includes("contact")) {
+    return WORKFLOW_LABELS.CONTACTS;
+  }
+  
+  if (
+    src.includes("lookup") ||
+    src.includes("semantic") ||
+    src.includes("coa_semantic_match")
+  ) {
+    return WORKFLOW_LABELS.LOOKUP;
+  }
+  
   if (src.includes("xgboost")) return WORKFLOW_LABELS.XGBOOST;
   if (src.includes("ai")) return WORKFLOW_LABELS.AI;
 
@@ -63,10 +76,16 @@ export function isBankOrCreditCard(row: ImportPreviewRow): boolean {
     ""
   ).toLowerCase().trim().replace(/[\s_-]+/g, "");
 
-  const isLedgerBankOrCard = ledgerType === "bank" || ledgerType === "creditcard";
-  const isSplitBankOrCard = splitType === "bank" || splitType === "creditcard";
+  if (ledgerType) {
+    return ledgerType === "bank" || ledgerType === "creditcard" || ledgerType === "cc";
+  }
 
-  return isLedgerBankOrCard || isSplitBankOrCard || !!row.is_bank_line;
+  const isSplitBankOrCard = splitType === "bank" || splitType === "creditcard";
+  const bankNameRegex = /\b(boa|bank of america|checking|savings|money market|bank|cash|credit card)\b/i;
+  const ledgerName = String((row as any).ledger_account_name || "").toLowerCase();
+  const isNameBankOrCard = bankNameRegex.test(ledgerName);
+
+  return isSplitBankOrCard || isNameBankOrCard || !!row.is_bank_line;
 }
 
 export function getChargeAccount(row: ImportPreviewRow): string {
@@ -101,34 +120,38 @@ export function getChargeAccount(row: ImportPreviewRow): string {
 }
 
 export function getTargetAccount(row: ImportPreviewRow, isDryRun: boolean = false): string | null {
+  // If we have a user/AI approved state change, it strongly overrides anything else
+  if (isDryRun && row.account_review?.approved_account) {
+    return row.account_review.approved_account;
+  }
+
   // If it's a dry run, we prefer the suggestion over anything else
   if (isDryRun && (row.account_review?.suggested_account_name || row.account_review?.suggested_account_number)) {
     const sNum = row.account_review.suggested_account_number;
     const sName = row.account_review.suggested_account_name;
-    if (sNum && sName && String(sName).indexOf(String(sNum)) === -1) return `${sNum} · ${sName}`;
-    return sNum && sName ? `${sNum} · ${sName}` : sNum || sName || null;
+    if (sNum && sName && String(sName).indexOf(String(sNum)) === -1) return `${sNum} ${sName}`;
+    return sNum && sName ? `${sNum} ${sName}` : sNum || sName || null;
   }
 
-  const ledgerType = (
-    (row as any).ledger_account_type ||
-    (row as any).account_type ||
-    ""
-  ).toLowerCase().trim().replace(/[\s_-]+/g, "");
 
   const splitType = (
     (row as any).split_account_type ||
     ""
   ).toLowerCase().trim().replace(/[\s_-]+/g, "");
 
-  const isLedgerBankOrCard = ledgerType === "bank" || ledgerType === "creditcard";
+  const isLedgerBankOrCard = isBankOrCreditCard(row);
   const isSplitBankOrCard = splitType === "bank" || splitType === "creditcard";
 
   let tNum: string | null = null;
   let tName: string | null = null;
   const extra = row as any;
 
+  if (isDryRun) {
+    tNum = row.account_review?.current_target_account_number || null;
+    tName = row.account_review?.current_target_account_name || null;
+  }
   // If the ledger is bank/card, the target is the split
-  if (isLedgerBankOrCard) {
+  else if (isLedgerBankOrCard) {
     tNum = extra.split_account_number || row.account_review?.current_target_account_number || null;
     tName = extra.Split || extra.split || extra.split_account_name || row.account_review?.current_target_account_name || null;
   }
@@ -143,8 +166,8 @@ export function getTargetAccount(row: ImportPreviewRow, isDryRun: boolean = fals
     tName = extra.split_account_name || row.account_name || null;
   }
 
-  if (tNum && tName && String(tName).indexOf(String(tNum)) === -1) return `${tNum} · ${tName}`;
-  if (tNum && tName) return `${tNum} · ${tName}`;
+  if (tNum && tName && String(tName).indexOf(String(tNum)) === -1) return `${tNum} ${tName}`;
+  if (tNum && tName) return `${tNum} ${tName}`;
   return tNum || tName || null;
 }
 
@@ -176,122 +199,83 @@ export function compareGLSplitResults(
     const origDate = origRow.date;
     const origNormName = normalizeText(origRow.name);
     
-    // First try: Match by transaction number
+    // No grouping logic: purely match exactly 1 expected row per original row
+    let matchedExpRow: (ImportPreviewRow & { _excel_row: number }) | undefined;
+
+    // First try: Match by transaction number and amount
+    if (origRow.transaction_number) {
+      matchedExpRow = unmatchedExpected.find(e => e.transaction_number === origRow.transaction_number && Math.abs(getAmount(e) - origAmount) < 0.005 && isBankOrCreditCard(e));
+      if (!matchedExpRow) {
+         matchedExpRow = unmatchedExpected.find(e => e.transaction_number === origRow.transaction_number && Math.abs(getAmount(e) - origAmount) < 0.005);
+      }
+    }
+
+    // Second try: Exact match date, amount, name
+    if (!matchedExpRow) {
+      matchedExpRow = unmatchedExpected.find(
+        (exp) => exp.date === origDate && Math.abs(getAmount(exp) - origAmount) < 0.005 && normalizeText(exp.name) === origNormName && isBankOrCreditCard(exp)
+      );
+      if (!matchedExpRow) {
+         matchedExpRow = unmatchedExpected.find(
+           (exp) => exp.date === origDate && Math.abs(getAmount(exp) - origAmount) < 0.005 && normalizeText(exp.name) === origNormName
+         );
+      }
+    }
+
+    // Third try: Date and amount
+    if (!matchedExpRow) {
+      matchedExpRow = unmatchedExpected.find(e => 
+        e.date === origRow.date && Math.abs(getAmount(e) - origAmount) < 0.005 && isBankOrCreditCard(e)
+      );
+      if (!matchedExpRow) {
+         matchedExpRow = unmatchedExpected.find(e => 
+           e.date === origRow.date && Math.abs(getAmount(e) - origAmount) < 0.005
+         );
+      }
+    }
+
     let matchedExpRows: (ImportPreviewRow & { _excel_row: number })[] = [];
     let matchedSameLines: (ImportPreviewRow & { _excel_row: number })[] = [];
-
-    if (origRow.transaction_number) {
-      const sameTxn = unmatchedExpected.filter(e => e.transaction_number === origRow.transaction_number);
-      if (sameTxn.length > 0) {
-        let bankLines = sameTxn.filter(e => isBankOrCreditCard(e));
-        let expenseLines = sameTxn.filter(e => !isBankOrCreditCard(e));
-        
-        if (expenseLines.length === 0 && bankLines.length > 1) {
-          const origSign = Math.sign(origAmount) || 1;
-          expenseLines = bankLines.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
-          bankLines = bankLines.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
-        }
-        
-        if (expenseLines.length > 0) {
-          matchedExpRows = expenseLines;
-          matchedSameLines = bankLines; // We will remove these from unmatched so they don't show as NOT FOUND
-        } else if (bankLines.length > 0) {
-          matchedExpRows = [bankLines[0]];
-          matchedSameLines = bankLines.slice(1);
-        } else if (sameTxn.length > 0) {
-          matchedExpRows = [sameTxn[0]];
-          matchedSameLines = sameTxn.slice(1);
-        }
-      }
+    
+    if (matchedExpRow) {
+      matchedExpRows = [matchedExpRow];
+      // Remove matched from unmatched pool
+      const idx = unmatchedExpected.indexOf(matchedExpRow);
+      if (idx !== -1) unmatchedExpected.splice(idx, 1);
     }
 
-    const extractSplitsFromExpectedBankLine = (expectedBankLine: ImportPreviewRow & { _excel_row: number }) => {
-      let sameTxn: (ImportPreviewRow & { _excel_row: number })[];
-      // Use gl_id to reliably find all lines of the split transaction, even if transaction_number is missing
-      if (expectedBankLine.gl_id !== undefined && expectedBankLine.gl_id !== null) {
-        sameTxn = unmatchedExpected.filter(e => e.gl_id === expectedBankLine.gl_id);
-      } else if (expectedBankLine.transaction_number) {
-        sameTxn = unmatchedExpected.filter(e => e.transaction_number === expectedBankLine.transaction_number);
-      } else {
-        // Fallback for QBO exports parsed as Amex statements (no transaction numbers):
-        // Find adjacent rows with the same Date and exactly the OPPOSITE amount.
-        sameTxn = [expectedBankLine];
-        const currentIndex = expectedRowsWithLine.findIndex(r => r._excel_row === expectedBankLine._excel_row);
-        if (currentIndex !== -1) {
-          const oppositeAmount = -getAmount(expectedBankLine);
-          
-          // Check up to 5 rows above and below
-          for (const direction of [-1, 1]) {
-            for (let i = 1; i <= 5; i++) {
-              const idx = currentIndex + (i * direction);
-              if (idx < 0 || idx >= expectedRowsWithLine.length) break;
-              
-              const r = expectedRowsWithLine[idx];
-              if (r.date !== expectedBankLine.date) break; // Break if we leave the contiguous date block
-              
-              if (Math.abs(getAmount(r) - oppositeAmount) < 0.005) {
-                const uMatch = unmatchedExpected.find(u => u._excel_row === r._excel_row);
-                if (uMatch && uMatch._excel_row !== expectedBankLine._excel_row) {
-                  sameTxn.push(uMatch);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      let bankLines = sameTxn.filter(e => isBankOrCreditCard(e));
-      let expenseLines = sameTxn.filter(e => !isBankOrCreditCard(e));
+    const getExpectedTargetAccount = (exp: ImportPreviewRow & { _excel_row: number }) => {
+      if (isBankOrCreditCard(exp)) return getTargetAccount(exp);
+      const extra = exp as any;
+      const eNum = exp.account_number || extra.ledger_account_number;
+      const eName = exp.account_name || extra.ledger_account_name;
       
-      // If the expected file was forcefully parsed as a bank statement, EVERYTHING is a bank line.
-      // We must fallback to using mathematical signs to separate the true bank line from the true expense line.
-      if (expenseLines.length === 0 && bankLines.length > 1) {
-        const origSign = Math.sign(origAmount) || 1;
-        expenseLines = bankLines.filter(e => Math.sign(getAmount(e)) !== origSign && getAmount(e) !== 0);
-        bankLines = bankLines.filter(e => Math.sign(getAmount(e)) === origSign || getAmount(e) === 0);
-      }
-      
-      if (expenseLines.length > 0) {
-        matchedExpRows = expenseLines;
-        matchedSameLines = bankLines;
-      } else if (bankLines.length > 0) {
-        matchedExpRows = [bankLines[0]];
-        matchedSameLines = bankLines.slice(1);
-      } else if (sameTxn.length > 0) {
-        matchedExpRows = [sameTxn[0]];
-        matchedSameLines = sameTxn.slice(1);
-      }
+      if (eNum && eName && String(eName).indexOf(String(eNum)) === -1) return `${eNum} ${eName}`;
+      return eNum && eName ? `${eNum} ${eName}` : eNum || eName || null;
     };
 
-    // Second try: Exact match (1-to-1) using findIndex to avoid capturing duplicates
-    if (matchedExpRows.length === 0) {
-      const exactIndex = unmatchedExpected.findIndex(
-        (exp) => exp.date === origDate && Math.abs(getAmount(exp) - origAmount) < 0.005 && normalizeText(exp.name) === origNormName
-      );
-      if (exactIndex !== -1) {
-        extractSplitsFromExpectedBankLine(unmatchedExpected[exactIndex]);
+    let expectedAccount: string | null = null;
+    const matchedBankLine = matchedSameLines.find(e => isBankOrCreditCard(e)) || matchedExpRows.find(e => isBankOrCreditCard(e));
+    
+    if (matchedBankLine) {
+      const extra = matchedBankLine as any;
+      const tName = extra.Split || extra.split || extra.split_account_name || null;
+      const tNum = extra.split_account_number || matchedBankLine.account_review?.current_target_account_number || null;
+      if (tNum && tName && String(tName).indexOf(String(tNum)) === -1) {
+        expectedAccount = `${tNum} ${tName}`;
+      } else {
+        expectedAccount = tNum && tName ? `${tNum} ${tName}` : tNum || tName || null;
       }
-    }
-
-    // Third try: Match by date and amount only (1-to-1)
-    if (matchedExpRows.length === 0) {
-      const partialIndex = unmatchedExpected.findIndex(
-        (exp) => exp.date === origDate && Math.abs(getAmount(exp) - origAmount) < 0.005
-      );
-      if (partialIndex !== -1) {
-        extractSplitsFromExpectedBankLine(unmatchedExpected[partialIndex]);
+      
+      // If the Excel file literally had a blank Split column, we respect that and leave expectedAccount as null/blank
+      if (!tName && !tNum) {
+        expectedAccount = null;
       }
+    } else {
+      expectedAccount = matchedExpRows.length === 1 
+        ? getExpectedTargetAccount(matchedExpRows[0])
+        : matchedExpRows.length > 1 ? matchedExpRows.map(e => getExpectedTargetAccount(e)).filter(Boolean).join(" | ") : null;
     }
-
-    // Remove matched from unmatched pool
-    [...matchedExpRows, ...matchedSameLines].forEach((exp) => {
-      const idx = unmatchedExpected.indexOf(exp);
-      if (idx !== -1) unmatchedExpected.splice(idx, 1);
-    });
-
-    const expectedAccount = matchedExpRows.length === 1 
-      ? getTargetAccount(matchedExpRows[0])
-      : matchedExpRows.length > 1 ? matchedExpRows.map(e => getTargetAccount(e)).filter(Boolean).join(" | ") : null;
     
     // The dry run account comes from account_review or fallback to account_name
     const dryRunAccount = getTargetAccount(origRow, true);
@@ -341,21 +325,52 @@ export function compareGLSplitResults(
         differenceReason = `Amount mismatch: Expected absolute ${Math.abs(expSum).toFixed(2)}, got ${Math.abs(origAmount).toFixed(2)}`;
         isSuspicious = true;
         summary.amount_mismatch_rows++;
-      } else if (matchedExpRows.length > 1 && (!dryRunAccount || !dryRunAccount.includes("|"))) {
-        status = "SPLIT_TOTAL_MISMATCH";
-        differenceReason = `Original transaction predicted '${dryRunAccount}', but expected file is split: ${expectedAccount}.`;
-        isSuspicious = true;
-        summary.account_mismatch_rows++;
-      } else if (expectedAccount !== dryRunAccount && expectedAccount !== null) {
-        status = "ACCOUNT_MISMATCH";
-        differenceReason = `Expected account '${expectedAccount}' but dry-run assigned '${dryRunAccount}'.`;
-        isSuspicious = true;
-        summary.account_mismatch_rows++;
+      } else {
+        const getSplitCount = (acc: string | null, rows?: any[]) => {
+          if (!acc || acc.trim() === "" || acc === "-") return 0;
+          if (rows && rows.length > 1) return rows.length;
+          if (acc.includes(" | ")) return acc.split(" | ").length;
+          return 1;
+        };
 
-      } else if (!origRow.date) {
-        status = "SUSPICIOUS";
-        differenceReason = "Date is missing.";
-        isSuspicious = true;
+        const expCount = getSplitCount(expectedAccount, matchedExpRows);
+        const dryCount = getSplitCount(dryRunAccount);
+
+        const isExpMulti = expCount > 1;
+        const isDryMulti = dryCount > 1;
+        const isExpZero = expCount === 0;
+        const isDryZero = dryCount === 0;
+
+        if (isExpZero && !isDryZero) {
+          status = "MISSING_SPLIT";
+          differenceReason = `Expected file has no assigned account, but dry-run assigned: ${dryRunAccount}.`;
+          isSuspicious = true;
+          summary.account_mismatch_rows++;
+        } else if (isDryZero && !isExpZero) {
+          status = "MISSING_SPLIT";
+          differenceReason = `Original transaction predicted no account, but expected file assigned: ${expectedAccount}.`;
+          isSuspicious = true;
+          summary.account_mismatch_rows++;
+        } else if (!isExpMulti && isDryMulti) {
+          status = "MISSING_SPLIT";
+          differenceReason = `Expected file has a single account, but dry-run predicted a split: ${dryRunAccount}.`;
+          isSuspicious = true;
+          summary.account_mismatch_rows++;
+        } else if (!isDryMulti && isExpMulti) {
+          status = "MISSING_SPLIT";
+          differenceReason = `Original transaction predicted a single account, but expected file is split: ${expectedAccount}.`;
+          isSuspicious = true;
+          summary.account_mismatch_rows++;
+        } else if (expectedAccount !== dryRunAccount) {
+          status = "ACCOUNT_MISMATCH";
+          differenceReason = `Expected account '${expectedAccount}' but dry-run assigned '${dryRunAccount}'.`;
+          isSuspicious = true;
+          summary.account_mismatch_rows++;
+        } else if (!origRow.date) {
+          status = "SUSPICIOUS";
+          differenceReason = "Date is missing.";
+          isSuspicious = true;
+        }
       }
     }
 
@@ -430,8 +445,9 @@ export function compareGLSplitResults(
   summary.match_rate = summary.total_rows > 0 ? (summary.matched_rows / summary.total_rows) * 100 : 0;
 
   const sourceStats: Record<string, { total: number; matched: number }> = {
-    [WORKFLOW_LABELS.LOOKUP]: { total: 0, matched: 0 },
+    [WORKFLOW_LABELS.CONTACTS]: { total: 0, matched: 0 },
     [WORKFLOW_LABELS.QB_RULES]: { total: 0, matched: 0 },
+    [WORKFLOW_LABELS.LOOKUP]: { total: 0, matched: 0 },
     [WORKFLOW_LABELS.BANK_RULES]: { total: 0, matched: 0 },
     [WORKFLOW_LABELS.XGBOOST]: { total: 0, matched: 0 },
     [WORKFLOW_LABELS.AI]: { total: 0, matched: 0 },

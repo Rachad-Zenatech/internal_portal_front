@@ -8,7 +8,7 @@ export type GLSplitCompareStatus =
   | "AMOUNT_MISMATCH"
   | "ACCOUNT_MISMATCH"
   | "LOW_CONFIDENCE"
-  | "SPLIT_TOTAL_MISMATCH";
+  | "MISSING_SPLIT";
 
 export interface GLSplitComparisonRow {
   row_number: number;

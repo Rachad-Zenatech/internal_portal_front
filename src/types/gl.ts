@@ -424,6 +424,7 @@ export type ImportPreviewAccountReview = {
   xgboost_candidate: Record<string, unknown> | null;
   ai_context: Record<string, unknown> | null;
   is_bank_transaction: boolean;
+  approved_account?: string | null;
 };
 
 export type ImportPreviewAccountReviewSummary = {
