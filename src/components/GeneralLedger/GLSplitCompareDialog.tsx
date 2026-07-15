@@ -127,6 +127,9 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
         }
       }
 
+      // Sort origRows by line_id to restore original chronological/Excel order before matching suggestions
+      origRows.sort((a, b) => (a.line_id || 0) - (b.line_id || 0));
+
       if (localPreview && localSuggestions && localSuggestions.length > 0) {
         // Deep copy rows to prevent mutating the original parent state
         origRows = JSON.parse(JSON.stringify(origRows));
