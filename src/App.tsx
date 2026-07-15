@@ -21,6 +21,7 @@ import RoleGroupPermissions from "./pages/Configurations/RoleGroupPermissions";
 
 import RoleApiPermissions from "./pages/Configurations/RoleApiPermissions";
 import RoleMcpToolPermissions from "./pages/Configurations/RoleMcpToolPermissions";
+import XgboostModel from "./pages/Configurations/XgboostModel";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
 import CompanyGeneralLedger from "./pages/CompanyGeneralLedger";
@@ -70,6 +71,7 @@ function App() {
             <Route path="/configurations/role-group-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLES"><RoleGroupPermissions /></ProtectedRoute>} />
             <Route path="/configurations/role-api-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_API_PERMISSIONS"><RoleApiPermissions /></ProtectedRoute>} />
             <Route path="/configurations/role-mcp-tool-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_MCP_TOOL_PERMISSIONS"><RoleMcpToolPermissions /></ProtectedRoute>} />
+            <Route path="/configurations/xgboost-model" element={<XgboostModel />} />
 
             {/* Logs */}
             <Route path="/log" element={<Navigate to="/log/audit-log" replace />} />
