@@ -111,4 +111,38 @@ export type XgboostModelStatus = {
     min_vendor_support_for_auto: number;
     low_support_confidence_cap: number;
   };
+  training_quality?: {
+    activated: boolean;
+    decision: "activated" | "rejected_kept_active_model" | string;
+    gate_reasons: string[];
+    rows_per_ai_chunk: number;
+    coverage: {
+      reviewed_vendor_count: number;
+      reviewed_vendors_covered: number;
+      reviewed_vendor_coverage: number;
+      vendors_with_consistent_account_support: number;
+      accounts_with_minimum_support: number;
+      accounts_below_minimum_support: number;
+    };
+    candidate_validation: XgboostQualityMetrics;
+    active_validation: XgboostQualityMetrics;
+    candidate_review_impact: XgboostQualityMetrics;
+    active_review_impact: XgboostQualityMetrics;
+  } | null;
+  cumulative_training?: {
+    previous_rows: number;
+    submitted_rows: number;
+    cumulative_rows: number;
+    deduplicated_rows: number;
+    replaced_conflicting_transactions: number;
+  } | null;
+};
+
+export type XgboostQualityMetrics = {
+  rows: number;
+  accuracy: number | null;
+  mean_confidence: number | null;
+  resolved_rows: number;
+  predicted_unresolved_rows: number;
+  expected_ai_chunks: number;
 };

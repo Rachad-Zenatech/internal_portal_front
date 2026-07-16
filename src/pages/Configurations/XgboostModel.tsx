@@ -84,6 +84,18 @@ export default function XgboostModel() {
         <Metric label="Features" value={number(status.training_summary.feature_count)} detail={status.training_summary.feature_version || "Version unavailable"} icon={Activity} />
       </div>
 
+      {status.training_quality && <Card className="rounded-lg p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-semibold">Latest guarded training decision</h2><p className="mt-1 text-sm text-muted-foreground">The candidate is activated only when holdout quality and predicted AI-review workload are not worse.</p></div><Badge variant={status.training_quality.activated ? "default" : "destructive"}>{status.training_quality.activated ? "Activated" : "Previous model kept"}</Badge></div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Reviewed vendor coverage</p><p className="mt-1 text-xl font-semibold">{percent(status.training_quality.coverage.reviewed_vendor_coverage)}</p><p className="text-xs text-muted-foreground">{number(status.training_quality.coverage.reviewed_vendors_covered)} of {number(status.training_quality.coverage.reviewed_vendor_count)} vendors</p></div>
+          <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Supported accounts</p><p className="mt-1 text-xl font-semibold">{number(status.training_quality.coverage.accounts_with_minimum_support)}</p><p className="text-xs text-muted-foreground">{number(status.training_quality.coverage.accounts_below_minimum_support)} still below minimum</p></div>
+          <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Candidate AI chunks</p><p className="mt-1 text-xl font-semibold">{number(status.training_quality.candidate_review_impact.expected_ai_chunks)}</p><p className="text-xs text-muted-foreground">{number(status.training_quality.candidate_review_impact.predicted_unresolved_rows)} unresolved rows</p></div>
+          <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Previous AI chunks</p><p className="mt-1 text-xl font-semibold">{number(status.training_quality.active_review_impact.expected_ai_chunks)}</p><p className="text-xs text-muted-foreground">{number(status.training_quality.active_review_impact.predicted_unresolved_rows)} unresolved rows</p></div>
+        </div>
+        {status.training_quality.gate_reasons.length > 0 && <p className="mt-3 rounded-md bg-destructive/10 p-3 text-xs text-destructive">{status.training_quality.gate_reasons.join("; ")}</p>}
+        {status.cumulative_training && <p className="mt-3 text-xs text-muted-foreground">Cumulative approved set: {number(status.cumulative_training.cumulative_rows)} rows; {number(status.cumulative_training.deduplicated_rows)} duplicate rows removed in the latest merge.</p>}
+      </Card>}
+
       <Card className="rounded-lg p-5">
         <h2 className="text-lg font-semibold">How a suggestion is made</h2><p className="mt-1 text-sm text-muted-foreground">This is the real model flow—not a vendor-to-account rule map.</p>
         <div className="mt-5 grid gap-3 lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] lg:items-center">{[

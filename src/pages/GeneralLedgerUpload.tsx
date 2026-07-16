@@ -231,7 +231,18 @@ export default function GeneralLedgerUpload() {
   const [appliedSuggestionRows, setAppliedSuggestionRows] = useState<Set<number>>(
     () => new Set()
   );
+  const [counterChangedRows, setCounterChangedRows] = useState<
+    Map<number, { accountNumber: string; accountName: string | null }>
+  >(
+    () => new Map()
+  );
+  useEffect(() => {
+    if (appliedSuggestionRows.size === 0 && counterChangedRows.size > 0) {
+      setCounterChangedRows(new Map());
+    }
+  }, [appliedSuggestionRows, counterChangedRows.size]);
   const [focusedReviewRowId, setFocusedReviewRowId] = useState<string | null>(null);
+  const [exportingAccountKey, setExportingAccountKey] = useState<string | null>(null);
   const [activeReviewFinder, setActiveReviewFinder] =
     useState<ReviewFinderKind | null>(null);
   const [appliedSuggestionChanges, setAppliedSuggestionChanges] = useState<
@@ -1091,6 +1102,48 @@ export default function GeneralLedgerUpload() {
     }
   }
 
+  async function handleExportAccount(account: ImportPreviewAccount) {
+    setError(null);
+    setExportingAccountKey(account.account_key);
+    try {
+      let transactions = [...(account.transactions ?? [])];
+      const previewToken = activePreviewToken;
+      const totalPreviewRows = preview?.pagination?.total_rows ?? 0;
+
+      if (
+        previewToken &&
+        totalPreviewRows > 0 &&
+        transactions.length < account.line_count
+      ) {
+        const pageCount = Math.max(1, Math.ceil(totalPreviewRows / DRY_RUN_PREVIEW_LIMIT));
+        const pages = await Promise.all(
+          Array.from({ length: pageCount }, (_, index) =>
+            GLService.getDryRunPreviewPage({
+              previewToken,
+              page: index + 1,
+              pageSize: DRY_RUN_PREVIEW_LIMIT,
+            })
+          )
+        );
+        transactions = pages.flatMap((page) =>
+          (page.preview?.accounts ?? [])
+            .filter((candidate) => candidate.account_key === account.account_key)
+            .flatMap((candidate) => candidate.transactions ?? [])
+        );
+      }
+
+      const uniqueTransactions = Array.from(
+        new Map(transactions.map((transaction) => [transaction.line_id, transaction])).values()
+      ).sort((left, right) => left.line_id - right.line_id);
+
+      await exportAccountReviewWorkbook(account, uniqueTransactions, suggestionByTransaction);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export account transactions");
+    } finally {
+      setExportingAccountKey(null);
+    }
+  }
+
   async function handleDryRunPreviewPage(page: number, explicitPreviewToken?: string) {
     const openingCachedPreview = Boolean(explicitPreviewToken);
     const previewToken =
@@ -1486,6 +1539,17 @@ export default function GeneralLedgerUpload() {
         next.add(suggestion.row_number);
         return next;
       });
+      const counterRowNumber = findMirroredPreviewRowNumber(preview, suggestion);
+      if (counterRowNumber !== null) {
+        setCounterChangedRows((current) => {
+          const next = new Map(current);
+          next.set(counterRowNumber, {
+            accountNumber: suggestedAccountNumber,
+            accountName: getVisibleSuggestedTargetName(suggestion) ?? null,
+          });
+          return next;
+        });
+      }
       setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
       return;
     }
@@ -1510,6 +1574,16 @@ export default function GeneralLedgerUpload() {
         next.add(suggestion.row_number);
         return next;
       });
+      if (response.applied_change.counter_change) {
+        setCounterChangedRows((current) => {
+          const next = new Map(current);
+          next.set(response.applied_change.counter_change!.line_id, {
+            accountNumber: response.applied_change.counter_change!.applied_account_number,
+            accountName: response.applied_change.counter_change!.applied_account_name,
+          });
+          return next;
+        });
+      }
       setAppliedSuggestionChanges((current) => {
         const next = new Map(current);
         next.set(suggestionKey, response.applied_change);
@@ -1578,6 +1652,14 @@ export default function GeneralLedgerUpload() {
         next.delete(suggestion.row_number);
         return next;
       });
+      const counterRowNumber = findMirroredPreviewRowNumber(preview, suggestion);
+      if (counterRowNumber !== null) {
+        setCounterChangedRows((current) => {
+          const next = new Map(current);
+          next.delete(counterRowNumber);
+          return next;
+        });
+      }
       setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
       return true;
     }
@@ -1607,6 +1689,13 @@ export default function GeneralLedgerUpload() {
         next.delete(suggestion.row_number);
         return next;
       });
+      if (response.unapplied_change.counter_change) {
+        setCounterChangedRows((current) => {
+          const next = new Map(current);
+          next.delete(response.unapplied_change.counter_change!.line_id);
+          return next;
+        });
+      }
       setAppliedSuggestionChanges((current) => {
         const next = new Map(current);
         next.delete(suggestionKey);
@@ -1773,6 +1862,23 @@ export default function GeneralLedgerUpload() {
       for (const change of changes) next.add(change.row_number);
       return next;
     });
+    setCounterChangedRows((current) => {
+      const next = new Map(current);
+      for (const change of changes) {
+        const suggestion = accountSuggestions?.suggestions.find(
+          (item) => item.row_number === change.row_number
+        );
+        if (!suggestion) continue;
+        const counterRowNumber = findMirroredPreviewRowNumber(preview, suggestion);
+        if (counterRowNumber !== null) {
+          next.set(counterRowNumber, {
+            accountNumber: change.suggested_account_number,
+            accountName: getVisibleSuggestedTargetName(suggestion) ?? null,
+          });
+        }
+      }
+      return next;
+    });
   }
 
   async function handleUnapplyAllSuggestedTargets() {
@@ -1784,6 +1890,7 @@ export default function GeneralLedgerUpload() {
     if (isDryRun || summary?.source_file_id === null) {
       setError(null);
       setAppliedSuggestionRows(new Set());
+      setCounterChangedRows(new Map());
       return;
     }
 
@@ -2589,6 +2696,9 @@ export default function GeneralLedgerUpload() {
                         onUnapplySuggestedTarget={summary ? handleUnapplySuggestedTarget : undefined}
                         applyingSuggestionKey={applyingSuggestionKey}
                         appliedSuggestionRows={appliedSuggestionRows}
+                        counterChangedRows={counterChangedRows}
+                        isExporting={exportingAccountKey === account.account_key}
+                        onExport={() => void handleExportAccount(account)}
                         onRequestManualTarget={(suggestion) =>
                           manualTargetPickerRef.current?.open(suggestion)
                         }
@@ -3259,6 +3369,9 @@ function ReviewAccountGroup({
   onUnapplySuggestedTarget,
   applyingSuggestionKey,
   appliedSuggestionRows,
+  counterChangedRows,
+  isExporting,
+  onExport,
   onRequestManualTarget,
 }: {
   account: ImportPreviewAccount;
@@ -3271,6 +3384,9 @@ function ReviewAccountGroup({
   onUnapplySuggestedTarget?: (suggestion: GLAccountSuggestion) => void;
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
+  counterChangedRows?: Map<number, { accountNumber: string; accountName: string | null }>;
+  isExporting?: boolean;
+  onExport: () => void;
   onRequestManualTarget?: (suggestion: GLAccountSuggestion) => void;
 }) {
   const transactions = account.transactions ?? [];
@@ -3308,6 +3424,10 @@ function ReviewAccountGroup({
           </span>
           <ReviewBalanceStat label="Beginning" value={account.beginning_balance} />
           <ReviewBalanceStat label="Closing" value={closingBalance} />
+          <Button variant="outline" size="sm" disabled={isExporting} onClick={onExport}>
+            <FileSpreadsheet className="mr-1 h-4 w-4" />
+            {isExporting ? "Exporting..." : "Export 2 sheets"}
+          </Button>
           {!isFiltered && (
             <Button variant="outline" size="sm" onClick={onFilter}>Focus</Button>
           )}
@@ -3359,6 +3479,8 @@ function ReviewAccountGroup({
                 const isApplied = Boolean(
                   suggestion && appliedSuggestionRows?.has(suggestion.row_number)
                 );
+                const counterChange = counterChangedRows?.get(txn.line_id);
+                const isCounterChanged = Boolean(counterChange);
                 const visibleSuggestedTargetNumber = suggestion
                   ? getVisibleSuggestedTargetNumber(suggestion)
                   : null;
@@ -3378,7 +3500,15 @@ function ReviewAccountGroup({
                 <TableRow
                   id={rowDomId}
                   key={txn.entry_id}
-                  className={rowIsFocused ? "bg-accent ring-2 ring-inset ring-ring" : undefined}
+                  className={
+                    rowIsFocused
+                      ? "bg-accent ring-2 ring-inset ring-ring"
+                      : isApplied
+                        ? "bg-green-100/80 hover:bg-green-100/80 dark:bg-green-950/40 dark:hover:bg-green-950/40"
+                      : isCounterChanged
+                        ? "bg-orange-100/80 hover:bg-orange-100/80 dark:bg-orange-950/40 dark:hover:bg-orange-950/40"
+                        : undefined
+                  }
                   title={rowTitle}
                 >
                   <TableCell className="" title={formatReviewText(txn.entry_date)}>{txn.entry_date || "-"}</TableCell>
@@ -3502,6 +3632,12 @@ function ReviewAccountGroup({
                       suggestion={suggestion}
                       review={previewReview}
                     />
+                    {isCounterChanged && (
+                      <Badge variant="outline" className="mt-1 border-orange-500 bg-orange-50 text-orange-800 dark:border-orange-400/50 dark:bg-orange-950/60 dark:text-orange-200">
+                        Counter updated → {counterChange?.accountNumber}
+                        {counterChange?.accountName ? ` · ${counterChange.accountName}` : ""}
+                      </Badge>
+                    )}
                   </TableCell>
                 </TableRow>
                 );
@@ -3517,6 +3653,132 @@ function ReviewAccountGroup({
       )}
     </div>
   );
+}
+
+async function exportAccountReviewWorkbook(
+  account: ImportPreviewAccount,
+  transactions: ImportPreviewAccountTransaction[],
+  suggestionByTransaction: Map<string, GLAccountSuggestion>
+) {
+  const XLSX = await import("xlsx");
+  const rows = transactions.map((transaction) => {
+    const suggestion = suggestionByTransaction.get(
+      suggestionKeyFromPreview(account, transaction)
+    );
+    const review = transaction.account_review;
+    const currentNumber =
+      suggestion?.current_target_account_number ??
+      review?.current_target_account_number ??
+      transaction.split_account_number ??
+      "";
+    const currentName =
+      suggestion?.current_target_account_name ??
+      review?.current_target_account_name ??
+      transaction.split_account_name ??
+      "";
+    const suggestedNumber =
+      (suggestion ? getVisibleSuggestedTargetNumber(suggestion) : null) ??
+      review?.suggested_account_number ??
+      "";
+    const suggestedName =
+      (suggestion ? getVisibleSuggestedTargetName(suggestion) : null) ??
+      review?.suggested_account_name ??
+      "";
+    const normalizedCurrent = String(currentNumber).trim();
+    const normalizedSuggested = String(suggestedNumber).trim();
+    const currentTarget = [normalizedCurrent, String(currentName ?? "").trim()]
+      .filter(Boolean)
+      .join(" · ");
+    const suggestedTarget = [normalizedSuggested, String(suggestedName ?? "").trim()]
+      .filter(Boolean)
+      .join(" · ");
+    const hasDifferentSuggestion = Boolean(
+      normalizedSuggested &&
+      normalizedSuggested !== "MANUAL_REVIEW" &&
+      normalizedSuggested !== normalizedCurrent
+    );
+    const confidence = suggestion?.confidence ?? review?.confidence ?? null;
+
+    return {
+      "Account Number": account.account_number ?? "",
+      "Account Name": account.account_name,
+      "Account Type": account.account_type ?? "",
+      Date: transaction.entry_date ?? "",
+      Type: transaction.transaction_type ?? "",
+      Number: transaction.transaction_number ?? "",
+      Name: transaction.name ?? "",
+      Memo: transaction.memo ?? "",
+      "Current Target": currentTarget,
+      "Suggested Target": suggestedTarget,
+      "Different Suggestion": hasDifferentSuggestion ? "Yes" : "No",
+      Confidence: confidence === null ? "" : confidence,
+      "Review Source": suggestion?.review_source ?? review?.source ?? "",
+      "Review Status": suggestion?.review_status ?? review?.status ?? "",
+      "Manual Review":
+        suggestion?.requires_manual_review ?? review?.requires_human_review ?? false
+          ? "Yes"
+          : "No",
+      Reason: suggestion?.reason ?? review?.reason ?? "",
+      Debit: transaction.debit,
+      Credit: transaction.credit,
+      Amount: transaction.amount,
+      Balance: transaction.balance_after ?? "",
+      "Line ID": transaction.line_id,
+      _hasDifferentSuggestion: hasDifferentSuggestion,
+    };
+  });
+
+  const exportRows = rows.map(({ _hasDifferentSuggestion: _ignored, ...row }) => row);
+  const changedRows = rows
+    .filter((row) => row._hasDifferentSuggestion)
+    .map(({ _hasDifferentSuggestion: _ignored, ...row }) => row);
+  const headers = Object.keys(
+    exportRows[0] ?? {
+      "Account Number": "",
+      "Account Name": "",
+      "Account Type": "",
+      Date: "",
+      Type: "",
+      Number: "",
+      Name: "",
+      Memo: "",
+      "Current Target": "",
+      "Suggested Target": "",
+      "Different Suggestion": "",
+      Confidence: "",
+      "Review Source": "",
+      "Review Status": "",
+      "Manual Review": "",
+      Reason: "",
+      Debit: "",
+      Credit: "",
+      Amount: "",
+      Balance: "",
+      "Line ID": "",
+    }
+  );
+  const allSheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
+  const changedSheet = XLSX.utils.json_to_sheet(changedRows, { header: headers });
+
+  for (const sheet of [allSheet, changedSheet]) {
+    sheet["!autofilter"] = { ref: sheet["!ref"] ?? "A1:U1" };
+    sheet["!cols"] = headers.map((header) => ({
+      wch: Math.min(55, Math.max(12, header.length + 2)),
+    }));
+  }
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, allSheet, "All Transactions");
+  XLSX.utils.book_append_sheet(workbook, changedSheet, "Suggested Changes");
+  const accountLabel = `${account.account_number ?? "unmapped"}-${account.account_name}`
+    .replace(/[<>:"/\\|?*]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 100);
+  XLSX.writeFile(workbook, `${accountLabel || "account"}-transactions.xlsx`, {
+    compression: true,
+  });
 }
 
 function ReviewBalanceStat({ label, value }: { label: string; value: number | null }) {
@@ -3596,6 +3858,35 @@ function formatAccountReviewProgress(progress: AccountReviewProgress, jobId?: st
 
 function applySuggestionKey(suggestion: Pick<GLAccountSuggestion, "row_number" | "target_field">) {
   return `${suggestion.row_number}-${suggestion.target_field || "split_account"}`;
+}
+
+function findMirroredPreviewRowNumber(
+  preview: ImportPreview | null,
+  suggestion: GLAccountSuggestion
+): number | null {
+  if (!preview) return null;
+  const rows = preview.accounts.flatMap((account) =>
+    (account.transactions ?? []).map((txn) => ({ account, txn }))
+  );
+  const source = rows.find(({ txn }) => txn.line_id === suggestion.row_number);
+  if (!source) return null;
+
+  const normalize = (value: unknown) =>
+    String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const sameIdentity = (candidate: ImportPreviewAccountTransaction) =>
+    candidate.entry_date === source.txn.entry_date &&
+    normalize(candidate.transaction_type) === normalize(source.txn.transaction_type) &&
+    normalize(candidate.transaction_number) === normalize(source.txn.transaction_number) &&
+    normalize(candidate.name) === normalize(source.txn.name) &&
+    normalize(candidate.memo) === normalize(source.txn.memo);
+  const matches = rows.filter(({ account, txn }) =>
+    txn.line_id !== source.txn.line_id &&
+    sameIdentity(txn) &&
+    txn.amount === -source.txn.amount &&
+    account.account_number === source.txn.split_account_number &&
+    txn.split_account_number === source.account.account_number
+  );
+  return matches.length === 1 ? matches[0].txn.line_id : null;
 }
 
 function countChangedSuggestions(suggestions: GLAccountSuggestion[]) {
@@ -4348,7 +4639,11 @@ function AccountSuggestionReview({
                 const busyActionLabel = isApplied ? "Unapplying" : "Applying";
 
                 return (
-                <TableRow key={`${suggestion.row_number}-${suggestion.target_field}`} title={rowTitle}>
+                <TableRow
+                  key={`${suggestion.row_number}-${suggestion.target_field}`}
+                  title={rowTitle}
+                  className={isApplied ? "bg-green-100/80 hover:bg-green-100/80 dark:bg-green-950/40 dark:hover:bg-green-950/40" : undefined}
+                >
                   <TableCell className="font-medium" title={`Row ${suggestion.row_number}`}>
                     <div>{suggestion.row_number}</div>
                     {wasGeminiReviewed && (
@@ -4835,8 +5130,15 @@ function ReviewStatusStack({
   suggestion?: GLAccountSuggestion | null;
   review?: ImportPreviewAccountReview | null;
 }) {
+  const hasAuthoritativeXgboostSuggestion = Boolean(
+    suggestion && isXgboostSuggestion(suggestion)
+  );
   const visibleReview =
-    review && review.source !== "not_bank_transaction" ? review : null;
+    review &&
+    review.source !== "not_bank_transaction" &&
+    !hasAuthoritativeXgboostSuggestion
+      ? review
+      : null;
   const status = formatReviewMarker(suggestion ?? undefined, visibleReview);
   const hasReviewStatus = Boolean(suggestion || visibleReview);
 
