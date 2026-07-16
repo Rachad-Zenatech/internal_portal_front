@@ -54,6 +54,21 @@ export default function BankStatements() {
     }
   }
 
+  async function handleDeleteQueueJobs(jobIds: number[]) {
+    setDeletingQueueJobId(jobIds[0]);
+    try {
+      for (const jobId of jobIds) {
+        await deleteQueueJobMutation.mutateAsync({ jobId });
+      }
+      toast.success("Uploads removed from queue");
+      void refetchQueue();
+    } catch (err) {
+      toast.error("Failed to delete uploads from queue");
+    } finally {
+      setDeletingQueueJobId(null);
+    }
+  }
+
   function handleOpenPreview(token: string) {
     setIsDrawerOpen(false);
     setActiveTab('statements');
@@ -132,6 +147,7 @@ export default function BankStatements() {
                 onCancelJob={handleCancelQueueJob}
                 cancelingJobId={cancelingQueueJobId}
                 onDeleteJob={handleDeleteQueueJob}
+                onDeleteJobs={handleDeleteQueueJobs}
                 deletingJobId={deletingQueueJobId}
               />
             </div>

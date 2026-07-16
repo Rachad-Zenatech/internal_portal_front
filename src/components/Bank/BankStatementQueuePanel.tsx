@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Trash2, X, ChevronUp, ChevronDown, Play, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export type BankStatementQueueItem = {
   id: number;
@@ -36,11 +37,23 @@ export function BankStatementQueuePanel({
   onCancelJob?: (jobId: number) => void;
   cancelingJobId?: number | null;
   onDeleteJob?: (jobId: number) => void;
+  onDeleteJobs?: (jobIds: number[]) => void;
   deletingJobId?: number | null;
   isPreviewLoading?: boolean;
   headerAction?: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<number>>(new Set());
+
+  const toggleJobSelect = (jobId: number) => {
+    const next = new Set(selectedJobIds);
+    if (next.has(jobId)) {
+      next.delete(jobId);
+    } else {
+      next.add(jobId);
+    }
+    setSelectedJobIds(next);
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
@@ -61,12 +74,26 @@ export function BankStatementQueuePanel({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {headerAction}
-              <Button type="button" variant="outline" size="sm" onClick={onRefresh} title="Refresh queue">
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+              <div className="flex items-center gap-2">
+                {headerAction}
+                {selectedJobIds.size > 0 && onDeleteJobs && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      onDeleteJobs(Array.from(selectedJobIds));
+                      setSelectedJobIds(new Set());
+                    }}
+                    title="Delete Selected"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete Selected ({selectedJobIds.size})
+                  </Button>
+                )}
+                <Button type="button" variant="outline" size="sm" onClick={onRefresh} title="Refresh queue">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
           </div>
 
           <CollapsibleContent>
@@ -82,11 +109,19 @@ export function BankStatementQueuePanel({
               <div className="divide-y rounded-md border">
                 {jobs.map((job) => (
               <div key={job.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium">
-                      {job.filename || `Upload job #${job.id}`}
-                    </span>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {onDeleteJobs && job.can_delete && (
+                    <Checkbox
+                      checked={selectedJobIds.has(job.id)}
+                      onCheckedChange={() => toggleJobSelect(job.id)}
+                      aria-label={`Select upload job ${job.id}`}
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-medium">
+                        {job.filename || `Upload job #${job.id}`}
+                      </span>
                     <Badge variant={queueStatusVariant(job.status)}>
                       {queueStatusLabel(job.status)}
                     </Badge>
@@ -108,6 +143,7 @@ export function BankStatementQueuePanel({
                   <div className="mt-1 text-xs text-muted-foreground">
                     Started {formatQueueDate(job.created_at)}
                   </div>
+                </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {job.can_cancel && onCancelJob && (

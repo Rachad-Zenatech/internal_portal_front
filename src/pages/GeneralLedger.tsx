@@ -110,6 +110,29 @@ export default function GeneralLedger() {
     }
   }
 
+  async function handleDeleteQueueJobs(jobIds: number[]) {
+    setQueueActionError(null);
+    setQueueActionMessage(null);
+    setDeletingQueueJobId(jobIds[0]);
+    try {
+      let lastMessage = "";
+      for (const jobId of jobIds) {
+        const result = await deleteUploadQueueJobMutation.mutateAsync({ jobId });
+        lastMessage = result.message || "GL upload queue items deleted.";
+        const activeUploadJob = activeJobs.find((job) => String(job.jobId) === String(jobId));
+        if (activeUploadJob) {
+          removeJob(activeUploadJob.id);
+        }
+      }
+      setQueueActionMessage(lastMessage);
+      void refetchUploadQueue();
+    } catch (err) {
+      setQueueActionError(err instanceof Error ? err.message : "Failed to delete GL uploads");
+    } finally {
+      setDeletingQueueJobId(null);
+    }
+  }
+
   const companies = useMemo(() => {
     const seen = new Map<number, { id: number; name: string; entity: string | null }>();
     for (const card of cards) {
@@ -193,6 +216,7 @@ export default function GeneralLedger() {
         onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
         cancelingJobId={cancelingQueueJobId}
         onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
+        onDeleteJobs={handleDeleteQueueJobs}
         deletingJobId={deletingQueueJobId}
       />
 

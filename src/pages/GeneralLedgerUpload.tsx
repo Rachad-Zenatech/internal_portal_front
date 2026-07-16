@@ -1091,6 +1091,28 @@ export default function GeneralLedgerUpload() {
     }
   }
 
+  async function handleDeleteQueueJobs(jobIds: number[]) {
+    setError(null);
+    setDeletingQueueJobId(jobIds[0]); // Show spinner on the first one or we can add a new state, but this works well enough
+    try {
+      let lastMessage = "";
+      for (const jobId of jobIds) {
+        const result = await deleteUploadQueueJobMutation.mutateAsync({ jobId });
+        lastMessage = result.message || "GL upload queue items deleted.";
+        const activeUploadJob = activeJobs.find((job) => String(job.jobId) === String(jobId));
+        if (activeUploadJob) {
+          removeJob(activeUploadJob.id);
+        }
+      }
+      setBackgroundUploadMessage(lastMessage);
+      void refetchUploadQueue();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete GL uploads");
+    } finally {
+      setDeletingQueueJobId(null);
+    }
+  }
+
   async function handleDryRunPreviewPage(page: number, explicitPreviewToken?: string) {
     const openingCachedPreview = Boolean(explicitPreviewToken);
     const previewToken =
@@ -1890,10 +1912,10 @@ export default function GeneralLedgerUpload() {
           onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
           cancelingJobId={cancelingQueueJobId}
           onDeleteJob={(jobId) => handleDeleteQueueJob(jobId)}
+          onDeleteJobs={handleDeleteQueueJobs}
           deletingJobId={deletingQueueJobId}
           headerAction={
             <div className="flex items-center gap-2">
-              <GLSplitCompareDialog books={books} />
               <DrawerTrigger asChild>
                 <Button size="sm">
                   <UploadCloud className="mr-2 h-4 w-4" />

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogContent,
@@ -29,13 +30,14 @@ interface GLSplitCompareDialogProps {
   bookId?: number | null;
   localPreview?: any; // ImportPreview
   localSuggestions?: GLAccountSuggestion[];
+  disabled?: boolean;
 }
 
 const formatMoney = (val: number) => {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(val);
 };
 
-export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggestions }: GLSplitCompareDialogProps) {
+export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggestions, disabled }: GLSplitCompareDialogProps) {
   const [open, setOpen] = useState(false);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [expectedFile, setExpectedFile] = useState<File | null>(null);
@@ -237,7 +239,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
 
 
 
-      // 3. Run Dry-Run Account Suggestions (XGBoost/Rules/AI) on Original File if we don't have localPreview
+      // 3. Run Suggested Account Suggestions (XGBoost/Rules/AI) on Original File if we don't have localPreview
       if (!localPreview && origRes) {
         const origToken = origRes.dry_run_preview_token || origRes.preview?.pagination?.preview_token;
         if (origToken) {
@@ -321,46 +323,71 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
     return groups;
   }, [result, tab]);
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     if (!result) return;
     const headers = [
-      "Row #", "Expected Row #", "Date", "Type", "Name", "Memo", "Debit", "Credit", "Expected Account",
-      "Dry-Run Account", "Applied By", "Confidence", "Status", "Difference Reason"
+      "Row #", "Date", "Type", "Name", "Memo", "Debit", "Credit", "Expected Account",
+      "Suggested Account", "Applied By", "Confidence", "Status", "Difference Reason"
     ];
 
-    const rows = result.rows.map(r => [
-      r.row_number,
-      `"${(r.expected_rows?.map((exp: any) => exp._excel_row).filter(Boolean).join(", ") || "-")}"`,
-      r.date || "",
-      r.transaction_type || "",
-      `"${(r.name || "").replace(/"/g, '""')}"`,
-      `"${(r.memo || "").replace(/"/g, '""')}"`,
-      r.debit ? r.debit.toFixed(2) : "-",
-      r.credit ? r.credit.toFixed(2) : "-",
-      `"${(r.expected_account || "").replace(/"/g, '""')}"`,
-      `"${(r.dry_run_account || "").replace(/"/g, '""')}"`,
-      r.source || "",
-      r.confidence !== null ? (r.confidence * 100).toFixed(1) + "%" : "",
-      r.status,
-      `"${(r.difference_reason || "").replace(/"/g, '""')}"`
-    ]);
+    const wb = XLSX.utils.book_new();
 
-    const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "GL_Comparison_Result.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Group all non-matched rows by account
+    const groups: Record<string, typeof result.rows> = {};
+    result.rows
+      .filter((r) => r.status !== "MATCH")
+      .forEach((r) => {
+        const key = r.charge_account || "Unassigned Bank Account";
+        groups[key] = groups[key] || [];
+        groups[key].push(r);
+      });
+
+    Object.entries(groups).forEach(([accountName, accountRows]) => {
+      const rows = accountRows.map(r => [
+        r.row_number,
+        r.date || "",
+        r.transaction_type || "",
+        r.name || "",
+        r.memo || "",
+        r.debit || "",
+        r.credit || "",
+        r.expected_account || "",
+        r.dry_run_account || "",
+        r.source || "",
+        r.confidence !== null ? (r.confidence * 100).toFixed(1) + "%" : "",
+        r.status,
+        r.difference_reason || ""
+      ]);
+
+      const wsData = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      let sheetName = accountName.substring(0, 31).replace(/[\\/*?:[\]]/g, "");
+      if (!sheetName) sheetName = "Sheet";
+
+      let baseName = sheetName;
+      let counter = 1;
+      while (wb.SheetNames.includes(sheetName)) {
+        const suffix = ` (${counter})`;
+        sheetName = baseName.substring(0, 31 - suffix.length) + suffix;
+        counter++;
+      }
+
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    if (wb.SheetNames.length === 0) {
+      const ws = XLSX.utils.aoa_to_sheet([["No data"]]);
+      XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    }
+
+    XLSX.writeFile(wb, "GL_Comparison_Result.xlsx");
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" disabled={disabled}>
           <FileSpreadsheet className="h-4 w-4" />
           Compare Split
         </Button>
@@ -445,9 +472,9 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                   <TabsTrigger value="missing_split">Missing Split Rows ({result.rows.filter(r => r.status === "MISSING_SPLIT").length})</TabsTrigger>
                   <TabsTrigger value="all">All Rows ({result.summary.total_rows})</TabsTrigger>
                 </TabsList>
-                <Button onClick={handleExportCSV} variant="outline" size="sm" className="gap-2">
+                <Button onClick={handleExportExcel} variant="outline" size="sm" className="gap-2">
                   <FileSpreadsheet className="h-4 w-4" />
-                  Export to CSV
+                  Export to Excel
                 </Button>
               </div>
               
@@ -565,7 +592,6 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                             <TableHeader>
                               <TableRow>
                                 <TableHead>Row #</TableHead>
-                                <TableHead>Expected Row #</TableHead>
                                 <TableHead>Date</TableHead>
                                 <TableHead>Type</TableHead>
                                 <TableHead>Name</TableHead>
@@ -573,7 +599,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                                 <TableHead className="text-right">Debit</TableHead>
                                 <TableHead className="text-right">Credit</TableHead>
                                 <TableHead>Expected Account</TableHead>
-                                <TableHead>Dry-Run Account</TableHead>
+                                <TableHead>Suggested Account</TableHead>
                                 <TableHead>Applied By</TableHead>
                                 <TableHead>Confidence</TableHead>
                                 <TableHead>Status</TableHead>
@@ -588,7 +614,6 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
                                   "bg-green-50/50 hover:bg-green-50/50 dark:bg-green-950/20 dark:hover:bg-green-950/20"
                                 }>
                                   <TableCell>{r.row_number}</TableCell>
-                                  <TableCell>{r.expected_rows?.map((exp: any) => exp._excel_row).filter(Boolean).join(", ") || "-"}</TableCell>
                                   <TableCell>{r.date || "-"}</TableCell>
                                   <TableCell>{r.transaction_type || "-"}</TableCell>
                                   <TableCell>{r.name || "-"}</TableCell>
