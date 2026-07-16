@@ -26,6 +26,7 @@ export function BankStatementQueuePanel({
   onCancelJob,
   cancelingJobId = null,
   onDeleteJob,
+  onDeleteJobs,
   deletingJobId = null,
   isPreviewLoading = false,
   headerAction,

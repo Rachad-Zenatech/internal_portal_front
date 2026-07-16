@@ -343,27 +343,27 @@ export function compareGLSplitResults(
 
         if (isExpZero && !isDryZero) {
           status = "MISSING_SPLIT";
-          differenceReason = `Expected file has no assigned account, but dry-run assigned: ${dryRunAccount}.`;
+          differenceReason = `Expected file has no account, but Suggested Account is: ${dryRunAccount}.`;
           isSuspicious = true;
           summary.account_mismatch_rows++;
         } else if (isDryZero && !isExpZero) {
           status = "MISSING_SPLIT";
-          differenceReason = `Original transaction predicted no account, but expected file assigned: ${expectedAccount}.`;
+          differenceReason = `Suggested Account is empty, but Expected file has: ${expectedAccount}.`;
           isSuspicious = true;
           summary.account_mismatch_rows++;
         } else if (!isExpMulti && isDryMulti) {
           status = "MISSING_SPLIT";
-          differenceReason = `Expected file has a single account, but dry-run predicted a split: ${dryRunAccount}.`;
+          differenceReason = `Expected file has a single account, but Suggested Account is a split: ${dryRunAccount}.`;
           isSuspicious = true;
           summary.account_mismatch_rows++;
         } else if (!isDryMulti && isExpMulti) {
           status = "MISSING_SPLIT";
-          differenceReason = `Original transaction predicted a single account, but expected file is split: ${expectedAccount}.`;
+          differenceReason = `Suggested Account is a single account, but Expected file is a split: ${expectedAccount}.`;
           isSuspicious = true;
           summary.account_mismatch_rows++;
         } else if (expectedAccount !== dryRunAccount) {
           status = "ACCOUNT_MISMATCH";
-          differenceReason = `Expected account '${expectedAccount}' but dry-run assigned '${dryRunAccount}'.`;
+          differenceReason = `Expected account '${expectedAccount}' does not match Suggested Account '${dryRunAccount}'.`;
           isSuspicious = true;
           summary.account_mismatch_rows++;
         } else if (!origRow.date) {
@@ -392,7 +392,7 @@ export function compareGLSplitResults(
     results.push({
       row_number: (origRow as ImportPreviewRow & { _excel_row: number })._excel_row,
       date: origDate,
-      transaction_type: origRow.type || null,
+      transaction_type: origRow.type || (origRow as any).transaction_type || null,
       name: origRow.name || null,
       memo: origRow.memo || null,
       description: origRow.name || origRow.memo || "",
@@ -419,7 +419,7 @@ export function compareGLSplitResults(
     results.push({
       row_number: results.length + 1,
       date: exp.date || null,
-      transaction_type: exp.type || null,
+      transaction_type: exp.type || (exp as any).transaction_type || null,
       name: exp.name || null,
       memo: exp.memo || null,
       description: exp.name || exp.memo || "",
