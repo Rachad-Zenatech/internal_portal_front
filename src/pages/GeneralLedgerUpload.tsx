@@ -3660,7 +3660,7 @@ async function exportAccountReviewWorkbook(
   transactions: ImportPreviewAccountTransaction[],
   suggestionByTransaction: Map<string, GLAccountSuggestion>
 ) {
-  const XLSX = await import("xlsx");
+  const ExcelJS = (await import("exceljs")).default;
   const rows = transactions.map((transaction) => {
     const suggestion = suggestionByTransaction.get(
       suggestionKeyFromPreview(account, transaction)
@@ -3728,10 +3728,16 @@ async function exportAccountReviewWorkbook(
     };
   });
 
-  const exportRows = rows.map(({ _hasDifferentSuggestion: _ignored, ...row }) => row);
+  const exportRows = rows.map(({ _hasDifferentSuggestion, ...row }) => {
+    void _hasDifferentSuggestion;
+    return row;
+  });
   const changedRows = rows
     .filter((row) => row._hasDifferentSuggestion)
-    .map(({ _hasDifferentSuggestion: _ignored, ...row }) => row);
+    .map(({ _hasDifferentSuggestion, ...row }) => {
+      void _hasDifferentSuggestion;
+      return row;
+    });
   const headers = Object.keys(
     exportRows[0] ?? {
       "Account Number": "",
@@ -3757,28 +3763,45 @@ async function exportAccountReviewWorkbook(
       "Line ID": "",
     }
   );
-  const allSheet = XLSX.utils.json_to_sheet(exportRows, { header: headers });
-  const changedSheet = XLSX.utils.json_to_sheet(changedRows, { header: headers });
-
-  for (const sheet of [allSheet, changedSheet]) {
-    sheet["!autofilter"] = { ref: sheet["!ref"] ?? "A1:U1" };
-    sheet["!cols"] = headers.map((header) => ({
-      wch: Math.min(55, Math.max(12, header.length + 2)),
+  const workbook = new ExcelJS.Workbook();
+  const addSheet = (name: string, data: Array<Record<string, unknown>>) => {
+    const sheet = workbook.addWorksheet(name, {
+      views: [{ state: "frozen", ySplit: 1 }],
+    });
+    sheet.columns = headers.map((header) => ({
+      header,
+      key: header,
+      width: Math.min(55, Math.max(12, header.length + 2)),
     }));
-  }
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, allSheet, "All Transactions");
-  XLSX.utils.book_append_sheet(workbook, changedSheet, "Suggested Changes");
+    sheet.addRows(data);
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: headers.length },
+    };
+    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).alignment = { vertical: "middle" };
+    return sheet;
+  };
+  addSheet("All Transactions", exportRows);
+  addSheet("Suggested Changes", changedRows);
   const accountLabel = `${account.account_number ?? "unmapped"}-${account.account_name}`
     .replace(/[<>:"/\\|?*]+/g, "-")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 100);
-  XLSX.writeFile(workbook, `${accountLabel || "account"}-transactions.xlsx`, {
-    compression: true,
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([new Uint8Array(buffer)], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${accountLabel || "account"}-transactions.xlsx`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function ReviewBalanceStat({ label, value }: { label: string; value: number | null }) {

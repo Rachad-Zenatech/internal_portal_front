@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { apiClient } from '../services/apiClient';
 
 export interface User {
@@ -48,28 +48,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<PermissionsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchPermissions = async () => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      setPermissions(null);
-      setIsLoading(false);
-      return;
-    }
-    
+  const fetchPermissions = useCallback(async () => {
+    setIsLoading(true);
     try {
       const data = await apiClient.get<PermissionsData>('/api/me/permissions');
       setPermissions(data);
-    } catch (error) {
-      console.error('Failed to fetch permissions:', error);
-      // Optional: Clear token if unauthorized
+    } catch {
+      setPermissions(null);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('ms_id_token');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchPermissions();
-  }, []);
+  }, [fetchPermissions]);
 
   const canAccessNavigationItem = (navigationCode: string, actionCode = 'VIEW') => {
     if (!permissions) return false;
@@ -128,9 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    const userEmail = permissions?.user?.email;
-    const msIdToken = localStorage.getItem('ms_id_token');
-    
     try {
       await apiClient.post('/api/auth/logout', {});
     } catch (e) {
@@ -142,19 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('ms_id_token');
     setPermissions(null);
     
-    // Redirect to Microsoft SSO logout to clear the Azure AD session
+    // Redirect to Microsoft SSO logout to clear the Azure AD session.
     const postLogoutUri = encodeURIComponent(window.location.origin + '/login');
-    // We use the specific tenant ID for better logout routing
-    let logoutUrl = `https://login.microsoftonline.com/793faa36-870a-465b-93be-d8d07da8a680/oauth2/v2.0/logout?post_logout_redirect_uri=${postLogoutUri}`;
-    
-    // Use id_token_hint if available (completely bypasses picker), fallback to logout_hint
-    if (msIdToken) {
-      logoutUrl += `&id_token_hint=${msIdToken}`;
-    } else if (userEmail) {
-      logoutUrl += `&logout_hint=${encodeURIComponent(userEmail)}`;
-    }
-    
-    window.location.href = logoutUrl;
+    window.location.href = `https://login.microsoftonline.com/common/oauth2/v2.0/logout?post_logout_redirect_uri=${postLogoutUri}`;
   };
 
   return (

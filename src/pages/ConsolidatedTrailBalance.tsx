@@ -455,14 +455,14 @@ export default function ConsolidatedTrialBalance() {
             <ReconcilingTable
               title="In Bank, Missing in Books"
               subtitle="Cleared the bank — not yet recorded in the GL."
-              companies={selected}
+              companies={searched}
               getItems={(c) => c.in_bank_not_in_books}
               exportMissingInBooks={{ year, quarter }}
             />
             <ReconcilingTable
               title="In Books, Missing in Bank"
               subtitle="Recorded in the GL — not yet cleared (outstanding)."
-              companies={selected}
+              companies={searched}
               getItems={(c) => c.in_books_not_in_bank}
             />
           </div>
@@ -505,13 +505,13 @@ function ReconcilingTable({
     .filter((g) => g.items.length > 0)
     .sort((a, b) => compareCompanies(a.company, b.company));
 
-  const [collapsedCompanyIds, setCollapsedCompanyIds] = useState<Set<number>>(() => new Set());
+  const [expandedCompanyIds, setExpandedCompanyIds] = useState<Set<number>>(() => new Set());
   const [preview, setPreview] = useState<{ company: ConsolidatedCompany; rows: EditableMissingInBooksRow[]; } | null>(null);
   
   const downloadMutation = useDownloadMissingInBooksExport();
 
   const toggleCompany = (companyId: number) => {
-    setCollapsedCompanyIds((current) => {
+    setExpandedCompanyIds((current) => {
       const next = new Set(current);
       if (next.has(companyId)) next.delete(companyId);
       else next.add(companyId);
@@ -619,7 +619,7 @@ function ReconcilingTable({
             ) : (
               groups.map(({ company, items }) => {
                 const companyTotal = items.reduce((s, i) => s + i.amount, 0);
-                const isCollapsed = collapsedCompanyIds.has(company.company_id);
+                const isCollapsed = !expandedCompanyIds.has(company.company_id);
                 const ToggleIcon = isCollapsed ? ChevronRight : ChevronDown;
 
                 return (

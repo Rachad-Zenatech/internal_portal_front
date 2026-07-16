@@ -18,10 +18,7 @@ export default function Login() {
       if (hasProcessedLogin.current) return;
 
       const error = searchParams.get("error");
-      const token = searchParams.get("token");
-      const userId = searchParams.get("user_id");
-      const email = searchParams.get("email");
-      const idToken = searchParams.get("id_token");
+      const status = searchParams.get("status");
 
       if (error === "account_not_found") {
         hasProcessedLogin.current = true;
@@ -41,21 +38,15 @@ export default function Login() {
         return;
       }
 
-      if (token && userId && email) {
+      if (status === "success") {
         hasProcessedLogin.current = true;
         setIsLoading(true);
         try {
-          localStorage.setItem("token", token);
-          localStorage.setItem("user", JSON.stringify({ id: userId, email }));
-          if (idToken) {
-            localStorage.setItem("ms_id_token", idToken);
-          }
-
           await refreshPermissions();
 
           toast.success("Successfully logged in");
 
-          // Clear URL params
+          // Clear the one-time status marker from browser history.
           window.history.replaceState({}, document.title, window.location.pathname);
 
           navigate("/");
@@ -75,12 +66,6 @@ export default function Login() {
     // Redirect to backend Microsoft SSO endpoint
     const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
     window.location.href = `${baseUrl}/api/auth/microsoft/login`;
-  };
-
-  const handleMockLogin = () => {
-    // Redirect to mock endpoint for local testing
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    window.location.href = `${baseUrl}/api/auth/mock/login?email=ad1@zenatech.com`;
   };
 
   return (
@@ -121,17 +106,6 @@ export default function Login() {
                 "Sign in with Microsoft"
               )}
             </Button>
-
-            {import.meta.env.DEV && (
-              <Button
-                onClick={handleMockLogin}
-                variant="outline"
-                className="w-full h-12 rounded-xl font-semibold shadow-sm transition-all"
-                disabled={isLoading}
-              >
-                Mock SSO Login (Local Dev)
-              </Button>
-            )}
           </CardContent>
           <CardFooter className="flex justify-center pb-8 pt-4 border-t border-slate-100 dark:border-zinc-800/50 mt-2 bg-slate-50/50 dark:bg-zinc-950/30">
             <p className="text-sm text-slate-500 dark:text-zinc-400">

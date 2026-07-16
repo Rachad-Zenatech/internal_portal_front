@@ -2,18 +2,13 @@ import { handleResponse } from "./helper";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
-const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem("token");
-  return token ? { "Authorization": `Bearer ${token}` } : {};
-};
-
 export const apiClient = {
   async get<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const res = await fetch(`${BASE_URL}${endpoint}`, { 
       ...options, 
       method: "GET",
+      credentials: "include",
       headers: {
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>)
       } as HeadersInit
     });
@@ -25,9 +20,9 @@ export const apiClient = {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       method: "POST",
+      credentials: "include",
       headers: {
         ...(isFormData ? {} : { "Content-Type": "application/json" }),
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>),
       } as HeadersInit,
       body: isFormData ? body : JSON.stringify(body),
@@ -39,9 +34,9 @@ export const apiClient = {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       method: "PATCH",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>),
       } as HeadersInit,
       body: JSON.stringify(body),
@@ -53,9 +48,9 @@ export const apiClient = {
     const res = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       method: "PUT",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>),
       } as HeadersInit,
       body: JSON.stringify(body),
@@ -67,8 +62,8 @@ export const apiClient = {
     const res = await fetch(`${BASE_URL}${endpoint}`, { 
       ...options, 
       method: "DELETE",
+      credentials: "include",
       headers: {
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>)
       } as HeadersInit
     });
