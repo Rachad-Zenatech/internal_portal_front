@@ -77,12 +77,6 @@ export default function Login() {
     window.location.href = `${baseUrl}/api/auth/microsoft/login`;
   };
 
-  const handleMockLogin = () => {
-    // Redirect to mock endpoint for local testing
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-    window.location.href = `${baseUrl}/api/auth/mock/login?email=ad1@zenatech.com`;
-  };
-
   return (
     <div className="min-h-screen w-full bg-slate-50 dark:bg-zinc-950 flex flex-col justify-center items-center p-4 relative overflow-hidden">
       {/* Background decorations */}
@@ -122,16 +116,6 @@ export default function Login() {
               )}
             </Button>
 
-            {import.meta.env.DEV && (
-              <Button
-                onClick={handleMockLogin}
-                variant="outline"
-                className="w-full h-12 rounded-xl font-semibold shadow-sm transition-all"
-                disabled={isLoading}
-              >
-                Mock SSO Login (Local Dev)
-              </Button>
-            )}
           </CardContent>
           <CardFooter className="flex justify-center pb-8 pt-4 border-t border-slate-100 dark:border-zinc-800/50 mt-2 bg-slate-50/50 dark:bg-zinc-950/30">
             <p className="text-sm text-slate-500 dark:text-zinc-400">

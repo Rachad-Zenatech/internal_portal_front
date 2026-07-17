@@ -86,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('beforeunload', handleUnload);
   }, []);
 
+
   const canAccessNavigationItem = (navigationCode: string, actionCode = 'VIEW') => {
     if (!permissions) return false;
     if (permissions.user.is_super_admin) return true;

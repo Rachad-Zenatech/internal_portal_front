@@ -46,6 +46,17 @@ export function GLUploadQueuePanel({
     setSelectedJobIds(next);
   };
 
+  const deletableJobs = jobs.filter(j => j.can_delete);
+  const allSelected = deletableJobs.length > 0 && selectedJobIds.size === deletableJobs.length;
+  
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedJobIds(new Set());
+    } else {
+      setSelectedJobIds(new Set(deletableJobs.map(j => j.id)));
+    }
+  };
+
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
       <Card>
@@ -67,6 +78,21 @@ export function GLUploadQueuePanel({
             </div>
               <div className="flex items-center gap-2">
                 {headerAction}
+                {deletableJobs.length > 0 && onDeleteJobs && (
+                  <div className="flex items-center gap-2 mr-2">
+                    <Checkbox
+                      checked={allSelected}
+                      onCheckedChange={toggleSelectAll}
+                      id="select-all-gl-jobs"
+                    />
+                    <label
+                      htmlFor="select-all-gl-jobs"
+                      className="text-sm font-medium leading-none cursor-pointer select-none"
+                    >
+                      Select All
+                    </label>
+                  </div>
+                )}
                 {selectedJobIds.size > 0 && onDeleteJobs && (
                   <Button
                     type="button"
