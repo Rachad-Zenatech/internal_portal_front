@@ -60,7 +60,7 @@ export default function BankStatementPreview() {
             method: 'DELETE',
             keepalive: true,
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}` // Ensure we pass token if needed
+              'Authorization': `Bearer ${sessionStorage.getItem('token')}` // Ensure we pass token if needed
             }
           }).catch(() => {});
           

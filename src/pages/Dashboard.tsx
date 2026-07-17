@@ -30,7 +30,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="w-full space-y-6 flex flex-col h-full overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out pb-10 bg-slate-50/50 p-2 sm:p-6 lg:p-8 rounded-xl">
+    <div className="w-full space-y-6 flex flex-col h-full overflow-y-auto animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out pb-10 bg-slate-50/50 dark:bg-transparent p-2 sm:p-6 lg:p-8 rounded-xl">
       
       {/* Header */}
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between border-b border-slate-200/60 pb-6">

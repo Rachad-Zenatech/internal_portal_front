@@ -171,14 +171,14 @@ export const useGLUploadQueue = (limit: number = 20) => {
     queryFn: () => GLService.getUploadQueue(limit),
     refetchInterval: (query) => {
       const data = query.state.data;
-      if (!data || !data.jobs) return 1500;
+      if (!data || !data.jobs) return false;
       const isProcessing = data.jobs.some((job) =>
         ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(job.status) ||
         ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(
           job.ai_review_status ?? ''
         )
       );
-      return isProcessing ? 1500 : 5000;
+      return isProcessing ? 1500 : false;
     },
   });
 };

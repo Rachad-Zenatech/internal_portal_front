@@ -109,7 +109,7 @@ export default function BankBalancesChart({ filters }: BankBalancesChartProps) {
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg">Bank Account Balances</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col p-0">
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0">
         <div className="flex-1 overflow-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-slate-50 border-y border-slate-100 text-slate-500 font-medium">

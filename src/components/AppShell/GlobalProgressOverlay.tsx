@@ -3,11 +3,13 @@ import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function GlobalProgressOverlay() {
+  const queryClient = useQueryClient();
   const { activeJobs, removeJob } = useGlobalProgress();
   const { data: notifications = [] } = useNotifications({
-    refetchInterval: activeJobs.length > 0 ? 2000 : 30000,
+    refetchInterval: activeJobs.length > 0 ? 2000 : false,
   });
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -19,6 +21,7 @@ export function GlobalProgressOverlay() {
         );
         if (matchingNotification) {
           removeJob(job.id);
+          queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
           
           // Check if in-app alerts are enabled (defaults to true if not set)
           const alertsEnabled = localStorage.getItem("inAppAlerts") !== "false";
@@ -42,7 +45,7 @@ export function GlobalProgressOverlay() {
         }
       }
     });
-  }, [notifications, activeJobs, removeJob]);
+  }, [notifications, activeJobs, removeJob, queryClient]);
 
   // Collapse if there are no more active jobs (so it doesn't open empty next time)
   useEffect(() => {

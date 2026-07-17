@@ -205,6 +205,7 @@ export default function Roles() {
     // Create deep clones
     const clonedRoles: Record<string, Role> = {};
     flatRoles.forEach(r => {
+      if (r.code === 'PENDING_USER') return;
       clonedRoles[r.id] = { ...r, children: [] };
     });
 

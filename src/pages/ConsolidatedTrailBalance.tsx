@@ -255,7 +255,7 @@ export default function ConsolidatedTrialBalance() {
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                     <Input 
                       placeholder="Search company or entity..." 
-                      className="pl-9 bg-slate-50 border-slate-200 dark:border-zinc-800 h-9 text-sm"
+                      className="pl-9 bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 h-9 text-sm"
                       value={tableSearch}
                       onChange={(e) => {
                         setTableSearch(e.target.value);

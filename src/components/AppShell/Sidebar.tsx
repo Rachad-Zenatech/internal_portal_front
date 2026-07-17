@@ -5,6 +5,8 @@ import { useState } from "react";
 import zenatechLogo from "@/assets/zenatech_logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "../../lib/AuthContext";
+import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/services/apiClient";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -18,7 +20,19 @@ export default function Sidebar({
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const location = useLocation();
 
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole, user } = useAuth();
+  const isSuperAdmin = hasRole("SUPER_ADMIN") || user?.is_super_admin;
+
+  const { data: users } = useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiClient.get<any[]>("/api/configuration/users"),
+    enabled: !!isSuperAdmin,
+  });
+
+  const pendingUsersCount = users?.filter((u: any) => 
+    !u.is_super_admin && 
+    (!u.assigned_roles || u.assigned_roles.length === 0 || u.assigned_roles.every((r: any) => r.code === "PENDING_USER"))
+  ).length || 0;
 
   const toggleExpand = (label: string) => {
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
@@ -131,11 +145,16 @@ export default function Sidebar({
                         key={sub.path}
                         to={sub.path}
                         className={`
-                          flex items-center h-10 px-3 rounded-lg text-sm transition-all duration-300
+                          flex items-center justify-between h-10 px-3 rounded-lg text-sm transition-all duration-300
                           ${isSubActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
                         `}
                       >
-                        {sub.label}
+                        <span className="truncate">{sub.label}</span>
+                        {sub.label === "Role Assignments" && isSuperAdmin && pendingUsersCount > 0 && (
+                          <div className="flex-shrink-0 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-2">
+                            {pendingUsersCount}
+                          </div>
+                        )}
                       </Link>
                     );
                   })}

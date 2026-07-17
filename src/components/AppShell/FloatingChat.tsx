@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Bot, X, Minimize2, Paperclip, Sparkles } from "lucide-react";
-import { apiClient } from "@/services/apiClient";
+import { Send, Bot, X, Minimize2, Paperclip, Sparkles, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useMutation } from "@tanstack/react-query";
 import { Message, MessageAvatar, MessageContent, MessageGroup } from "@/components/ui/message";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   MessageScrollerProvider, 
   MessageScroller, 
@@ -25,21 +23,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/lib/AuthContext";
+import { useStreamingChat, type ChatMessage } from "@/hooks/useStreamingChat";
 
 const MotionMessageScrollerItem = motion.create(MessageScrollerItem);
-
-type Message = {
-  role: "user" | "assistant";
-  content: string;
-  file?: { name: string; type: string };
-};
-
-type ChatMutationInput = {
-  message: string;
-  history: Message[];
-  fileData?: string;
-  mimeType?: string;
-};
 
 type WindowWithWebkitAudio = Window &
   typeof globalThis & {
@@ -58,22 +44,28 @@ export default function FloatingChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   
+  const { messages, setMessages, isStreaming, error, sendMessage, stopStreaming } = useStreamingChat();
+  
   // Dimensions and position
   const [size, setSize] = useState({ width: 380, height: 600 });
   const isResizing = useRef(false);
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Hello, I’m ZenaBot 🤖. How can I assist you today?",
-    },
-  ]);
   const [input, setInput] = useState("");
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
 
   const endRef = useRef<HTMLDivElement>(null);
   const isOpenRef = useRef(isOpen);
-  const isMutating = useRef(false);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      setMessages([
+        {
+          role: "assistant",
+          content: "Hello, I’m ZenaBot 🤖. How can I assist you today?",
+        },
+      ]);
+    }
+  }, [messages.length, setMessages]);
 
   useEffect(() => {
     isOpenRef.current = isOpen;
@@ -106,48 +98,22 @@ export default function FloatingChat() {
     }
   };
 
-  const chatMutation = useMutation<string, Error, ChatMutationInput>({
-    mutationFn: async ({ message, history, fileData, mimeType }) => {
-      const data = await apiClient.post<{reply: string}>("/ai/chat", {
-        message,
-        history,
-        file_data: fileData,
-        mime_type: mimeType,
-      });
-      return data.reply;
-    },
-    onSuccess: (reply) => {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: reply },
-      ]);
-    },
-    onError: () => {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Something went wrong while contacting the AI backend." },
-      ]);
-    },
-    onSettled: () => {
-      isMutating.current = false;
-      if (!isOpenRef.current) {
-        setHasUnread(true);
-        playNotificationSound();
-      }
-    }
-  });
-
-  const loading = chatMutation.isPending;
-
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
         endRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 50);
     }
-  }, [messages, loading, isOpen]);
+  }, [messages, isStreaming, isOpen]);
 
-
+  useEffect(() => {
+    if (!isOpenRef.current && !isStreaming && messages.length > 1) {
+       // if finished streaming and not open, play sound
+       // Note: better logic might be needed, keeping simple for now
+       setHasUnread(true);
+       playNotificationSound();
+    }
+  }, [isStreaming]);
 
   useEffect(() => {
     const handleAskAi = (e: Event) => {
@@ -158,42 +124,27 @@ export default function FloatingChat() {
       setIsOpen(true);
       setHasUnread(false);
       
-      // Send the query automatically
-      sendMessage(query);
+      handleSend(query);
     };
 
     window.addEventListener("ask-ai", handleAskAi);
     return () => window.removeEventListener("ask-ai", handleAskAi);
-  }, [messages, loading, attachedFile]); // Bind to latest state so sendMessage isn't stale
+  }, [messages, isStreaming, attachedFile]); // Bind to latest state
 
-  async function sendMessage(text: string) {
-    if (isMutating.current) return;
-    const question = text.trim();
-    if (!question && !attachedFile) return;
-
-    isMutating.current = true;
-
-    const fileToSend = attachedFile;
-    const nextMessages: Message[] = [
-      ...messages,
-      {
-        role: "user",
-        content: question,
-        file: fileToSend ? { name: fileToSend.name, type: fileToSend.type } : undefined,
-      },
-    ];
-
-    setMessages(nextMessages);
-    setInput("");
-    setAttachedFile(null);
-
+  async function handleSend(text: string) {
+    if (isStreaming) return;
+    
     let fileData: string | undefined;
     let mimeType: string | undefined;
+    let fileName: string | undefined;
+    let fileExt: string | undefined;
 
-    if (fileToSend) {
+    if (attachedFile) {
       try {
-        mimeType = fileToSend.type;
-        const arrayBuffer = await fileToSend.arrayBuffer();
+        fileName = attachedFile.name;
+        fileExt = attachedFile.name.split('.').pop() || "FILE";
+        mimeType = attachedFile.type;
+        const arrayBuffer = await attachedFile.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
         const chunk = 8192;
         let base64String = "";
@@ -205,13 +156,10 @@ export default function FloatingChat() {
         console.error("Failed to read file", e);
       }
     }
-
-    chatMutation.mutate({
-      message: question,
-      history: messages,
-      fileData,
-      mimeType
-    });
+    
+    setInput("");
+    setAttachedFile(null);
+    sendMessage(text, fileData, mimeType, fileName, fileExt);
   }
 
   // Handle Resize
@@ -249,10 +197,18 @@ export default function FloatingChat() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
+      <AnimatePresence>
       {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="mb-4 relative origin-bottom-right"
+        >
         <MessageScrollerProvider>
           <Card 
-            className="shadow-xl rounded-2xl flex flex-col overflow-hidden mb-4 transition-shadow relative animate-pop-in origin-bottom-right gap-0"
+            className="shadow-[0_8px_30px_rgb(0,0,0,0.12)] rounded-3xl flex flex-col overflow-hidden relative gap-0 bg-background/80 backdrop-blur-xl border border-white/20 dark:border-white/10"
             style={{ width: size.width, height: size.height }}
           >
             {/* Resize Handle Top-Left */}
@@ -261,13 +217,13 @@ export default function FloatingChat() {
               className="absolute top-0 left-0 w-6 h-6 cursor-nwse-resize z-10"
             />
 
-            <CardHeader className="gap-1 border-b pb-4 px-4 pt-4 shrink-0">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Bot className="h-5 w-5 text-blue-600" />
+            <CardHeader className="gap-1 border-b border-border/30 pb-3 px-5 pt-5 shrink-0 bg-gradient-to-b from-background/50 to-transparent">
+              <CardTitle className="flex items-center gap-2 text-base font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
+                <Bot className="h-5 w-5 text-blue-600 dark:text-blue-400 filter drop-shadow-[0_0_8px_rgba(37,99,235,0.5)]" />
                 ZenaBot
               </CardTitle>
               <CardAction>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsOpen(false)}>
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted/50 rounded-full" onClick={() => setIsOpen(false)}>
                   <Minimize2 className="h-4 w-4" />
                 </Button>
               </CardAction>
@@ -279,17 +235,17 @@ export default function FloatingChat() {
                   <MessageScrollerContent className="p-4">
                     <MessageGroup>
               {messages.map((message, index) => (
-                <MotionMessageScrollerItem 
+                  <MotionMessageScrollerItem 
                   key={index}
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  scrollAnchor={index === messages.length - 1 && !loading}
+                  scrollAnchor={index === messages.length - 1 && !isStreaming}
                 >
                   <Message
                     align={message.role === "user" ? "end" : "start"}
                   >
-                    <MessageAvatar className={message.role === "user" ? "h-8 w-8 min-w-8 shrink-0 overflow-hidden rounded-full border border-border/50 shadow-sm" : "h-8 w-8 min-w-8 shrink-0 bg-blue-100 text-blue-600 overflow-hidden rounded-full shadow-sm"}>
+                    <MessageAvatar className={message.role === "user" ? "h-8 w-8 min-w-8 shrink-0 overflow-hidden rounded-full border border-blue-100 dark:border-blue-900 shadow-sm ring-2 ring-blue-50 dark:ring-blue-950" : "h-8 w-8 min-w-8 shrink-0 bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600 dark:from-blue-900 dark:to-indigo-900 dark:text-blue-400 overflow-hidden rounded-full shadow-sm"}>
                     {message.role === "user" ? (
                       <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(user?.full_name || user?.email || "User")}&background=eff6ff&color=2563eb&rounded=true&bold=true`} alt="User avatar" className="h-full w-full object-cover" />
                     ) : (
@@ -305,35 +261,29 @@ export default function FloatingChat() {
                       />
                     )}
                     {message.content && (
-                      <Bubble variant={message.role === "user" ? "default" : "muted"}>
+                      <Bubble 
+                        variant={message.role === "user" ? "default" : "muted"}
+                        className={message.role === "user" ? "[&>[data-slot=bubble-content]]:bg-gradient-to-br [&>[data-slot=bubble-content]]:from-blue-600 [&>[data-slot=bubble-content]]:to-indigo-600 [&>[data-slot=bubble-content]]:text-white [&>[data-slot=bubble-content]]:shadow-md [&>[data-slot=bubble-content]]:border-none" : "[&>[data-slot=bubble-content]]:bg-muted/50 [&>[data-slot=bubble-content]]:shadow-sm [&>[data-slot=bubble-content]]:border [&>[data-slot=bubble-content]]:border-border/50"}
+                      >
                         <BubbleContent>
                           {message.content}
+                          {isStreaming && index === messages.length - 1 && message.role === "assistant" && (
+                            <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-primary animate-pulse" />
+                          )}
                         </BubbleContent>
                       </Bubble>
+                    )}
+                    {message.toolStatus && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 ml-1 animate-in fade-in slide-in-from-top-1">
+                        <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                        {message.toolStatus}
+                      </div>
                     )}
                     </MessageContent>
                   </Message>
                 </MotionMessageScrollerItem>
               ))}
 
-              {loading && (
-                <MotionMessageScrollerItem
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                  scrollAnchor={true}
-                >
-                  <Marker>
-                    <div className="flex items-center gap-2 text-primary">
-                      <span className="relative flex h-2.5 w-2.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
-                      </span>
-                      Thinking...
-                    </div>
-                  </Marker>
-                </MotionMessageScrollerItem>
-              )}
               <div ref={endRef} />
             </MessageGroup>
                 </MessageScrollerContent>
@@ -342,14 +292,14 @@ export default function FloatingChat() {
             </MessageScroller>
 
             {messages.length === 1 && (
-              <div className="absolute bottom-0 left-0 right-0 px-4 pb-3 flex flex-wrap gap-2 pointer-events-none">
+              <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 flex flex-wrap gap-2 pointer-events-none justify-start">
                 {SUGGESTIONS.map((item) => (
                   <button
                     key={item}
-                    onClick={() => sendMessage(item)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border bg-background rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors pointer-events-auto"
+                    onClick={() => handleSend(item)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium border border-border/50 bg-background/80 backdrop-blur-sm shadow-sm rounded-full hover:bg-blue-50 dark:hover:bg-blue-950/50 text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200 pointer-events-auto"
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="w-3.5 h-3.5" />
                     {item}
                   </button>
                 ))}
@@ -357,18 +307,18 @@ export default function FloatingChat() {
             )}
           </CardContent>
 
-          <CardFooter className="flex-col gap-2 p-3 shrink-0 bg-background border-t">
+          <CardFooter className="flex-col gap-2 p-4 shrink-0 bg-gradient-to-t from-background via-background to-transparent border-t-0 pt-0 relative z-20">
             {attachedFile && (
-              <div className="w-full px-3 py-1.5 bg-muted/50 rounded-md border border-border flex items-center justify-between">
+              <div className="w-full px-3 py-2 bg-background/80 backdrop-blur-sm rounded-xl border border-border/50 flex items-center justify-between shadow-sm animate-in slide-in-from-bottom-2">
                 <span className="text-xs font-medium text-foreground flex items-center gap-2 truncate">
-                  <Paperclip className="h-3 w-3 shrink-0" />
+                  <Paperclip className="h-3.5 w-3.5 text-blue-500 shrink-0" />
                   <span className="truncate">{attachedFile.name}</span>
                 </span>
                 <button 
                   onClick={() => setAttachedFile(null)} 
-                  className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted shrink-0"
+                  className="text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted shrink-0 transition-colors"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
@@ -376,24 +326,24 @@ export default function FloatingChat() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                sendMessage(input);
+                handleSend(input);
               }}
-              className="w-full flex flex-col border border-border rounded-lg bg-background shadow-sm overflow-hidden focus-within:ring-1 focus-within:ring-ring"
+              className="w-full flex flex-col rounded-2xl bg-muted/40 backdrop-blur-md shadow-inner border border-border/50 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500/50 focus-within:bg-background/80 transition-all duration-300"
             >
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Ask anything..."
-                className="w-full resize-none bg-transparent px-3 py-2 outline-none text-sm min-h-[60px]"
+                className="w-full resize-none bg-transparent px-4 py-3 outline-none text-sm min-h-[60px] custom-scrollbar"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage(input);
+                    handleSend(input);
                   }
                 }}
               />
-              <div className="flex items-center justify-between p-2 pt-0 bg-muted/10">
-                <label className="cursor-pointer text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-md hover:bg-muted shrink-0">
+              <div className="flex items-center justify-between p-2 pt-0">
+                <label className="cursor-pointer text-muted-foreground hover:text-blue-600 dark:hover:text-blue-400 transition-colors p-2 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/50 shrink-0 ml-1">
                   <Paperclip className="h-4 w-4" />
                   <input
                     type="file"
@@ -406,20 +356,33 @@ export default function FloatingChat() {
                     }}
                   />
                 </label>
-                <Button
-                  type="submit"
-                  disabled={(!input.trim() && !attachedFile) || loading}
-                  className="h-8 w-8 rounded-md p-0 shrink-0 bg-blue-600 hover:bg-blue-700"
-                >
-                  <Send className="w-3 h-3" />
-                  <span className="sr-only">Send</span>
-                </Button>
+                {isStreaming ? (
+                  <Button
+                    type="button"
+                    onClick={stopStreaming}
+                    className="h-9 w-9 rounded-full p-0 shrink-0 bg-gradient-to-tr from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white shadow-md mr-1 transition-all hover:scale-105 active:scale-95 animate-in zoom-in"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                    <span className="sr-only">Stop</span>
+                  </Button>
+                ) : (
+                  <Button
+                    type="submit"
+                    disabled={(!input.trim() && !attachedFile) || isStreaming}
+                    className="h-9 w-9 rounded-full p-0 shrink-0 bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md disabled:opacity-50 mr-1 transition-all hover:scale-105 active:scale-95 animate-in zoom-in"
+                  >
+                    <Send className="w-4 h-4" />
+                    <span className="sr-only">Send</span>
+                  </Button>
+                )}
               </div>
             </form>
           </CardFooter>
         </Card>
         </MessageScrollerProvider>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Floating Action Button */}
       <button
@@ -430,13 +393,35 @@ export default function FloatingChat() {
             setHasUnread(false);
           }
         }}
-        className="h-14 w-14 rounded-full bg-blue-600/80 hover:bg-blue-700/90 backdrop-blur-md text-white shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 relative"
+        className="h-14 w-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-[0_4px_20px_rgba(79,70,229,0.4)] hover:shadow-[0_8px_25px_rgba(79,70,229,0.5)] flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 relative group"
       >
-        {isOpen ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
+        <AnimatePresence mode="wait">
+          {isOpen ? (
+            <motion.div
+              key="close"
+              initial={{ rotate: -90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 90, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <X className="h-6 w-6" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="bot"
+              initial={{ rotate: 90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: -90, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <Bot className="h-6 w-6 group-hover:animate-pulse" />
+            </motion.div>
+          )}
+        </AnimatePresence>
         {!isOpen && hasUnread && (
           <span className="absolute -top-1 -right-1 flex h-5 w-5">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 border-2 border-card"></span>
+            <span className="relative inline-flex rounded-full h-5 w-5 bg-red-500 border-2 border-background"></span>
           </span>
         )}
       </button>

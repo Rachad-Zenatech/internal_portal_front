@@ -89,8 +89,7 @@ export default function UserRoleAssignment() {
 
   const selectedUser = users?.find(u => u.id === selectedUserId);
   const isSuperAdmin = selectedUser?.is_super_admin === true;
-  const activeRoles = allRoles?.filter(r => r.is_active) || [];
-
+  const activeRoles = allRoles?.filter(r => r.is_active && r.code !== 'PENDING_USER') || [];
   return (
     <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500 ease-out p-6 w-full">
       {/* Left Panel: Users List */}

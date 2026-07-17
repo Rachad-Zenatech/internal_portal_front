@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchPermissions = async () => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) {
       setPermissions(null);
       setIsLoading(false);
@@ -69,6 +69,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetchPermissions();
+  }, []);
+
+  useEffect(() => {
+    const handleUnload = () => {
+      const token = sessionStorage.getItem('token');
+      if (token) {
+        // Use navigator.sendBeacon for reliable delivery across all browsers when unloading
+        const formData = new FormData();
+        formData.append('token', token);
+        navigator.sendBeacon(`${import.meta.env.VITE_API_BASE_URL || ''}/api/auth/logout`, formData);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
   }, []);
 
   const canAccessNavigationItem = (navigationCode: string, actionCode = 'VIEW') => {
@@ -129,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     const userEmail = permissions?.user?.email;
-    const msIdToken = localStorage.getItem('ms_id_token');
+    const msIdToken = sessionStorage.getItem('ms_id_token');
     
     try {
       await apiClient.post('/api/auth/logout', {});
@@ -137,9 +152,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error('Failed to logout on backend', e);
     }
     
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('ms_id_token');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('ms_id_token');
     setPermissions(null);
     
     // Redirect to Microsoft SSO logout to clear the Azure AD session

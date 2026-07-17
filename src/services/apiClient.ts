@@ -3,7 +3,7 @@ import { handleResponse } from "./helper";
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 const getAuthHeaders = (): Record<string, string> => {
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
   return token ? { "Authorization": `Bearer ${token}` } : {};
 };
 

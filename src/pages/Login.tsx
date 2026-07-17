@@ -45,10 +45,10 @@ export default function Login() {
         hasProcessedLogin.current = true;
         setIsLoading(true);
         try {
-          localStorage.setItem("token", token);
-          localStorage.setItem("user", JSON.stringify({ id: userId, email }));
+          sessionStorage.setItem("token", token);
+          sessionStorage.setItem("user", JSON.stringify({ id: userId, email }));
           if (idToken) {
-            localStorage.setItem("ms_id_token", idToken);
+            sessionStorage.setItem("ms_id_token", idToken);
           }
 
           await refreshPermissions();

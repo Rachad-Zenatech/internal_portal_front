@@ -231,11 +231,11 @@ export function useBankStatementQueue(limit: number = 20) {
     queryFn: () => statementService.getQueue(limit),
     refetchInterval: (query) => {
       const data = query.state?.data;
-      if (!data || !data.jobs) return 5000;
+      if (!data || !data.jobs) return false;
       const hasActiveJobs = data.jobs.some(
         (job: any) => job.status === "queued" || job.status === "queued_local" || job.status === "processing" || job.status === "cancel_requested"
       );
-      return hasActiveJobs ? 1500 : 5000;
+      return hasActiveJobs ? 1500 : false;
     },
   });
 }

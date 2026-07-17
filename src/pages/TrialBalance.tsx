@@ -249,7 +249,7 @@ export default function TrialBalance() {
           ) : (
             <Card className="overflow-hidden shadow-sm border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 rounded-xl">
               {/* Stats Header */}
-              <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex flex-col xl:flex-row xl:items-center justify-between gap-6 bg-slate-50/30">
+              <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex flex-col xl:flex-row xl:items-center justify-between gap-6 bg-slate-50/30 dark:bg-transparent">
                 <div className="flex items-center gap-4">
                   <div className="h-14 w-14 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0 border border-blue-100/50">
                     <FileText className="h-7 w-7 text-blue-600" />
@@ -266,7 +266,7 @@ export default function TrialBalance() {
 
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center gap-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm rounded-xl px-4 py-3 min-w-[200px]">
-                    <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
                       <Wallet className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
@@ -276,7 +276,7 @@ export default function TrialBalance() {
                   </div>
 
                   <div className="flex items-center gap-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm rounded-xl px-4 py-3 min-w-[200px]">
-                    <div className="h-10 w-10 rounded-full bg-green-50 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center shrink-0">
                       <Wallet className="h-5 w-5 text-green-600" />
                     </div>
                     <div>
@@ -286,7 +286,7 @@ export default function TrialBalance() {
                   </div>
 
                   <div className="flex items-center gap-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm rounded-xl px-4 py-3 min-w-[160px]">
-                    <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-slate-50 dark:bg-zinc-800 flex items-center justify-center shrink-0">
                       <BarChart2 className="h-5 w-5 text-slate-500 dark:text-zinc-400" />
                     </div>
                     <div>
@@ -296,7 +296,7 @@ export default function TrialBalance() {
                   </div>
 
                   <div className="flex items-center gap-4 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-sm rounded-xl px-4 py-3 min-w-[140px]">
-                    <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-slate-50 dark:bg-zinc-800 flex items-center justify-center shrink-0">
                       <Users className="h-5 w-5 text-purple-600" />
                     </div>
                     <div>
@@ -313,7 +313,7 @@ export default function TrialBalance() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input 
                     placeholder="Search account code or description..." 
-                    className="pl-9 bg-slate-50 border-slate-200 dark:border-zinc-800 h-9 text-sm"
+                    className="pl-9 bg-slate-50 dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 h-9 text-sm"
                     value={search}
                     onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                   />

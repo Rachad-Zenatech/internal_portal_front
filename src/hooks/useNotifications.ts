@@ -20,15 +20,15 @@ export function useNotifications(options?: { refetchInterval?: number | false })
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => apiClient.get<Notification[]>("/api/notifications"),
-    refetchInterval: options?.refetchInterval ?? 30000, // Poll every 30s by default
+    refetchInterval: options?.refetchInterval ?? false, // No continuous polling by default
   });
 }
 
-export function useUnreadNotificationCount() {
+export function useUnreadNotificationCount(options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: () => apiClient.get<{ count: number }>("/api/notifications/unread-count"),
-    refetchInterval: 30000, // Poll every 30s
+    refetchInterval: options?.refetchInterval ?? false, // No continuous polling by default
   });
 }
 
