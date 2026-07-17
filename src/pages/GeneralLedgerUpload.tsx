@@ -417,6 +417,24 @@ export default function GeneralLedgerUpload() {
     () => accountSuggestions?.suggestions ?? [],
     [accountSuggestions]
   );
+  useEffect(() => {
+    if (!preview || !accountSuggestions || appliedSuggestionRows.size === 0) return;
+    setCounterChangedRows((current) => {
+      const next = new Map(current);
+      let changed = false;
+      for (const suggestion of accountSuggestions.suggestions) {
+        if (!appliedSuggestionRows.has(suggestion.row_number)) continue;
+        const counterRowNumber = findMirroredPreviewRowNumber(preview, suggestion);
+        if (counterRowNumber === null || next.has(counterRowNumber)) continue;
+        next.set(counterRowNumber, {
+          accountNumber: getVisibleSuggestedTargetNumber(suggestion) ?? "",
+          accountName: getVisibleSuggestedTargetName(suggestion) ?? null,
+        });
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, [accountSuggestions, appliedSuggestionRows, preview]);
   const manualTargetAccounts = useMemo(() => {
     const byNumber = new Map<string, ChartOfAccount>();
     for (const account of chartOfAccountsResponse?.chart_of_accounts ?? []) {
@@ -3698,15 +3716,15 @@ function ReviewAccountGroup({
                 <TableRow
                   id={rowDomId}
                   key={txn.entry_id}
-                  className={
-                    rowIsFocused
-                      ? "bg-accent ring-2 ring-inset ring-ring"
-                      : isApplied
-                        ? "bg-green-100/80 hover:bg-green-100/80 dark:bg-green-950/40 dark:hover:bg-green-950/40"
+                  className={`${
+                    isApplied
+                      ? "bg-green-100/80 hover:bg-green-100/80 dark:bg-green-950/40 dark:hover:bg-green-950/40"
                       : isCounterChanged
                         ? "bg-orange-100/80 hover:bg-orange-100/80 dark:bg-orange-950/40 dark:hover:bg-orange-950/40"
-                        : undefined
-                  }
+                        : rowIsFocused
+                          ? "bg-accent"
+                          : ""
+                  } ${rowIsFocused ? "ring-2 ring-inset ring-ring" : ""}`}
                   title={rowTitle}
                 >
                   <TableCell className="" title={formatReviewText(txn.entry_date)}>{txn.entry_date || "-"}</TableCell>
@@ -4098,14 +4116,16 @@ function findMirroredPreviewRowNumber(
     candidate.entry_date === source.txn.entry_date &&
     normalize(candidate.transaction_type) === normalize(source.txn.transaction_type) &&
     normalize(candidate.transaction_number) === normalize(source.txn.transaction_number) &&
-    normalize(candidate.name) === normalize(source.txn.name) &&
-    normalize(candidate.memo) === normalize(source.txn.memo);
+    normalize(candidate.name) === normalize(source.txn.name);
+  const originalCounterAccount = normalize(source.txn.split_account_number);
+  const sourceAccountNumber = normalize(source.account.account_number);
   const matches = rows.filter(({ account, txn }) =>
     txn.line_id !== source.txn.line_id &&
     sameIdentity(txn) &&
     txn.amount === -source.txn.amount &&
-    account.account_number === source.txn.split_account_number &&
-    txn.split_account_number === source.account.account_number
+    (!originalCounterAccount || normalize(account.account_number) === originalCounterAccount) &&
+    (!normalize(txn.split_account_number) ||
+      normalize(txn.split_account_number) === sourceAccountNumber)
   );
   return matches.length === 1 ? matches[0].txn.line_id : null;
 }
