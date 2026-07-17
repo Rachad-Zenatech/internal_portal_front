@@ -169,7 +169,7 @@ type AiReviewChunk = AiReview["chunks"][number];
 
 const AI_ROWS_PER_REQUEST = 100;
 const GEMINI_CONCURRENCY_LIMIT = 5;
-const DRY_RUN_PREVIEW_LIMIT = 5000;
+const DRY_RUN_PREVIEW_LIMIT = 500;
 const AI_REVIEW_MAX_ROWS: number | null = null;
 const AI_USE_WEB_SEARCH = false;
 const AI_ENABLE_ESCALATION = false;
@@ -177,6 +177,61 @@ const ACCOUNT_REVIEW_POLL_MS = 2000;
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+function mergeImportPreviewPages(
+  current: ImportPreview,
+  incoming: ImportPreview,
+): ImportPreview {
+  const rowById = new Map(current.rows.map((row) => [row.line_id, row]));
+  for (const row of incoming.rows) rowById.set(row.line_id, row);
+  const rows = [...rowById.values()].sort((left, right) => left.line_id - right.line_id);
+
+  const accountByKey = new Map(
+    current.accounts.map((account) => [
+      account.account_key,
+      { ...account, transactions: [...(account.transactions ?? [])] },
+    ])
+  );
+  for (const incomingAccount of incoming.accounts) {
+    const existing = accountByKey.get(incomingAccount.account_key);
+    if (!existing) {
+      accountByKey.set(incomingAccount.account_key, {
+        ...incomingAccount,
+        transactions: [...(incomingAccount.transactions ?? [])],
+      });
+      continue;
+    }
+    const transactionById = new Map(
+      existing.transactions.map((transaction) => [transaction.line_id, transaction])
+    );
+    for (const transaction of incomingAccount.transactions ?? []) {
+      transactionById.set(transaction.line_id, transaction);
+    }
+    existing.transactions = [...transactionById.values()].sort(
+      (left, right) => left.line_id - right.line_id
+    );
+  }
+
+  const reviewSummary = { ...(current.account_review_summary ?? {}) } as Record<string, number>;
+  for (const [key, value] of Object.entries(incoming.account_review_summary ?? {})) {
+    if (typeof value === "number") reviewSummary[key] = (reviewSummary[key] ?? 0) + value;
+  }
+
+  const totalRows = current.pagination?.total_rows ?? current.totals.line_count;
+  return {
+    ...current,
+    rows,
+    accounts: [...accountByKey.values()],
+    account_review_summary: reviewSummary as ImportPreview["account_review_summary"],
+    pagination: current.pagination
+      ? {
+          ...current.pagination,
+          returned_rows: rows.length,
+          has_next: rows.length < totalRows,
+        }
+      : current.pagination,
+  };
 }
 
 const emptyManualEntry: ManualEntryForm = {
@@ -260,7 +315,13 @@ export default function GeneralLedgerUpload() {
   const loadedPreviewTokenRef = useRef<string | null>(null);
   const autoAccountReviewKeyRef = useRef<string | null>(null);
   const accountReviewHistoryTokenRef = useRef<string | null>(null);
+  const incrementalPreviewLoadRef = useRef<string | null>(null);
   const [isRestoringAccountReviewHistory, setIsRestoringAccountReviewHistory] = useState(false);
+  const [incrementalPreviewProgress, setIncrementalPreviewProgress] = useState<{
+    loaded: number;
+    total: number;
+  } | null>(null);
+  const [incrementalPreviewLoadVersion, setIncrementalPreviewLoadVersion] = useState(0);
   const pendingImportReviewScrollRef = useRef(false);
   const glFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -469,7 +530,11 @@ export default function GeneralLedgerUpload() {
   const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
   const isBackgroundParsing = parseImportBackgroundMutation.isPending;
   const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending || saveDryRunPreviewMutation.isPending;
-  const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isTrainingXgboost || isReviewingAccounts || isSavingImport;
+  const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isTrainingXgboost || isSavingImport;
+  const isIncrementalPreviewLoading = Boolean(
+    incrementalPreviewProgress &&
+    incrementalPreviewProgress.loaded < incrementalPreviewProgress.total
+  );
   const canSaveDryRun = Boolean(summary?.dry_run_preview_token || (selectedBook && file));
   const activePreviewToken = preview?.pagination?.preview_token ?? summary?.dry_run_preview_token ?? null;
   const canRerunAccountReview = Boolean(summary && selectedBook && (file || activePreviewToken)) &&
@@ -535,6 +600,17 @@ export default function GeneralLedgerUpload() {
         target: "account_review",
       });
     }
+    if (isIncrementalPreviewLoading) {
+      blockers.push({
+        key: "preview-pages-loading",
+        title: "GL charges are still loading",
+        detail: incrementalPreviewProgress
+          ? `${incrementalPreviewProgress.loaded.toLocaleString("en-US")} of ${incrementalPreviewProgress.total.toLocaleString("en-US")} rows are loaded.`
+          : "Wait for the remaining GL charge pages to load.",
+        actionLabel: "Go to import review",
+        target: "import_review",
+      });
+    }
     if (applySuggestedTargetMutation.isPending || unapplySuggestedTargetMutation.isPending) {
       blockers.push({
         key: "suggestion-apply-running",
@@ -560,10 +636,11 @@ export default function GeneralLedgerUpload() {
     applySuggestedTargetMutation.isPending,
     canSaveDryRun,
     isDryRun,
-    isRestoringAccountReviewHistory,
+    isIncrementalPreviewLoading,
     isReviewingAccounts,
     isSavingImport,
     preview,
+    incrementalPreviewProgress,
     reconciliationChecks,
     reviewDifference,
     unapplySuggestedTargetMutation.isPending,
@@ -571,6 +648,80 @@ export default function GeneralLedgerUpload() {
 
   const previewAccounts = preview?.accounts ?? [];
   const previewPagination = preview?.pagination ?? null;
+  useEffect(() => {
+    const previewToken = activePreviewToken;
+    const pageCount = previewPagination?.page_count ?? 1;
+    const pageSize = previewPagination?.page_size ?? DRY_RUN_PREVIEW_LIMIT;
+    const totalRows = previewPagination?.total_rows ?? preview?.totals.line_count ?? 0;
+    const currentPage = previewPagination?.page ?? 1;
+    if (!previewToken || currentPage !== 1 || pageCount <= 1 || totalRows <= 0) {
+      return;
+    }
+
+    const loadKey = `${previewToken}:${pageSize}:${pageCount}`;
+    if (incrementalPreviewLoadRef.current === loadKey) return;
+    incrementalPreviewLoadRef.current = loadKey;
+    let canceled = false;
+    setIncrementalPreviewProgress({
+      loaded: Math.min(pageSize, totalRows),
+      total: totalRows,
+    });
+
+    void (async () => {
+      try {
+        for (let page = 2; page <= pageCount; page += 1) {
+          const pageData = await GLService.getDryRunPreviewPage({
+            previewToken,
+            page,
+            pageSize,
+          });
+          if (canceled) return;
+          const pagePreview = pageData.preview;
+          if (!pagePreview) {
+            throw new Error(`GL preview page ${page} returned no rows.`);
+          }
+          setLocalPreview((current) =>
+            current && current.pagination?.preview_token === previewToken
+              ? mergeImportPreviewPages(current, pagePreview)
+              : current
+          );
+          setIncrementalPreviewProgress((current) => ({
+            loaded: Math.min(
+              totalRows,
+              (current?.loaded ?? 0) + pagePreview.rows.length
+            ),
+            total: totalRows,
+          }));
+        }
+      } catch (loadError) {
+        if (!canceled) {
+          setError(
+            loadError instanceof Error
+              ? `Some GL charges could not be loaded: ${loadError.message}`
+              : "Some GL charges could not be loaded."
+          );
+        }
+      } finally {
+        if (!canceled) incrementalPreviewLoadRef.current = `done:${loadKey}`;
+      }
+    })();
+
+    return () => {
+      canceled = true;
+      if (incrementalPreviewLoadRef.current === loadKey) {
+        incrementalPreviewLoadRef.current = null;
+      }
+    };
+  }, [
+    activePreviewToken,
+    incrementalPreviewLoadVersion,
+    preview?.totals.line_count,
+    previewPagination?.page,
+    previewPagination?.page_count,
+    previewPagination?.page_size,
+    previewPagination?.total_rows,
+  ]);
+
   const visibleReviewAccounts = useMemo(() => {
     if (!preview) return [];
 
@@ -645,7 +796,7 @@ export default function GeneralLedgerUpload() {
     setIsRestoringAccountReviewHistory(true);
     const restoreParseRunId = parseRunIdRef.current;
     void GLService.getAccountSuggestionsHistory(previewToken)
-      .then(async (history) => {
+      .then((history) => {
         if (accountReviewHistoryTokenRef.current !== loadingKey) return;
         let restored: GLAccountSuggestionsResponse | null = null;
         for (const run of history.runs) {
@@ -676,61 +827,63 @@ export default function GeneralLedgerUpload() {
             current: Math.min(99, Math.max(1, activeJob.progress ?? 1)),
             total: 100,
           });
-          try {
-            const activeResult = await pollAccountReviewJob(
+          accountReviewHistoryTokenRef.current = doneKey;
+          setIsRestoringAccountReviewHistory(false);
+          void pollAccountReviewJob(
               activeJob.job_id,
               restoreParseRunId
-            );
-            const activeRetryRows = normalizeRowNumbers(
-              activeJob.retry_row_numbers ?? []
-            );
-            restored = restored && activeRetryRows.length > 0
-              ? mergeAiRetryAccountSuggestions(restored, activeResult, activeRetryRows)
-              : activeResult;
-            if (parseRunIdRef.current === restoreParseRunId) {
-              setAccountSuggestions(restored);
-              setAccountReviewProgress({ current: 100, total: 100 });
-              const activeIssues = logGeminiReviewIssues(restored, {
-                filename: `dry-run-preview-${previewToken}`,
-                companyId: selectedBook.company_id,
-                companyName: selectedBook.company_name,
-                formatCode: selectedBook.format_code,
-                sourceFileId: summary.source_file_id,
-                useGemini: useGeminiReview,
-              });
-              setSuggestionError(
-                activeIssues.length > 0
-                  ? formatGeminiReviewIssueNotice(activeIssues)
-                  : null
+            )
+            .then((activeResult) => {
+              const activeRetryRows = normalizeRowNumbers(
+                activeJob.retry_row_numbers ?? []
               );
-            }
-          } catch (activeJobError) {
-            if (parseRunIdRef.current === restoreParseRunId) {
-              setSuggestionError(
-                activeJobError instanceof Error
-                  ? activeJobError.message
-                  : "Failed to restore the running AI account review."
-              );
-            }
-          } finally {
-            if (parseRunIdRef.current === restoreParseRunId) {
-              setIsAccountReviewJobRunning(false);
-              setAccountReviewJobId(null);
-            }
-          }
+              restored = restored && activeRetryRows.length > 0
+                ? mergeAiRetryAccountSuggestions(restored, activeResult, activeRetryRows)
+                : activeResult;
+              if (parseRunIdRef.current === restoreParseRunId) {
+                setAccountSuggestions(restored);
+                setAccountReviewProgress({ current: 100, total: 100 });
+                const activeIssues = logGeminiReviewIssues(restored, {
+                  filename: `dry-run-preview-${previewToken}`,
+                  companyId: selectedBook.company_id,
+                  companyName: selectedBook.company_name,
+                  formatCode: selectedBook.format_code,
+                  sourceFileId: summary.source_file_id,
+                  useGemini: useGeminiReview,
+                });
+                setSuggestionError(
+                  activeIssues.length > 0
+                    ? formatGeminiReviewIssueNotice(activeIssues)
+                    : null
+                );
+              }
+            })
+            .catch((activeJobError) => {
+              if (parseRunIdRef.current === restoreParseRunId) {
+                setSuggestionError(
+                  activeJobError instanceof Error
+                    ? activeJobError.message
+                    : "Failed to restore the running AI account review."
+                );
+              }
+            })
+            .finally(() => {
+              if (parseRunIdRef.current === restoreParseRunId) {
+                setIsAccountReviewJobRunning(false);
+                setAccountReviewJobId(null);
+              }
+            });
+          return;
         }
         accountReviewHistoryTokenRef.current = doneKey;
+        setIsRestoringAccountReviewHistory(false);
       })
       .catch((restoreError) => {
         console.warn("[GL Account Suggestions] history restore failed", restoreError);
         if (accountReviewHistoryTokenRef.current === loadingKey) {
           accountReviewHistoryTokenRef.current = doneKey;
         }
-      })
-      .finally(() => {
-        if (accountReviewHistoryTokenRef.current !== loadingKey) {
-          setIsRestoringAccountReviewHistory(false);
-        }
+        setIsRestoringAccountReviewHistory(false);
       });
   }, [
     accountSuggestions,
@@ -1182,6 +1335,9 @@ export default function GeneralLedgerUpload() {
         setAppliedSuggestionChanges(new Map());
         autoAccountReviewKeyRef.current = null;
         accountReviewHistoryTokenRef.current = null;
+        incrementalPreviewLoadRef.current = null;
+        setIncrementalPreviewProgress(null);
+        setIncrementalPreviewLoadVersion((current) => current + 1);
       }
       setSummary(data.summary);
       setBookId(data.summary.company_book_id);
@@ -2204,9 +2360,7 @@ export default function GeneralLedgerUpload() {
                 ? "Queueing dry-run..."
                 : parseImportMutation.isPending
                 ? "Building dry-run..."
-                : isReviewingAccounts
-                  ? accountReviewProgressLabel ?? (useGeminiReview ? "Reviewing with AI..." : "Reviewing...")
-                  : "Dry-run Preview"}
+                : "Dry-run Preview"}
             </Button>
           </div>
         </CardContent>
@@ -2255,6 +2409,7 @@ export default function GeneralLedgerUpload() {
                         size="sm"
                         disabled={
                           isPreviewPageLoading ||
+                          isIncrementalPreviewLoading ||
                           !previewPagination.has_previous
                         }
                         onClick={() =>
@@ -2264,8 +2419,9 @@ export default function GeneralLedgerUpload() {
                         Previous
                       </Button>
                       <span>
-                        Page {(previewPagination.page ?? 1).toLocaleString("en-US")} of{" "}
-                        {(previewPagination.page_count ?? 1).toLocaleString("en-US")}
+                        {isIncrementalPreviewLoading && incrementalPreviewProgress
+                          ? `Loading ${incrementalPreviewProgress.loaded.toLocaleString("en-US")} of ${incrementalPreviewProgress.total.toLocaleString("en-US")} rows`
+                          : `${(preview?.rows.length ?? 0).toLocaleString("en-US")} rows loaded`}
                       </span>
                       <Button
                         type="button"
@@ -2273,6 +2429,7 @@ export default function GeneralLedgerUpload() {
                         size="sm"
                         disabled={
                           isPreviewPageLoading ||
+                          isIncrementalPreviewLoading ||
                           !previewPagination.has_next
                         }
                         onClick={() =>
@@ -2323,6 +2480,42 @@ export default function GeneralLedgerUpload() {
                   tone={Math.abs(reviewDifference) < 0.005 ? "ok" : "warning"}
                 />
               </div>
+
+              {isIncrementalPreviewLoading && incrementalPreviewProgress && (
+                <div
+                  className="border-b border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-400/30 dark:bg-blue-950/40 dark:text-blue-100"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <div>
+                      <span className="font-medium">Loading GL rows in the background</span>
+                      <span className="ml-2 text-blue-700 dark:text-blue-200">
+                        Account charges will appear as each chunk finishes.
+                      </span>
+                    </div>
+                    <span className="font-medium">
+                      {incrementalPreviewProgress.loaded.toLocaleString("en-US")} of{" "}
+                      {incrementalPreviewProgress.total.toLocaleString("en-US")} rows loaded
+                    </span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950">
+                    <div
+                      className="h-full rounded-full bg-blue-600 transition-[width] duration-300 dark:bg-blue-400"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.round(
+                            (incrementalPreviewProgress.loaded /
+                              Math.max(1, incrementalPreviewProgress.total)) *
+                              100
+                          )
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {preview.account_review_summary && (
                 <div className="sticky top-0 z-40 grid border-b bg-background md:grid-cols-11 md:divide-x shadow-sm">
@@ -2697,6 +2890,7 @@ export default function GeneralLedgerUpload() {
                         applyingSuggestionKey={applyingSuggestionKey}
                         appliedSuggestionRows={appliedSuggestionRows}
                         counterChangedRows={counterChangedRows}
+                        isLoadingTransactions={isIncrementalPreviewLoading}
                         isExporting={exportingAccountKey === account.account_key}
                         onExport={() => void handleExportAccount(account)}
                         onRequestManualTarget={(suggestion) =>
@@ -3370,6 +3564,7 @@ function ReviewAccountGroup({
   applyingSuggestionKey,
   appliedSuggestionRows,
   counterChangedRows,
+  isLoadingTransactions,
   isExporting,
   onExport,
   onRequestManualTarget,
@@ -3385,6 +3580,7 @@ function ReviewAccountGroup({
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
   counterChangedRows?: Map<number, { accountNumber: string; accountName: string | null }>;
+  isLoadingTransactions?: boolean;
   isExporting?: boolean;
   onExport: () => void;
   onRequestManualTarget?: (suggestion: GLAccountSuggestion) => void;
@@ -3435,7 +3631,9 @@ function ReviewAccountGroup({
       </div>
 
       {transactions.length === 0 ? (
-        <div className="p-6 text-sm text-center text-muted-foreground">No charges found.</div>
+        <div className="p-6 text-sm text-center text-muted-foreground">
+          {isLoadingTransactions ? "Loading charges..." : "No charges found."}
+        </div>
       ) : (
         <Table containerClassName="max-h-[420px]" className="[&_td]:whitespace-normal [&_td]:break-words [&_td]:min-w-[120px]">
             <TableHeader className="sticky top-0 bg-muted/50 z-10 shadow-sm">

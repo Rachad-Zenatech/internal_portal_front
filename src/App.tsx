@@ -1,10 +1,10 @@
-import AppShell from "./components/AppShell/AppShell";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AuthProvider } from "./lib/AuthContext";
 import { GlobalProgressProvider } from "./lib/GlobalProgressContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
+const AppShell = lazy(() => import("./components/AppShell/AppShell"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const BankStatements = lazy(() => import("./pages/BankStatements"));
 const GeneralLedger = lazy(() => import("./pages/GeneralLedger"));

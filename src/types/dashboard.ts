@@ -34,3 +34,11 @@ export type RecentTransaction = {
   description: string;
   amount: number;
 };
+
+export type DashboardOverview = {
+  summary: DashboardSummary;
+  revenueExpense: RevenueExpensePoint[];
+  bankBalances: BankBalancePoint[];
+  accountDistribution: AccountDistributionPoint[];
+  recentTransactions: RecentTransaction[];
+};

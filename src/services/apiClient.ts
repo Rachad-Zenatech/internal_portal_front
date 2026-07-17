@@ -2,9 +2,67 @@ import { handleResponse } from "./helper";
 
 export const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
+const configuredSlowRequestMs = Number(import.meta.env.VITE_SLOW_REQUEST_MS ?? 2000);
+const SLOW_REQUEST_MS = Number.isFinite(configuredSlowRequestMs)
+  ? Math.max(250, configuredSlowRequestMs)
+  : 2000;
+const MAX_PERFORMANCE_REPORTS_PER_MINUTE = 5;
+const PERFORMANCE_DEDUPLICATION_MS = 60_000;
+const performanceReportTimes: number[] = [];
+const recentPerformanceReports = new Map<string, number>();
+
+async function monitoredFetch(endpoint: string, options: RequestInit): Promise<Response> {
+  const started = performance.now();
+  let statusCode = 0;
+  try {
+    const response = await fetch(`${BASE_URL}${endpoint}`, options);
+    statusCode = response.status;
+    return response;
+  } finally {
+    const durationMs = performance.now() - started;
+    if (
+      durationMs >= SLOW_REQUEST_MS &&
+      !endpoint.startsWith("/api/observability/")
+    ) {
+      const now = Date.now();
+      while (performanceReportTimes.length && performanceReportTimes[0] < now - 60_000) {
+        performanceReportTimes.shift();
+      }
+      for (const [key, reportedAt] of recentPerformanceReports) {
+        if (reportedAt < now - PERFORMANCE_DEDUPLICATION_MS) {
+          recentPerformanceReports.delete(key);
+        }
+      }
+      const method = options.method ?? "GET";
+      const path = endpoint.split("?", 1)[0];
+      const fingerprint = `${method}:${path}`;
+      const lastReportedAt = recentPerformanceReports.get(fingerprint) ?? 0;
+      if (
+        performanceReportTimes.length < MAX_PERFORMANCE_REPORTS_PER_MINUTE &&
+        now - lastReportedAt >= PERFORMANCE_DEDUPLICATION_MS
+      ) {
+        performanceReportTimes.push(now);
+        recentPerformanceReports.set(fingerprint, now);
+        void fetch(`${BASE_URL}/api/observability/client-performance`, {
+          method: "POST",
+          credentials: "include",
+          keepalive: true,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            method,
+            path,
+            duration_ms: durationMs,
+            status_code: statusCode,
+          }),
+        }).catch(() => undefined);
+      }
+    }
+  }
+}
+
 export const apiClient = {
   async get<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(`${BASE_URL}${endpoint}`, { 
+    const res = await monitoredFetch(endpoint, {
       ...options, 
       method: "GET",
       credentials: "include",
@@ -17,7 +75,7 @@ export const apiClient = {
   
   async post<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<T> {
     const isFormData = body instanceof FormData;
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    const res = await monitoredFetch(endpoint, {
       ...options,
       method: "POST",
       credentials: "include",
@@ -31,7 +89,7 @@ export const apiClient = {
   },
   
   async patch<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<T> {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    const res = await monitoredFetch(endpoint, {
       ...options,
       method: "PATCH",
       credentials: "include",
@@ -45,7 +103,7 @@ export const apiClient = {
   },
   
   async put<T>(endpoint: string, body?: unknown, options?: RequestInit): Promise<T> {
-    const res = await fetch(`${BASE_URL}${endpoint}`, {
+    const res = await monitoredFetch(endpoint, {
       ...options,
       method: "PUT",
       credentials: "include",
@@ -59,7 +117,7 @@ export const apiClient = {
   },
   
   async delete<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const res = await fetch(`${BASE_URL}${endpoint}`, { 
+    const res = await monitoredFetch(endpoint, {
       ...options, 
       method: "DELETE",
       credentials: "include",
