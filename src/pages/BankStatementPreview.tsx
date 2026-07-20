@@ -59,6 +59,7 @@ export default function BankStatementPreview() {
           fetch(`${BASE_URL}/api/bank-statements/${bankStatementId}`, {
             method: 'DELETE',
             keepalive: true,
+            credentials: 'include',
             headers: {
               'Authorization': `Bearer ${sessionStorage.getItem('token')}` // Ensure we pass token if needed
             }

@@ -18,10 +18,7 @@ export default function Login() {
       if (hasProcessedLogin.current) return;
 
       const error = searchParams.get("error");
-      const token = searchParams.get("token");
-      const userId = searchParams.get("user_id");
-      const email = searchParams.get("email");
-      const idToken = searchParams.get("id_token");
+      const status = searchParams.get("status");
 
       if (error === "account_not_found") {
         hasProcessedLogin.current = true;
@@ -41,7 +38,7 @@ export default function Login() {
         return;
       }
 
-      if (token && userId && email) {
+      if (status === "success") {
         hasProcessedLogin.current = true;
         setIsLoading(true);
         try {
@@ -50,12 +47,11 @@ export default function Login() {
           if (idToken) {
             sessionStorage.setItem("ms_id_token", idToken);
           }
-
           await refreshPermissions();
 
           toast.success("Successfully logged in");
 
-          // Clear URL params
+          // Clear the one-time status marker from browser history.
           window.history.replaceState({}, document.title, window.location.pathname);
 
           navigate("/");

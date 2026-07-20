@@ -102,7 +102,7 @@ export type GLUploadQueueDeleteResponse = {
 export type SaveImportFromUploadResponse = {
   status: "saved" | string;
   summary: ParseSummary & {
-    applied_suggestions?: { applied_count: number; skipped_count: number; errors: string[] };
+    applied_suggestions?: { applied_count: number; counterpart_applied_count?: number; skipped_count: number; errors: string[] };
     xgboost_training?: { status: string; job_id?: number; training_rows?: number; class_count?: number; error?: string };
   };
 };
@@ -593,6 +593,16 @@ export type ApplySuggestedTargetResponse = {
     previous_account_name: string | null;
     applied_account_number: string;
     applied_account_name: string | null;
+    counter_change?: {
+      row_number: number;
+      entry_id: number;
+      line_id: number;
+      target_field: "ledger_account" | "split_account" | string;
+      previous_account_number: string | null;
+      previous_account_name: string | null;
+      applied_account_number: string;
+      applied_account_name: string | null;
+    } | null;
   };
   preview: ImportPreview;
 };
@@ -625,6 +635,16 @@ export type UnapplySuggestedTargetResponse = {
     removed_account_name: string | null;
     restored_account_number: string | null;
     restored_account_name: string | null;
+    counter_change?: {
+      row_number: number;
+      entry_id: number;
+      line_id: number;
+      target_field: "ledger_account" | "split_account" | string;
+      removed_account_number: string | null;
+      removed_account_name: string | null;
+      restored_account_number: string | null;
+      restored_account_name: string | null;
+    } | null;
   };
   preview: ImportPreview;
 };

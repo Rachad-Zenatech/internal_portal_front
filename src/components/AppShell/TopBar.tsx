@@ -27,6 +27,37 @@ import { useAuth } from "@/lib/AuthContext";
 import { useNotifications, useUnreadNotificationCount, useMarkNotificationAsRead, useMarkAllNotificationsAsRead, useClearReadNotifications } from "@/hooks/useNotifications";
 
 
+function TopBarClock() {
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const dayName = currentTime.toLocaleDateString("en-US", { weekday: "short" });
+  const monthName = currentTime.toLocaleDateString("en-US", { month: "short" });
+  const formattedDate = `${monthName}, ${currentTime.getDate()} ${currentTime.getFullYear()} (${dayName})`;
+  const formattedTime = currentTime.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+
+  return (
+    <div className="hidden lg:flex flex-col items-end justify-center mr-2">
+      <span className="text-sm font-bold text-foreground leading-tight tracking-tight">
+        {formattedTime}
+      </span>
+      <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">
+        {formattedDate}
+      </span>
+    </div>
+  );
+}
+
+
 export default function TopBar() {
   const [inputValue, setInputValue] = useState("");
   const [debouncedValue, setDebouncedValue] = useState("");
@@ -38,27 +69,6 @@ export default function TopBar() {
   const containerRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user, roles, logout } = useAuth();
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const dayName = currentTime.toLocaleDateString("en-US", { weekday: "short" });
-  const monthName = currentTime.toLocaleDateString("en-US", { month: "short" });
-  const dateNum = currentTime.getDate();
-  const yearNum = currentTime.getFullYear();
-  const formattedDate = `${monthName}, ${dateNum} ${yearNum} (${dayName})`;
-  const formattedTime = currentTime.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true
-  });
-
   // Debounce input
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -73,7 +83,7 @@ export default function TopBar() {
   const { mutate: markAsRead } = useMarkNotificationAsRead();
   const { mutate: markAllAsRead, isPending: isMarkingAll } = useMarkAllNotificationsAsRead();
   const { mutate: clearRead } = useClearReadNotifications();
-  const unreadCount = unreadCountData?.count || 0;
+  const unreadCount = unreadCountData?.count ?? 0;
   const hasReadNotifications = notifications.some(n => n.is_read);
 
   // Close dropdown when clicking outside
@@ -198,14 +208,7 @@ export default function TopBar() {
       </div>
       
       <div className="flex items-center gap-2 sm:gap-4 md:gap-5 shrink-0">
-        <div className="hidden lg:flex flex-col items-end justify-center mr-2">
-          <span className="text-sm font-bold text-foreground leading-tight tracking-tight">
-            {formattedTime}
-          </span>
-          <span className="text-[11px] font-semibold text-muted-foreground mt-0.5">
-            {formattedDate}
-          </span>
-        </div>
+        <TopBarClock />
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>

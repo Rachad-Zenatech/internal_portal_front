@@ -1,41 +1,44 @@
-import AppShell from "./components/AppShell/AppShell";
-import Dashboard from "./pages/Dashboard";
-import BankStatements from "./pages/BankStatements";
-import GeneralLedger from "./pages/GeneralLedger";
-import Reports from "./pages/Reports";
-import TrialBalance from "./pages/TrialBalance";
-import UploadFile from "./pages/UploadFiles"
-import ConsolidatedTrailBalance from "./pages/ConsolidatedTrailBalance";
-import ConsolidatedTrialBalanceMatrix from "./pages/ConsolidatedTrialBalanceMatrix";
-import ChartOfAccounts from "./pages/Configurations/ChartOfAccounts";
-import CompanySettings from "./pages/Configurations/CompanySettings";
-import BankSettings from "./pages/Configurations/BankSettings";
-import BankAccountSettings from "./pages/Configurations/BankAccountSettings";
-import BankFeedRules from "./pages/Configurations/BankFeedRules";
-import BusinessContacts from "./pages/Configurations/BusinessContacts";
-import BankStatementPreview from "./pages/BankStatementPreview";
-import Users from "./pages/Configurations/Users";
-import Roles from "./pages/Configurations/Roles";
-import UserRoleAssignment from "./pages/Configurations/UserRoleAssignment";
-import RoleGroupPermissions from "./pages/Configurations/RoleGroupPermissions";
-
-import RoleApiPermissions from "./pages/Configurations/RoleApiPermissions";
-import RoleMcpToolPermissions from "./pages/Configurations/RoleMcpToolPermissions";
-import XgboostModel from "./pages/Configurations/XgboostModel";
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
-import GeneralLedgerUpload from "./pages/GeneralLedgerUpload";
-import CompanyGeneralLedger from "./pages/CompanyGeneralLedger";
-import AuditLog from "./pages/Log/AuditLog";
-import Login from "./pages/Login";
-import PendingAccess from "./pages/PendingAccess";
+import { lazy, Suspense } from "react";
 import { AuthProvider } from "./lib/AuthContext";
 import { GlobalProgressProvider } from "./lib/GlobalProgressContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+
+const AppShell = lazy(() => import("./components/AppShell/AppShell"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const BankStatements = lazy(() => import("./pages/BankStatements"));
+const GeneralLedger = lazy(() => import("./pages/GeneralLedger"));
+const Reports = lazy(() => import("./pages/Reports"));
+const TrialBalance = lazy(() => import("./pages/TrialBalance"));
+const UploadFile = lazy(() => import("./pages/UploadFiles"));
+const ConsolidatedTrailBalance = lazy(() => import("./pages/ConsolidatedTrailBalance"));
+const ConsolidatedTrialBalanceMatrix = lazy(() => import("./pages/ConsolidatedTrialBalanceMatrix"));
+const ChartOfAccounts = lazy(() => import("./pages/Configurations/ChartOfAccounts"));
+const CompanySettings = lazy(() => import("./pages/Configurations/CompanySettings"));
+const BankSettings = lazy(() => import("./pages/Configurations/BankSettings"));
+const BankAccountSettings = lazy(() => import("./pages/Configurations/BankAccountSettings"));
+const BankFeedRules = lazy(() => import("./pages/Configurations/BankFeedRules"));
+const BusinessContacts = lazy(() => import("./pages/Configurations/BusinessContacts"));
+const BankStatementPreview = lazy(() => import("./pages/BankStatementPreview"));
+const Users = lazy(() => import("./pages/Configurations/Users"));
+const Roles = lazy(() => import("./pages/Configurations/Roles"));
+const UserRoleAssignment = lazy(() => import("./pages/Configurations/UserRoleAssignment"));
+const RoleGroupPermissions = lazy(() => import("./pages/Configurations/RoleGroupPermissions"));
+const RoleApiPermissions = lazy(() => import("./pages/Configurations/RoleApiPermissions"));
+const RoleMcpToolPermissions = lazy(() => import("./pages/Configurations/RoleMcpToolPermissions"));
+const XgboostModel = lazy(() => import("./pages/Configurations/XgboostModel"));
+const GeneralLedgerUpload = lazy(() => import("./pages/GeneralLedgerUpload"));
+const CompanyGeneralLedger = lazy(() => import("./pages/CompanyGeneralLedger"));
+const AuditLog = lazy(() => import("./pages/Log/AuditLog"));
+const Login = lazy(() => import("./pages/Login"));
+const PendingAccess = lazy(() => import("./pages/PendingAccess"));
+
 function App() {
   return (
     <AuthProvider>
       <GlobalProgressProvider>
         <BrowserRouter>
+        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/pending-access" element={<PendingAccess />} />
@@ -71,7 +74,7 @@ function App() {
             <Route path="/configurations/role-group-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLES"><RoleGroupPermissions /></ProtectedRoute>} />
             <Route path="/configurations/role-api-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_API_PERMISSIONS"><RoleApiPermissions /></ProtectedRoute>} />
             <Route path="/configurations/role-mcp-tool-permissions" element={<ProtectedRoute navigationCode="CONFIG_ROLE_MCP_TOOL_PERMISSIONS"><RoleMcpToolPermissions /></ProtectedRoute>} />
-            <Route path="/configurations/xgboost-model" element={<XgboostModel />} />
+            <Route path="/configurations/xgboost-model" element={<ProtectedRoute navigationCode="GENERAL_LEDGER_UPLOAD" actionCode="UPDATE"><XgboostModel /></ProtectedRoute>} />
 
             {/* Logs */}
             <Route path="/log" element={<Navigate to="/log/audit-log" replace />} />
@@ -80,6 +83,7 @@ function App() {
             <Route path="/reports" element={<ProtectedRoute navigationCode="REPORTS"><Reports /></ProtectedRoute>} />
           </Route>
         </Routes>
+        </Suspense>
       </BrowserRouter>
       </GlobalProgressProvider>
     </AuthProvider>

@@ -1,13 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 import { format } from "date-fns";
-import type {
-  AccountDistributionPoint,
-  BankBalancePoint,
-  DashboardSummary,
-  RecentTransaction,
-  RevenueExpensePoint,
-} from "@/types/dashboard";
+import type { DashboardOverview } from "@/types/dashboard";
 import type { DateRange } from "react-day-picker";
 
 export type DashboardFilters = {
@@ -33,45 +27,55 @@ async function fetcher<T>(endpoint: string, filters: DashboardFilters) {
   return apiClient.get<T>(`/dashboard${buildParams(endpoint, filters)}`);
 }
 
-export function useDashboardSummary(filters: DashboardFilters = {}) {
+function overviewQueryKey(period: string, filters: DashboardFilters) {
+  return [
+    "dashboard",
+    "overview",
+    period,
+    filters.companyId ?? "all",
+    filters.dateRange?.from,
+    filters.dateRange?.to,
+  ] as const;
+}
+
+function useDashboardOverview<T>(
+  period: string,
+  filters: DashboardFilters,
+  select: (overview: DashboardOverview) => T,
+) {
   return useQuery({
-    queryKey: ["dashboard", "summary", filters.companyId ?? "all", filters.dateRange?.from, filters.dateRange?.to],
-    queryFn: () => fetcher<DashboardSummary>("/summary", filters),
+    queryKey: overviewQueryKey(period, filters),
+    queryFn: () =>
+      fetcher<DashboardOverview>(`/overview?period=${period}`, filters),
+    select,
   });
+}
+
+const selectSummary = (overview: DashboardOverview) => overview.summary;
+const selectRevenueExpense = (overview: DashboardOverview) => overview.revenueExpense;
+const selectBankBalances = (overview: DashboardOverview) => overview.bankBalances;
+const selectAccountDistribution = (overview: DashboardOverview) => overview.accountDistribution;
+const selectRecentTransactions = (overview: DashboardOverview) => overview.recentTransactions;
+
+export function useDashboardSummary(filters: DashboardFilters = {}) {
+  return useDashboardOverview("monthly", filters, selectSummary);
 }
 
 export function useRevenueExpenseChart(
   period: string = "monthly",
   filters: DashboardFilters = {}
 ) {
-  return useQuery({
-    queryKey: ["dashboard", "revenue-expense", period, filters.companyId ?? "all", filters.dateRange?.from, filters.dateRange?.to],
-    queryFn: () =>
-      fetcher<RevenueExpensePoint[]>(
-        `/revenue-expense?period=${period}`,
-        filters
-      ),
-  });
+  return useDashboardOverview(period, filters, selectRevenueExpense);
 }
 
 export function useBankBalancesChart(filters: DashboardFilters = {}) {
-  return useQuery({
-    queryKey: ["dashboard", "bank-balances", filters.companyId ?? "all", filters.dateRange?.from, filters.dateRange?.to],
-    queryFn: () => fetcher<BankBalancePoint[]>("/bank-balances", filters),
-  });
+  return useDashboardOverview("monthly", filters, selectBankBalances);
 }
 
 export function useAccountDistribution(filters: DashboardFilters = {}) {
-  return useQuery({
-    queryKey: ["dashboard", "account-distribution", filters.companyId ?? "all", filters.dateRange?.from, filters.dateRange?.to],
-    queryFn: () =>
-      fetcher<AccountDistributionPoint[]>("/account-distribution", filters),
-  });
+  return useDashboardOverview("monthly", filters, selectAccountDistribution);
 }
 
 export function useRecentTransactions(filters: DashboardFilters = {}) {
-  return useQuery({
-    queryKey: ["dashboard", "recent-transactions", filters.companyId ?? "all", filters.dateRange?.from, filters.dateRange?.to],
-    queryFn: () => fetcher<RecentTransaction[]>("/recent-transactions", filters),
-  });
+  return useDashboardOverview("monthly", filters, selectRecentTransactions);
 }
