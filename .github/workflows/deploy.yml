@@ -1,0 +1,43 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write # Required for AWS OIDC authentication
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Using Node 20 as it's the current LTS, adjust if needed
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build the app
+        run: npm run build
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Note: Replace 'github-actions-role' with your actual IAM role name that trusts GitHub OIDC
+          role-to-assume: arn:aws:iam::${{ secrets.ACCOUNT_ID }}:role/github-actions-role
+          aws-region: ${{ secrets.REGION }}
+
+      - name: Deploy to S3 bucket
+        run: aws s3 sync dist/ s3://${{ secrets.BUCKET_NAME }} --delete
+
+      - name: Invalidate CloudFront cache
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.DISTRIBUTION_NAME }} --paths "/*"
