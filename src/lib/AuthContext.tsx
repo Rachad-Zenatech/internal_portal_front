@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('ms_id_token');
+      sessionStorage.clear();
     } finally {
       setIsLoading(false);
     }

@@ -42,29 +42,9 @@ export default function Login() {
         hasProcessedLogin.current = true;
         setIsLoading(true);
         try {
-          sessionStorage.setItem("token", token);
-          sessionStorage.setItem("user", JSON.stringify({ id: userId, email }));
-          if (idToken) {
-            sessionStorage.setItem("ms_id_token", idToken);
-          }
-          await refreshPermissions();
-
-          toast.success("Successfully logged in");
-
-          // Clear the one-time status marker from browser history.
-          window.history.replaceState({}, document.title, window.location.pathname);
-
-          navigate("/");
-        } catch (error) {
-          console.error("Failed to process SSO login", error);
-          toast.error("Failed to process login");
-        } finally {
-          setIsLoading(false);
-        }
-      } else if (searchParams.get("status") === "success") {
-        hasProcessedLogin.current = true;
-        setIsLoading(true);
-        try {
+          sessionStorage.removeItem("token");
+          sessionStorage.removeItem("user");
+          sessionStorage.removeItem("ms_id_token");
           await refreshPermissions();
           toast.success("Successfully logged in");
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -76,6 +56,7 @@ export default function Login() {
           setIsLoading(false);
         }
       }
+
     };
 
     handleSsoCallback();
