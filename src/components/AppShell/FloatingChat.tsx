@@ -13,7 +13,7 @@ import {
   MessageScrollerButton
 } from "@/components/ui/message-scroller";
 import { Attachment } from "@/components/ui/attachment";
-import { Marker } from "@/components/ui/marker";
+
 import { 
   Card,
   CardAction,
@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/lib/AuthContext";
-import { useStreamingChat, type ChatMessage } from "@/hooks/useStreamingChat";
+import { useStreamingChat } from "@/hooks/useStreamingChat";
 
 const MotionMessageScrollerItem = motion.create(MessageScrollerItem);
 
@@ -44,7 +44,7 @@ export default function FloatingChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
   
-  const { messages, setMessages, isStreaming, error, sendMessage, stopStreaming } = useStreamingChat();
+  const { messages, setMessages, isStreaming, sendMessage, stopStreaming } = useStreamingChat();
   
   // Dimensions and position
   const [size, setSize] = useState({ width: 380, height: 600 });

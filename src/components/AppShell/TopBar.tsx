@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, CircleHelp, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, RefreshCw, Mail, BellRing, Settings2, CheckCheck } from "lucide-react";
+import { Search, Bell, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, Mail, BellRing, Settings2, CheckCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

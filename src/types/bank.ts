@@ -110,6 +110,8 @@ export interface PreviewCheckTransaction {
   paid_to: string | null;
   reference: string | null;
   amount: number | null;
+  confidence_score?: string;
+  warnings?: string[];
 }
 
 export interface PreviewDepositTransaction {
@@ -119,6 +121,8 @@ export interface PreviewDepositTransaction {
   received_from: string | null;
   reference: string | null;
   amount: number | null;
+  confidence_score?: string;
+  warnings?: string[];
 }
 
 export interface StatementPreview {

@@ -33,8 +33,7 @@ function ContactSection({
   total,
   isPending,
   action,
-  search,
-  setSearch,
+
 }: {
   title: string;
   description: string;

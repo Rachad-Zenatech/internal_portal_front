@@ -127,8 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    const userEmail = permissions?.user?.email;
-    const msIdToken = sessionStorage.getItem('ms_id_token');
+
     try {
       await apiClient.post('/api/auth/logout', {});
     } catch (e) {

@@ -262,7 +262,44 @@ export default function StatementPreviewReview({
     return filteredPrevs.length > 0 ? filteredPrevs : prevs;
   }
 
+  const submitFeedback = (id: string, field: string, value: any, isDeposit: boolean) => {
+    const active = localPreviews[safeActiveIndex];
+    if (!active) return;
+    const row = isDeposit ? active.deposits.find(d => d._id === id) : active.checks.find(c => c._id === id);
+    if (!row) return;
+
+    // Only submit feedback if this row was flagged or not highly confident
+    if (row.confidence_score === "HIGH_CONFIDENCE" && (!row.warnings || row.warnings.length === 0)) {
+      return;
+    }
+
+    try {
+      const payload = {
+        original_text: String(row[field as keyof typeof row] ?? ""),
+        corrected_text: String(value ?? ""),
+        field_type: field,
+        bank_type: active.bank_name ?? "generic",
+        confidence_score: row.confidence_score ?? "UNKNOWN",
+        region_name: row.section,
+        page_number: 1,
+        parser_used: "ocr_pipeline"
+      };
+
+      fetch(`/api/bank-statements/feedback`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${sessionStorage.getItem("internal_portal_token")}`
+        },
+        body: JSON.stringify(payload)
+      }).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const updateCheck: CheckUpdate = (id, field, value) => {
+    submitFeedback(id, field, value, false);
     setLocalPreviews(prev => {
       let next = [...prev];
       next[safeActiveIndex] = {
@@ -277,6 +314,7 @@ export default function StatementPreviewReview({
   };
 
   const updateDeposit: DepositUpdate = (id, field, value) => {
+    submitFeedback(id, field, value, true);
     setLocalPreviews(prev => {
       let next = [...prev];
       next[safeActiveIndex] = {
@@ -674,8 +712,17 @@ function AmountInput({ value, onChange, className }: { value: number | null, onC
   const [localValue, setLocalValue] = useState<string>(value === null ? "" : value.toFixed(2));
 
   useEffect(() => {
-    setLocalValue(value === null ? "" : value.toFixed(2));
-  }, [value]);
+    if (value === null) {
+      if (localValue !== "" && localValue !== "-") {
+        setLocalValue("");
+      }
+      return;
+    }
+    const parsedLocal = parseFloat(localValue);
+    if (isNaN(parsedLocal) || parsedLocal !== value) {
+      setLocalValue(value.toFixed(2));
+    }
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleBlur = () => {
     if (localValue === "" || localValue === "-") {
@@ -734,8 +781,12 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
         </TableRow>
       </TableHeader>
       <TableBody className="[&_tr:last-child>td]:pb-8">
-        {sorted.map((r) => (
-          <TableRow key={r._id}>
+        {sorted.map((r) => {
+          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "bg-green-500/5 hover:bg-green-500/10" : 
+                            r.confidence_score === "MEDIUM_CONFIDENCE" ? "bg-yellow-500/5 hover:bg-yellow-500/10" : 
+                            (r.confidence_score === "LOW_CONFIDENCE" || r.confidence_score === "INVALID") ? "bg-red-500/5 hover:bg-red-500/10" : "";
+          return (
+          <TableRow key={r._id} className={confClass}>
             {cols.includes("Date") && (
               <TableCell>
                 <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
@@ -769,13 +820,18 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
                 </div>
               </TableCell>
             )}
-            <TableCell className="text-right pr-4">
+            <TableCell className="text-right pr-4 flex items-center justify-end gap-2">
+              {r.warnings && r.warnings.length > 0 && (
+                <div title={r.warnings.join("\n")} className="text-yellow-600 cursor-help">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+              )}
               <Button variant="ghost" size="icon" onClick={() => onRemove(r._id)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TableCell>
           </TableRow>
-        ))}
+        )})}
       </TableBody>
       <TableFooter>
         <TableRow className="hover:bg-transparent bg-muted/50">
@@ -816,8 +872,12 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
         </TableRow>
       </TableHeader>
       <TableBody className="[&_tr:last-child>td]:pb-8">
-        {sorted.map((r) => (
-          <TableRow key={r._id}>
+        {sorted.map((r) => {
+          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "bg-green-500/5 hover:bg-green-500/10" : 
+                            r.confidence_score === "MEDIUM_CONFIDENCE" ? "bg-yellow-500/5 hover:bg-yellow-500/10" : 
+                            (r.confidence_score === "LOW_CONFIDENCE" || r.confidence_score === "INVALID") ? "bg-red-500/5 hover:bg-red-500/10" : "";
+          return (
+          <TableRow key={r._id} className={confClass}>
             {cols.includes("Date") && (
               <TableCell>
                 <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
@@ -846,13 +906,18 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
                 </div>
               </TableCell>
             )}
-            <TableCell className="text-right pr-4">
+            <TableCell className="text-right pr-4 flex items-center justify-end gap-2">
+              {r.warnings && r.warnings.length > 0 && (
+                <div title={r.warnings.join("\n")} className="text-yellow-600 cursor-help">
+                  <AlertTriangle className="h-4 w-4" />
+                </div>
+              )}
               <Button variant="ghost" size="icon" onClick={() => onRemove(r._id)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </TableCell>
           </TableRow>
-        ))}
+        )})}
       </TableBody>
       <TableFooter>
         <TableRow className="hover:bg-transparent bg-muted/50">

@@ -4,7 +4,7 @@ import { apiClient } from "@/services/apiClient";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Search, ArrowUpDown, Loader2, ShieldAlert, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
+import { Search, ArrowUpDown, Loader2, CheckCircle2, XCircle, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
