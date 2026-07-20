@@ -65,6 +65,20 @@ export default function Login() {
         } finally {
           setIsLoading(false);
         }
+      } else if (searchParams.get("status") === "success") {
+        hasProcessedLogin.current = true;
+        setIsLoading(true);
+        try {
+          await refreshPermissions();
+          toast.success("Successfully logged in");
+          window.history.replaceState({}, document.title, window.location.pathname);
+          navigate("/");
+        } catch (error) {
+          console.error("Failed to process SSO login", error);
+          toast.error("Failed to process login");
+        } finally {
+          setIsLoading(false);
+        }
       }
     };
 

@@ -36,10 +36,9 @@ export default function SessionTimeout() {
     // Only track if user is logged in
     if (!user) return;
 
-    // Only initialize on mount
-    if (lastActivityRef.current === 0) {
-      lastActivityRef.current = Date.now();
-    }
+    // Reset the timer when the user logs in so that a stale mount timestamp
+    // (from sitting on the login page) doesn't immediately log them out.
+    resetTimer();
 
     // Events that count as activity
     const events = ["mousedown", "mousemove", "keydown", "scroll", "touchstart"];

@@ -49,13 +49,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchPermissions = async () => {
-    const token = sessionStorage.getItem('token');
-    if (!token) {
-      setPermissions(null);
-      setIsLoading(false);
-      return;
-    }
-    
     try {
       const data = await apiClient.get<PermissionsData>('/api/me/permissions');
       setPermissions(data);
@@ -71,20 +64,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fetchPermissions();
   }, []);
 
-  useEffect(() => {
-    const handleUnload = () => {
-      const token = sessionStorage.getItem('token');
-      if (token) {
-        // Use navigator.sendBeacon for reliable delivery across all browsers when unloading
-        const formData = new FormData();
-        formData.append('token', token);
-        navigator.sendBeacon(`${import.meta.env.VITE_API_BASE_URL || ''}/api/auth/logout`, formData);
-      }
-    };
-    
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, []);
 
 
   const canAccessNavigationItem = (navigationCode: string, actionCode = 'VIEW') => {
