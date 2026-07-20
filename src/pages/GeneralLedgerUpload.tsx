@@ -590,6 +590,37 @@ export default function GeneralLedgerUpload() {
         target: "upload",
       });
     } else {
+      const emptyCurrentTargetRows = workbookRows.filter(({ txn, suggestion }) => {
+        const currentTarget = (
+          suggestion?.current_target_account_number ??
+          txn.account_review?.current_target_account_number ??
+          txn.split_account_number ??
+          ""
+        ).trim();
+        if (currentTarget) return false;
+
+        const appliedTarget =
+          suggestion && appliedSuggestionRows.has(suggestion.row_number)
+            ? (getVisibleSuggestedTargetNumber(suggestion) ?? "").trim()
+            : "";
+        if (appliedTarget && appliedTarget !== "MANUAL_REVIEW") return false;
+
+        return !(counterChangedRows.get(txn.line_id)?.accountNumber ?? "").trim();
+      });
+      if (emptyCurrentTargetRows.length > 0) {
+        const sampleRows = emptyCurrentTargetRows
+          .slice(0, 8)
+          .map(({ txn }) => txn.line_id)
+          .join(", ");
+        const remaining = emptyCurrentTargetRows.length - Math.min(emptyCurrentTargetRows.length, 8);
+        blockers.push({
+          key: "empty-current-targets",
+          title: "Current targets are required",
+          detail: `${emptyCurrentTargetRows.length.toLocaleString("en-US")} GL row(s) still have an empty current target. Apply a suggested target or select an account for rows ${sampleRows}${remaining > 0 ? ` (and ${remaining.toLocaleString("en-US")} more)` : ""}.`,
+          actionLabel: "Go to import review",
+          target: "import_review",
+        });
+      }
       if (!preview.reconciliation?.is_balanced) {
         blockers.push({
           key: "not-balanced",
@@ -651,8 +682,10 @@ export default function GeneralLedgerUpload() {
     return blockers;
   }, [
     accountReviewProgressLabel,
+    appliedSuggestionRows,
     applySuggestedTargetMutation.isPending,
     canSaveDryRun,
+    counterChangedRows,
     isDryRun,
     isIncrementalPreviewLoading,
     isReviewingAccounts,
@@ -662,6 +695,7 @@ export default function GeneralLedgerUpload() {
     reconciliationChecks,
     reviewDifference,
     unapplySuggestedTargetMutation.isPending,
+    workbookRows,
   ]);
 
   const previewAccounts = preview?.accounts ?? [];
