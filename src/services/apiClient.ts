@@ -20,15 +20,33 @@ const recentPerformanceReports = new Map<string, number>();
 async function monitoredFetch(endpoint: string, options: RequestInit): Promise<Response> {
   const started = performance.now();
   let statusCode = 0;
+  
+  let targetEndpoint = endpoint;
+  if (!targetEndpoint.startsWith("/api/") && !targetEndpoint.startsWith("/ai/")) {
+    const path = targetEndpoint.startsWith("/") ? targetEndpoint : `/${targetEndpoint}`;
+    if (path.startsWith("/api/")) {
+      targetEndpoint = path;
+    } else if (path.startsWith("/ai/")) {
+      targetEndpoint = path;
+    } else if (path === "/api" || path === "/api/") {
+      targetEndpoint = "/api/";
+    } else if (path === "/ai" || path === "/ai/") {
+      targetEndpoint = "/ai/";
+    } else {
+      targetEndpoint = `/api${path}`;
+    }
+  }
+
+
   try {
-    const response = await fetch(`${BASE_URL}${endpoint}`, options);
+    const response = await fetch(`${BASE_URL}${targetEndpoint}`, options);
     statusCode = response.status;
     return response;
   } finally {
     const durationMs = performance.now() - started;
     if (
       durationMs >= SLOW_REQUEST_MS &&
-      !endpoint.startsWith("/api/observability/")
+      !targetEndpoint.startsWith("/api/observability/")
     ) {
       const now = Date.now();
       while (performanceReportTimes.length && performanceReportTimes[0] < now - 60_000) {

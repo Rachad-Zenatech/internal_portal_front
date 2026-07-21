@@ -648,7 +648,7 @@ export const GLService = {
     year: number;
     quarter: number;
   }): string {
-    return `${BASE_URL}/accounting/gl/company/${params.companyId}/missing-in-books-export?year=${params.year}&quarter=${params.quarter}`;
+    return `${BASE_URL}/api/accounting/gl/company/${params.companyId}/missing-in-books-export?year=${params.year}&quarter=${params.quarter}`;
   },
 
   async downloadMissingInBooksExport(params: {
@@ -657,7 +657,7 @@ export const GLService = {
     quarter: number;
     items: MissingInBooksExportRow[];
   }): Promise<MissingInBooksExportDownload> {
-    const url = `${BASE_URL}/accounting/gl/company/${params.companyId}/missing-in-books-export?year=${params.year}&quarter=${params.quarter}`;
+    const url = `${BASE_URL}/api/accounting/gl/company/${params.companyId}/missing-in-books-export?year=${params.year}&quarter=${params.quarter}`;
     const response = await fetch(
       url,
       {

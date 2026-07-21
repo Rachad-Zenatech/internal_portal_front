@@ -26,7 +26,7 @@ export default function Reports() {
       const params = new URLSearchParams({
         year: String(year),
       });
-      const url = `${BASE_URL}/reports/reconciliation-excel?${params}`;
+      const url = `${BASE_URL}/api/reports/reconciliation-excel?${params}`;
       
       window.open(url, '_blank');
     } catch (error) {

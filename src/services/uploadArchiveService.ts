@@ -12,10 +12,10 @@ export const uploadArchiveService = {
   },
 
   viewUrl(fileId: string): string {
-    return `${BASE_URL}/upload-files/${fileId}/view`;
+    return `${BASE_URL}/api/upload-files/${fileId}/view`;
   },
 
   downloadUrl(fileId: string): string {
-    return `${BASE_URL}/upload-files/${fileId}/download`;
+    return `${BASE_URL}/api/upload-files/${fileId}/download`;
   },
 };
