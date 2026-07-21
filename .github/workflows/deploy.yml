@@ -86,7 +86,6 @@ jobs:
         shell: bash
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-          VITE_FRONTEND_URL: ${{ secrets.VITE_FRONTEND_URL }}
         run: |
           set -euxo pipefail
           npm run build
