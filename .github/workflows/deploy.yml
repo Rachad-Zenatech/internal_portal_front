@@ -15,7 +15,7 @@ env:
   AWS_REGION: ${{ secrets.REGION }}
   AWS_ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
   S3_BUCKET_NAME: ${{ secrets.BUCKET_NAME }}
-  CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.DISTRIBUTION_NAME }}
+  CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.DISTRIBUTION_ID || secrets.DISTRIBUTION_NAME }}
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
 
 jobs:
@@ -54,7 +54,7 @@ jobs:
           fi
 
           if [ -z "${CLOUDFRONT_DISTRIBUTION_ID:-}" ]; then
-            echo "::error title=Missing CloudFront ID::The DISTRIBUTION_NAME repository secret is missing or empty."
+            echo "::error title=Missing CloudFront ID::The DISTRIBUTION_ID or DISTRIBUTION_NAME repository secret is missing or empty."
             missing=1
           fi
 
@@ -125,15 +125,33 @@ jobs:
       - name: Invalidate CloudFront cache
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
+
+          target_dist="${CLOUDFRONT_DISTRIBUTION_ID}"
+
+          # If target_dist looks like a domain (e.g. xxx.cloudfront.net or custom domain), attempt auto-resolution
+          if [[ "${target_dist}" == *"."* ]]; then
+            echo "Attempting to resolve CloudFront Distribution ID for domain: ${target_dist}"
+            resolved_id="$(aws cloudfront list-distributions --query "DistributionList.Items[?DomainName=='${target_dist}' || contains(Aliases.Items || \`[]\`, '${target_dist}')].Id | [0]" --output text 2>/dev/null || true)"
+            if [ -n "${resolved_id}" ] && [ "${resolved_id}" != "None" ]; then
+              echo "Resolved domain ${target_dist} -> Distribution ID ${resolved_id}"
+              target_dist="${resolved_id}"
+            fi
+          fi
+
+          echo "Submitting invalidation for CloudFront distribution: ${target_dist}"
 
           invalidation_id="$(
             aws cloudfront create-invalidation \
-              --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+              --distribution-id "${target_dist}" \
               --paths "/*" \
               --query "Invalidation.Id" \
               --output text
-          )"
+          )" || {
+            echo "::error title=NoSuchDistribution::The CloudFront Distribution ID '${target_dist}' was not found in your AWS account."
+            echo "Please ensure the GitHub repository secret (DISTRIBUTION_ID or DISTRIBUTION_NAME) contains the CloudFront Distribution ID (e.g., E1A2B3C4D5E6F7) from AWS CloudFront console."
+            exit 1
+          }
 
           if [ -z "${invalidation_id}" ] || [ "${invalidation_id}" = "None" ]; then
             echo "::error title=Invalidation failed::CloudFront did not return an invalidation ID."
