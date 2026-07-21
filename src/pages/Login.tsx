@@ -64,7 +64,7 @@ export default function Login() {
 
   const handleLogin = () => {
     // Redirect to backend Microsoft SSO endpoint
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
     window.location.href = `${baseUrl}/api/auth/microsoft/login`;
   };
 
