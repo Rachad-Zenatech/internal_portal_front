@@ -16,6 +16,7 @@ env:
   AWS_ACCOUNT_ID: ${{ secrets.ACCOUNT_ID }}
   S3_BUCKET_NAME: ${{ secrets.BUCKET_NAME }}
   CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.DISTRIBUTION_NAME }}
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
 
 jobs:
   build-and-deploy:
@@ -98,6 +99,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-role
           aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
           role-session-name: github-actions-frontend-deploy
 
       - name: Verify AWS identity
