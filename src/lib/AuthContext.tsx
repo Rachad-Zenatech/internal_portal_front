@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
 import { apiClient } from '../services/apiClient';
 
 export interface User {
@@ -48,19 +48,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [permissions, setPermissions] = useState<PermissionsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const fetchRequestId = useRef(0);
+
   const fetchPermissions = useCallback(async () => {
+    const requestId = ++fetchRequestId.current;
     setIsLoading(true);
     try {
       const data = await apiClient.get<PermissionsData>('/api/me/permissions');
-      setPermissions(data);
+      if (requestId === fetchRequestId.current) {
+        setPermissions(data);
+      }
     } catch {
-      setPermissions(null);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('ms_id_token');
-      sessionStorage.clear();
+      if (requestId === fetchRequestId.current) {
+        setPermissions(null);
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('ms_id_token');
+        sessionStorage.clear();
+      }
     } finally {
-      setIsLoading(false);
+      if (requestId === fetchRequestId.current) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
