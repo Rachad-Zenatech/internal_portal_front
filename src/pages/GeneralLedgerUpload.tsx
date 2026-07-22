@@ -303,6 +303,8 @@ export default function GeneralLedgerUpload() {
   const manualTargetPickerRef = useRef<ManualTargetAccountPickerHandle | null>(null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [backgroundUploadMessage, setBackgroundUploadMessage] = useState<string | null>(null);
+  const [pendingBackgroundUploadJobId, setPendingBackgroundUploadJobId] =
+    useState<number | null>(null);
   const [cancelingQueueJobId, setCancelingQueueJobId] = useState<number | null>(null);
   const [deletingQueueJobId, setDeletingQueueJobId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -348,6 +350,9 @@ export default function GeneralLedgerUpload() {
   const {
     data: uploadQueueData,
     isLoading: isUploadQueueLoading,
+    fetchNextPage: fetchNextUploadQueuePage,
+    hasNextPage: hasNextUploadQueuePage,
+    isFetchingNextPage: isFetchingNextUploadQueuePage,
     refetch: refetchUploadQueue,
   } = useGLUploadQueue(10);
   const uploadQueue = uploadQueueData?.jobs ?? [];
@@ -400,6 +405,28 @@ export default function GeneralLedgerUpload() {
     // This is a one-time URL bootstrap; pagination controls call the handler directly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (pendingBackgroundUploadJobId === null) return;
+    const job = uploadQueue.find((candidate) => candidate.id === pendingBackgroundUploadJobId);
+    if (!job) return;
+
+    if (job.status === "completed" && job.preview_token) {
+      setPendingBackgroundUploadJobId(null);
+      setBackgroundUploadMessage("GL upload parsed. Loading the preview...");
+      void handleDryRunPreviewPage(1, job.preview_token);
+      return;
+    }
+
+    if (["failed", "canceled", "discarded"].includes(job.status)) {
+      setPendingBackgroundUploadJobId(null);
+      setBackgroundUploadMessage(null);
+      setError(job.error_message || "The background GL parse failed.");
+    }
+    // handleDryRunPreviewPage is a function declaration and this effect is
+    // intentionally driven only by queue changes for the tracked upload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingBackgroundUploadJobId, uploadQueue]);
 
   const selectedBook = useMemo(
     () => books.find((book) => book.book_id === bookId) ?? null,
@@ -1007,6 +1034,7 @@ export default function GeneralLedgerUpload() {
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
     setBackgroundUploadMessage(null);
+    setPendingBackgroundUploadJobId(null);
     autoAccountReviewKeyRef.current = null;
     accountReviewHistoryTokenRef.current = null;
   }
@@ -1181,6 +1209,7 @@ export default function GeneralLedgerUpload() {
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
     accountReviewHistoryTokenRef.current = null;
+    const backgroundAttemptStartedAt = Date.now();
 
     try {
       try {
@@ -1191,6 +1220,12 @@ export default function GeneralLedgerUpload() {
           previewLimit: null,
         });
         if (parseRunIdRef.current !== parseRunId) return;
+        const backgroundJobId = Number(
+          backgroundParse.backgroundJobId ?? backgroundParse.jobId
+        );
+        if (Number.isFinite(backgroundJobId)) {
+          setPendingBackgroundUploadJobId(backgroundJobId);
+        }
         addJob(
           "GL dry-run preview",
           Promise.resolve(backgroundParse),
@@ -1207,6 +1242,28 @@ export default function GeneralLedgerUpload() {
       } catch (backgroundErr) {
         if (parseRunIdRef.current !== parseRunId) return;
         console.warn("[GL Upload] Background parse queue failed; falling back to direct parse.", backgroundErr);
+        // A proxy/network failure can hide a successful enqueue response. Check
+        // the server queue before uploading and parsing the same workbook again.
+        const refreshedQueue = await refetchUploadQueue().catch(() => null);
+        const recoveredJob = refreshedQueue?.data?.jobs.find(
+          (job) =>
+            job.filename === currentFile.name &&
+            job.company_book_id === currentBook.book_id &&
+            (!job.created_at ||
+              Date.parse(job.created_at) >= backgroundAttemptStartedAt - 5_000) &&
+            ["queued", "queued_local", "processing", "completed"].includes(job.status)
+        );
+        if (recoveredJob) {
+          setPendingBackgroundUploadJobId(recoveredJob.id);
+          setBackgroundUploadMessage(
+            recoveredJob.status === "completed"
+              ? "GL upload parsed. Loading the preview..."
+              : "The upload was queued successfully. Waiting for the preview..."
+          );
+          setIsUploadDrawerOpen(false);
+          return;
+        }
+
         setBackgroundUploadMessage("Background queue failed. Parsing this GL file in this tab instead...");
         const directParse = await parseImportMutation.mutateAsync({
           companyBookId: currentBook.book_id,
@@ -2182,6 +2239,10 @@ export default function GeneralLedgerUpload() {
         <GLUploadQueuePanel
           jobs={uploadQueue}
           isLoading={isUploadQueueLoading}
+          total={uploadQueueData?.total}
+          hasMore={Boolean(hasNextUploadQueuePage)}
+          isLoadingMore={isFetchingNextUploadQueuePage}
+          onLoadMore={() => void fetchNextUploadQueuePage()}
           isPreviewLoading={isPreviewPageLoading}
           onRefresh={() => void refetchUploadQueue()}
           onOpenPreview={(token) => handleDryRunPreviewPage(1, token)}

@@ -64,6 +64,9 @@ export default function GeneralLedger() {
   const {
     data: uploadQueueData,
     isLoading: isUploadQueueLoading,
+    fetchNextPage: fetchNextUploadQueuePage,
+    hasNextPage: hasNextUploadQueuePage,
+    isFetchingNextPage: isFetchingNextUploadQueuePage,
     refetch: refetchUploadQueue,
   } = useGLUploadQueue(10);
   const assignFormatMutation = useAssignFormat();
@@ -207,6 +210,10 @@ export default function GeneralLedger() {
       <GLUploadQueuePanel
         jobs={uploadQueue}
         isLoading={isUploadQueueLoading}
+        total={uploadQueueData?.total}
+        hasMore={Boolean(hasNextUploadQueuePage)}
+        isLoadingMore={isFetchingNextUploadQueuePage}
+        onLoadMore={() => void fetchNextUploadQueuePage()}
         onRefresh={() => void refetchUploadQueue()}
         onOpenPreview={(token) => {
           window.location.assign(

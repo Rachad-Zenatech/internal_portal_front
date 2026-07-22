@@ -152,9 +152,9 @@ export const GLService = {
     };
   },
 
-  async getUploadQueue(limit = 20): Promise<GLUploadQueueResponse> {
+  async getUploadQueue(limit = 20, offset = 0): Promise<GLUploadQueueResponse> {
     return apiClient.get<GLUploadQueueResponse>(
-      `/accounting/gl/imports/queue?limit=${encodeURIComponent(String(limit))}`
+      `/accounting/gl/imports/queue?limit=${encodeURIComponent(String(limit))}&offset=${encodeURIComponent(String(offset))}`
     );
   },
 

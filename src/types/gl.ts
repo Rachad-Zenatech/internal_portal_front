@@ -83,6 +83,10 @@ export type GLUploadQueueItem = {
 
 export type GLUploadQueueResponse = {
   jobs: GLUploadQueueItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  has_more: boolean;
 };
 
 export type GLUploadQueueCancelResponse = {

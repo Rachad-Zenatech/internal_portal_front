@@ -1,4 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
 import { GLService } from '../services/glService';
 import type {
   BackgroundGlParseResponse,
@@ -164,13 +170,24 @@ export const useParseImportInBackground = () => {
 };
 
 export const useGLUploadQueue = (limit: number = 20) => {
-  return useQuery<GLUploadQueueResponse, Error>({
+  return useInfiniteQuery({
     queryKey: ['gl-upload-queue', limit],
-    queryFn: () => GLService.getUploadQueue(limit),
+    queryFn: ({ pageParam }) => GLService.getUploadQueue(limit, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.has_more ? lastPage.offset + lastPage.jobs.length : undefined,
+    select: (data) => ({
+      jobs: data.pages.flatMap((page) => page.jobs),
+      total: data.pages[0]?.total ?? 0,
+      limit,
+      offset: 0,
+      has_more: data.pages.at(-1)?.has_more ?? false,
+    }),
     refetchInterval: (query) => {
-      const data = query.state.data;
-      if (!data || !data.jobs) return false;
-      const isProcessing = data.jobs.some((job) =>
+      const data = query.state.data as InfiniteData<GLUploadQueueResponse> | undefined;
+      const jobs = data?.pages.flatMap((page) => page.jobs) ?? [];
+      if (jobs.length === 0) return false;
+      const isProcessing = jobs.some((job) =>
         ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(job.status) ||
         ['queued', 'queued_local', 'processing', 'cancel_requested'].includes(
           job.ai_review_status ?? ''

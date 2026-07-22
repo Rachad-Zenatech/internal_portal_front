@@ -11,6 +11,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 export function GLUploadQueuePanel({
   jobs,
   isLoading,
+  total,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
   onRefresh,
   onOpenPreview,
   onCancelJob,
@@ -23,6 +27,10 @@ export function GLUploadQueuePanel({
 }: {
   jobs: GLUploadQueueItem[];
   isLoading: boolean;
+  total?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   onRefresh: () => void;
   onOpenPreview: (token: string) => void;
   onCancelJob?: (jobId: number) => void;
@@ -74,6 +82,11 @@ export function GLUploadQueuePanel({
                 <p className="mt-1 text-sm text-muted-foreground">
                   Backend dry-run parses that continue while you use the site.
                 </p>
+                {typeof total === "number" && total > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Showing {jobs.length.toLocaleString("en-US")} of {total.toLocaleString("en-US")} retained uploads.
+                  </p>
+                )}
               </div>
             </div>
               <div className="flex items-center gap-2">
@@ -243,6 +256,19 @@ export function GLUploadQueuePanel({
                 </div>
               </div>
             ))}
+              </div>
+            )}
+            {hasMore && onLoadMore && (
+              <div className="mt-3 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onLoadMore}
+                  disabled={isLoadingMore}
+                >
+                  {isLoadingMore ? "Loading..." : "Load more uploads"}
+                </Button>
               </div>
             )}
           </CollapsibleContent>
