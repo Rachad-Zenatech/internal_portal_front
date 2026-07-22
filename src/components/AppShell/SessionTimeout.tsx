@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { apiClient } from "@/services/apiClient";
 import {
   Dialog,
   DialogContent,

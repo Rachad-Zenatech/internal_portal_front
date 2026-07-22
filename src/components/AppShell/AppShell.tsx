@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, KeyRound } from "lucide-react";
 import { apiClient } from "@/services/apiClient";
 import { GlobalProgressOverlay } from "./GlobalProgressOverlay";
-import { useHeartbeat } from "@/hooks/useHeartbeat";
+
 
 interface Props {
   children: ReactNode;

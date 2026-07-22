@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import apiClient from '../services/apiClient';
+import { apiClient } from '../services/apiClient';
 
 export function useHeartbeat(isAuthenticated: boolean) {
   const lastActiveTimeRef = useRef<number>(Date.now());
