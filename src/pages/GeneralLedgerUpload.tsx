@@ -15,7 +15,6 @@ import type {
   GLAccountSuggestion,
   GLAccountSuggestionsRequest,
   GLAccountSuggestionsResponse,
-  GLXgboostTestTrainingResponse,
   ImportPreview,
   ImportPreviewAccount,
   ImportPreviewAccountReview,
@@ -35,7 +34,6 @@ import {
   useDryRunPreviewPage,
   useImportPreview,
   useGLAccountSuggestions,
-  useTrainXgboostTestModelFromGlExport,
   useDeleteImport,
   useAddManualEntry,
   useApplySuggestedTarget,
@@ -267,7 +265,6 @@ export default function GeneralLedgerUpload() {
   const [bookId, setBookId] = useState<number | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const useGeminiReview = true;
-  const [trainXgboostTestModel, setTrainXgboostTestModel] = useState(false);
   const [isUploadDrawerOpen, setIsUploadDrawerOpen] = useState(false);
 
   const [summary, setSummary] = useState<ParseSummary | null>(null);
@@ -305,8 +302,6 @@ export default function GeneralLedgerUpload() {
   >(() => new Map());
   const manualTargetPickerRef = useRef<ManualTargetAccountPickerHandle | null>(null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
-  const [xgboostTrainingResult, setXgboostTrainingResult] =
-    useState<GLXgboostTestTrainingResponse | null>(null);
   const [backgroundUploadMessage, setBackgroundUploadMessage] = useState<string | null>(null);
   const [cancelingQueueJobId, setCancelingQueueJobId] = useState<number | null>(null);
   const [deletingQueueJobId, setDeletingQueueJobId] = useState<number | null>(null);
@@ -361,7 +356,6 @@ export default function GeneralLedgerUpload() {
   const parseImportBackgroundMutation = useParseImportInBackground();
   const dryRunPreviewPageMutation = useDryRunPreviewPage();
   const accountSuggestionsMutation = useGLAccountSuggestions();
-  const xgboostTrainingMutation = useTrainXgboostTestModelFromGlExport();
   const { activeJobs, addJob, removeJob } = useGlobalProgress();
   const deleteImportMutation = useDeleteImport();
   const addManualEntryMutation = useAddManualEntry();
@@ -544,11 +538,10 @@ export default function GeneralLedgerUpload() {
   );
   const shouldRetryMissingAiRows =
     aiReviewRunState === "incomplete" && missingAiReviewRowNumbers.length > 0;
-  const isTrainingXgboost = xgboostTrainingMutation.isPending;
   const isPreviewPageLoading = dryRunPreviewPageMutation.isPending;
   const isBackgroundParsing = parseImportBackgroundMutation.isPending;
   const isSavingImport = saveImportMutation.isPending || saveImportFromUploadMutation.isPending || saveDryRunPreviewMutation.isPending;
-  const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isTrainingXgboost || isSavingImport;
+  const isUploadBusy = parseImportMutation.isPending || isBackgroundParsing || isPreviewPageLoading || isSavingImport;
   const isIncrementalPreviewLoading = Boolean(
     incrementalPreviewProgress &&
     incrementalPreviewProgress.loaded < incrementalPreviewProgress.total
@@ -559,7 +552,6 @@ export default function GeneralLedgerUpload() {
     !isReviewingAccounts &&
     !isSavingImport &&
     !isPreviewPageLoading &&
-    !isTrainingXgboost &&
     !parseImportMutation.isPending &&
     !isBackgroundParsing;
   const accountReviewProgressLabel = accountReviewProgress
@@ -954,7 +946,7 @@ export default function GeneralLedgerUpload() {
     if (!file && previewToken && accountReviewHistoryTokenRef.current !== `done:${previewToken}`) return;
     if (isRestoringAccountReviewHistory) return;
     if (accountSuggestions || suggestionError || isReviewingAccounts) return;
-    if (isSavingImport || isPreviewPageLoading || isTrainingXgboost || parseImportMutation.isPending || isBackgroundParsing) return;
+    if (isSavingImport || isPreviewPageLoading || parseImportMutation.isPending || isBackgroundParsing) return;
 
     const reviewKey = [
       summary.dry_run_preview_token ?? summary.source_file_id ?? "new-upload",
@@ -990,7 +982,6 @@ export default function GeneralLedgerUpload() {
     isRestoringAccountReviewHistory,
     isReviewingAccounts,
     isSavingImport,
-    isTrainingXgboost,
     parseImportMutation.isPending,
     preview,
     selectedBook,
@@ -1015,7 +1006,6 @@ export default function GeneralLedgerUpload() {
     setActiveReviewFinder(null);
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
-    setXgboostTrainingResult(null);
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
     accountReviewHistoryTokenRef.current = null;
@@ -1188,7 +1178,6 @@ export default function GeneralLedgerUpload() {
     setActiveReviewFinder(null);
     setAppliedSuggestionChanges(new Map());
     setSuggestionError(null);
-    setXgboostTrainingResult(null);
     setBackgroundUploadMessage(null);
     autoAccountReviewKeyRef.current = null;
     accountReviewHistoryTokenRef.current = null;
@@ -1231,34 +1220,6 @@ export default function GeneralLedgerUpload() {
         setIsUploadDrawerOpen(false);
       }
 
-      if (trainXgboostTestModel) {
-        const training = await xgboostTrainingMutation.mutateAsync({
-          file: currentFile,
-          formatCode: currentBook.format_code,
-          companyName: currentBook.company_name,
-          targetField: "split_account",
-          excludeBlankTargets: true,
-          excludeTransfers: true,
-          includeZeroAmounts: false,
-          numRounds: 50,
-        });
-        if (parseRunIdRef.current !== parseRunId) return;
-        setXgboostTrainingResult(training);
-        if (training.status !== "success" && training.status !== "queued") {
-          setError(`XGBoost test training failed: ${training.message}`);
-          return;
-        }
-        if (training.status === "queued") {
-          addJob(
-            "XGBoost training",
-            Promise.resolve(training),
-            {
-              description: "Training from the GL export in the background...",
-              type: "database",
-            }
-          );
-        }
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse GL file");
       setAccountReviewProgress(null);
@@ -2371,66 +2332,14 @@ export default function GeneralLedgerUpload() {
                 Auto
               </Button>
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-md border bg-muted/20 p-4">
-              <div>
-                <Label htmlFor="xgboost-test-training">XGBoost test training</Label>
-              </div>
-              <Button
-                id="xgboost-test-training"
-                type="button"
-                variant={trainXgboostTestModel ? "default" : "outline"}
-                size="sm"
-                onClick={() => setTrainXgboostTestModel((enabled) => !enabled)}
-                disabled={isUploadBusy}
-              >
-                {trainXgboostTestModel ? "On" : "Off"}
-              </Button>
-            </div>
           </div>
-
-          {(xgboostTrainingResult?.status === "success" || xgboostTrainingResult?.status === "queued") && (
-            <div className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-400/40 dark:bg-blue-950/40 dark:text-blue-200">
-              {xgboostTrainingResult.status === "queued" ? (
-                <div>
-                  <div className="font-medium">XGBoost test training queued</div>
-                  <div className="mt-1 text-xs">
-                    The model is training in the background. Keep using the page; a notification will appear when it finishes.
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="font-medium">
-                    XGBoost test trained:{" "}
-                    {xgboostTrainingResult.result?.trained_rows.toLocaleString("en-US") ?? "0"} rows /{" "}
-                    {xgboostTrainingResult.result?.class_count.toLocaleString("en-US") ?? "0"} accounts
-                  </div>
-                  {xgboostTrainingResult.training && (
-                    <div className="mt-1 text-xs">
-                      Trusted current split-account labels from company/name/memo/current bank input;{" "}
-                      {(xgboostTrainingResult.training.memo_rows ?? 0).toLocaleString("en-US")} memo rows,{" "}
-                      {(xgboostTrainingResult.training.current_account_rows ?? 0).toLocaleString("en-US")} current-account rows; skipped{" "}
-                      {xgboostTrainingResult.training.skipped_transfer_rows.toLocaleString("en-US")} transfers,{" "}
-                      {(xgboostTrainingResult.training.skipped_untrainable_target_rows ?? 0).toLocaleString("en-US")} clearing/bank targets.
-                    </div>
-                  )}
-                </>
-              )}
-              {xgboostTrainingResult.training?.cleanup_files?.length ? (
-                <div className="mt-1 font-mono text-xs" title={xgboostTrainingResult.training.cleanup_files.join(" | ")}>
-                  Cleanup: {xgboostTrainingResult.training.cleanup_files.join(" | ")}
-                </div>
-              ) : null}
-            </div>
-          )}
 
           <div className="mt-6 flex justify-end">
             <Button
               disabled={!selectedBook || !file || isUploadBusy}
               onClick={handleParse}
             >
-              {isTrainingXgboost
-                ? "Training XGBoost..."
-                : isBackgroundParsing
+              {isBackgroundParsing
                 ? "Queueing dry-run..."
                 : parseImportMutation.isPending
                 ? "Building dry-run..."

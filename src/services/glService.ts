@@ -23,8 +23,6 @@ import type {
   GLUploadQueueCancelResponse,
   GLUploadQueueDeleteResponse,
   GLUploadQueueResponse,
-  GLXgboostTestTrainingRequest,
-  GLXgboostTestTrainingResponse,
   GLExtractionFormat,
   GLFormatsResponse,
   ImportPreview,
@@ -427,28 +425,6 @@ export const GLService = {
   ): Promise<GLAccountSuggestionsHistoryResponse> {
     return apiClient.get<GLAccountSuggestionsHistoryResponse>(
       `/accounting/gl/imports/dry-run-preview/${encodeURIComponent(previewToken)}/account-suggestions-history`
-    );
-  },
-
-  async trainXgboostTestModelFromGlExport(
-    params: GLXgboostTestTrainingRequest
-  ): Promise<GLXgboostTestTrainingResponse> {
-    const formData = new FormData();
-    formData.append("file", params.file);
-    formData.append("format_code", params.formatCode);
-    if (params.companyName) {
-      formData.append("company_name", params.companyName);
-    }
-    formData.append("target_field", params.targetField ?? "split_account");
-    formData.append("exclude_blank_targets", String(params.excludeBlankTargets ?? true));
-    formData.append("exclude_transfers", String(params.excludeTransfers ?? true));
-    formData.append("include_zero_amounts", String(params.includeZeroAmounts ?? false));
-    formData.append("num_rounds", String(params.numRounds ?? 50));
-    formData.append("run_in_background", "true");
-
-    return apiClient.post<GLXgboostTestTrainingResponse>(
-      "/classification/train-from-gl-export",
-      formData
     );
   },
 

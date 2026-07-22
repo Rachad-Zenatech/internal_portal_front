@@ -170,69 +170,11 @@ export type GLAccountSuggestionsHistoryResponse = {
   } | null;
 };
 
-export type GLXgboostTestTrainingRequest = {
-  file: File;
-  formatCode: string;
-  companyName?: string | null;
-  targetField?: "split_account" | "ledger_account" | "business_account" | "auto";
-  excludeBlankTargets?: boolean;
-  excludeTransfers?: boolean;
-  includeZeroAmounts?: boolean;
-  numRounds?: number;
-};
-
 export type GLParseImportRequest = {
   companyBookId: number;
   file: File;
   dryRun?: boolean;
   previewLimit?: number | null;
-};
-
-export type GLXgboostTestTrainingResponse = {
-  status: "success" | "queued" | "error" | string;
-  message: string;
-  queued?: boolean;
-  backgroundJobId?: string;
-  jobId?: string;
-  queued_upload_bytes?: number;
-  source_filename?: string;
-  format_code?: string;
-  training?: {
-    test_only: boolean;
-    label_source: string;
-    feature_text_source?: string;
-    training_csv_path: string;
-    target_field: string;
-    training_rows: number;
-    memo_rows?: number;
-    description_rows?: number;
-    current_account_rows?: number;
-    class_count: number;
-    top_accounts: Array<{ account: string; rows: number }>;
-    skipped_blank_target_rows: number;
-    skipped_transfer_rows: number;
-    skipped_zero_amount_rows: number;
-    skipped_untrainable_target_rows?: number;
-    skipped_missing_transaction_text_rows?: number;
-    cleanup_files: string[];
-  };
-  result?: {
-    model_path: string;
-    labels_path: string;
-    metadata_path?: string;
-    class_count: number;
-    trained_rows: number;
-    known_vendor_count?: number;
-  };
-  model_status?: {
-    xgboost_installed?: boolean;
-    model_loaded?: boolean;
-    label_mapping_present?: boolean;
-    metadata_present?: boolean;
-    model_path?: string;
-    labels_path?: string;
-    metadata_path?: string;
-  };
 };
 
 export type GLAccountReviewCompanyContext = {

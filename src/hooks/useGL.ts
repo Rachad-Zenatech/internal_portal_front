@@ -15,8 +15,6 @@ import type {
   GLUploadQueueCancelResponse,
   GLUploadQueueDeleteResponse,
   GLUploadQueueResponse,
-  GLXgboostTestTrainingRequest,
-  GLXgboostTestTrainingResponse,
   TrialBalance,
   GLExtractionFormat,
   CompanyBook,
@@ -220,16 +218,6 @@ export const useGLAccountSuggestions = () => {
     GLAccountSuggestionsRequest
   >({
     mutationFn: (params) => GLService.getAccountSuggestions(params),
-  });
-};
-
-export const useTrainXgboostTestModelFromGlExport = () => {
-  return useMutation<
-    GLXgboostTestTrainingResponse,
-    Error,
-    GLXgboostTestTrainingRequest
-  >({
-    mutationFn: (params) => GLService.trainXgboostTestModelFromGlExport(params),
   });
 };
 
