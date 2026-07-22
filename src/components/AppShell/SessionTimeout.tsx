@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/AuthContext";
+import { apiClient } from "@/services/apiClient";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Timer, AlertTriangle } from "lucide-react";
 
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-const COUNTDOWN_MS = 15 * 60 * 1000; // 15 minutes
+const COUNTDOWN_MS = 5 * 60 * 1000; // 5 minutes (Total 15 mins)
 
 export default function SessionTimeout() {
   const { logout, user } = useAuth();
@@ -29,39 +30,40 @@ export default function SessionTimeout() {
       setIsOpen(false);
       isOpenRef.current = false;
       setTimeLeft(COUNTDOWN_MS);
+      // Immediately send a heartbeat so the backend knows we continued
+      apiClient.post('/auth/heartbeat').catch(() => {});
     }
   }, []);
 
   useEffect(() => {
-    // Only track if user is logged in
     if (!user) return;
-
-    // Reset the timer when the user logs in so that a stale mount timestamp
-    // (from sitting on the login page) doesn't immediately log them out.
     resetTimer();
 
-    // Events that count as activity
     const events = ["mousedown", "mousemove", "keydown", "scroll", "touchstart"];
-    
-    // Throttle the reset so we aren't calling Date.now() on every pixel of mouse movement
     let throttleTimer: number | null = null;
+    let lastHeartbeatSent = Date.now();
+
     const handleActivity = () => {
       if (throttleTimer) return;
-      // Don't reset activity if the dialog is already open (they must click the button)
       if (isOpenRef.current) return;
       
       resetTimer();
-      throttleTimer = setTimeout(() => {
+      throttleTimer = window.setTimeout(() => {
         throttleTimer = null;
-      }, 1000); // 1 second throttle
+      }, 1000);
     };
 
     events.forEach(event => document.addEventListener(event, handleActivity));
 
-    // Check interval every second
-    checkIntervalRef.current = setInterval(() => {
+    checkIntervalRef.current = window.setInterval(() => {
       const now = Date.now();
       const idleTime = now - lastActivityRef.current;
+
+      // Send a heartbeat every 60 seconds IF the user has been active since the last heartbeat
+      if (now - lastHeartbeatSent >= 60000 && idleTime < 60000) {
+        apiClient.post('/auth/heartbeat').catch(() => {});
+        lastHeartbeatSent = now;
+      }
 
       if (idleTime >= IDLE_TIMEOUT_MS) {
         if (!isOpenRef.current) {
@@ -69,11 +71,9 @@ export default function SessionTimeout() {
           isOpenRef.current = true;
         }
         
-        // Calculate remaining time for the 15-minute countdown
         const remaining = COUNTDOWN_MS - (idleTime - IDLE_TIMEOUT_MS);
         
         if (remaining <= 0) {
-          // Time's up! Logout
           clearInterval(checkIntervalRef.current);
           setIsOpen(false);
           isOpenRef.current = false;
