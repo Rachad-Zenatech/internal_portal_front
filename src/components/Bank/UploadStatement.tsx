@@ -181,7 +181,7 @@ export default function UploadStatement({ onUploadStart, isUploading = false }: 
                 type="text"
                 value={tesseractCmd}
                 onChange={(e) => setTesseractCmd(e.target.value)}
-                placeholder="C:/Program Files/Tesseract-OCR/tesseract.exe"
+                placeholder="/usr/bin/tesseract"
                 className="w-full h-10 rounded-lg border-muted-foreground/20 font-mono text-xs focus-visible:ring-primary placeholder:text-muted-foreground/40 bg-muted/20"
               />
             </div>
