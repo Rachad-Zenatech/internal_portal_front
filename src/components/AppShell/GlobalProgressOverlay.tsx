@@ -4,6 +4,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
 export function GlobalProgressOverlay() {
   const queryClient = useQueryClient();
@@ -11,6 +12,7 @@ export function GlobalProgressOverlay() {
   const { data: notifications = [] } = useNotifications({
     refetchInterval: activeJobs.length > 0 ? 2000 : false,
   });
+  const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
@@ -32,7 +34,14 @@ export function GlobalProgressOverlay() {
               description: matchingNotification.message || `${job.title} has completed successfully.`,
               action: targetUrl ? {
                 label: "View",
-                onClick: () => window.location.assign(targetUrl)
+                onClick: () => {
+                  if (targetUrl.startsWith('http')) {
+                    window.location.assign(targetUrl);
+                  } else {
+                    const cleanUrl = targetUrl.startsWith('/') ? targetUrl : '/' + targetUrl;
+                    navigate(cleanUrl);
+                  }
+                }
               } : undefined
             };
 
@@ -45,7 +54,7 @@ export function GlobalProgressOverlay() {
         }
       }
     });
-  }, [notifications, activeJobs, removeJob, queryClient]);
+  }, [notifications, activeJobs, removeJob, queryClient, navigate]);
 
   // Collapse if there are no more active jobs (so it doesn't open empty next time)
   useEffect(() => {
