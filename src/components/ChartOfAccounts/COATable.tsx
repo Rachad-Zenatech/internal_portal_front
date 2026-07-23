@@ -132,7 +132,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [globalFilter, setGlobalFilter] = useState("");
 
-  const accounts = result?.chart_of_accounts || [];
+  const accounts = useMemo(() => result?.chart_of_accounts || [], [result?.chart_of_accounts]);
 
   const columns = useMemo<ColumnDef<ChartOfAccount>[]>(() => {
     const cols: ColumnDef<ChartOfAccount>[] = [
