@@ -171,7 +171,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         ),
-        cell: ({ row }) => <div className="whitespace-pre-wrap break-words max-w-sm">{row.original.detail_type}</div>,
+        cell: ({ row }) => <span>{row.original.account_number}</span>,
       },
       {
         accessorKey: "account_name",
@@ -201,7 +201,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         ),
-        cell: ({ row }) => <span>{row.original.detail_type}</span>,
+        cell: ({ row }) => <div className="whitespace-pre-wrap break-words max-w-sm">{row.original.detail_type}</div>,
       },
       {
         accessorKey: "is_active",
