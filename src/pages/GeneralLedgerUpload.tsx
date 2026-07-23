@@ -119,6 +119,7 @@ type ReviewFinderKind =
   | "ai"
   | "ai_changed"
   | "human_review"
+  | "missing_targets"
   | "differences";
 
 type DifferenceFinderFilter =
@@ -136,6 +137,7 @@ type SaveImportBlockerTarget =
   | "reconciliation"
   | "account_review"
   | "import_review"
+  | "missing_targets"
   | "save_import";
 
 type SaveImportBlocker = {
@@ -144,6 +146,7 @@ type SaveImportBlocker = {
   detail: string;
   actionLabel: string;
   target: SaveImportBlockerTarget;
+  fixCount?: number;
 };
 
 type AiReviewRunState = "disabled" | "running" | "completed" | "not_run" | "incomplete";
@@ -211,9 +214,32 @@ function mergeImportPreviewPages(
     );
   }
 
-  const reviewSummary = { ...(current.account_review_summary ?? {}) } as Record<string, number>;
+  const reviewSummary = { ...(current.account_review_summary ?? {}) } as Record<string, unknown>;
   for (const [key, value] of Object.entries(incoming.account_review_summary ?? {})) {
-    if (typeof value === "number") reviewSummary[key] = (reviewSummary[key] ?? 0) + value;
+    if (typeof value === "number") {
+      reviewSummary[key] = Number(reviewSummary[key] ?? 0) + value;
+    }
+  }
+  const currentOutcomeCounts = current.account_review_summary?.decision_outcome_counts;
+  const incomingOutcomeCounts = incoming.account_review_summary?.decision_outcome_counts;
+  if (currentOutcomeCounts || incomingOutcomeCounts) {
+    reviewSummary.decision_outcome_counts = {
+      keep_current:
+        (currentOutcomeCounts?.keep_current ?? 0) +
+        (incomingOutcomeCounts?.keep_current ?? 0),
+      suggested_change:
+        (currentOutcomeCounts?.suggested_change ?? 0) +
+        (incomingOutcomeCounts?.suggested_change ?? 0),
+      manual_review:
+        (currentOutcomeCounts?.manual_review ?? 0) +
+        (incomingOutcomeCounts?.manual_review ?? 0),
+      not_applicable:
+        (currentOutcomeCounts?.not_applicable ?? 0) +
+        (incomingOutcomeCounts?.not_applicable ?? 0),
+      no_suggestion:
+        (currentOutcomeCounts?.no_suggestion ?? 0) +
+        (incomingOutcomeCounts?.no_suggestion ?? 0),
+    };
   }
 
   const totalRows = current.pagination?.total_rows ?? current.totals.line_count;
@@ -307,8 +333,10 @@ export default function GeneralLedgerUpload() {
     useState<number | null>(null);
   const [cancelingQueueJobId, setCancelingQueueJobId] = useState<number | null>(null);
   const [deletingQueueJobId, setDeletingQueueJobId] = useState<number | null>(null);
+  const [openingQueuePreviewToken, setOpeningQueuePreviewToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const parseRunIdRef = useRef(0);
+  const previewPageRequestIdRef = useRef(0);
   const loadedPreviewTokenRef = useRef<string | null>(null);
   const autoAccountReviewKeyRef = useRef<string | null>(null);
   const accountReviewHistoryTokenRef = useRef<string | null>(null);
@@ -493,6 +521,106 @@ export default function GeneralLedgerUpload() {
       }))
     );
   }, [preview, suggestionByTransaction]);
+  const missingCurrentTargetRows = useMemo(
+    () => workbookRows.filter(({ txn, suggestion }) => {
+      // Only bank/credit-card source rows are coding decisions. Mirrored
+      // expense, invoice, bill, and journal rows remain visible for context,
+      // but they must not create duplicate save blockers.
+      if (
+        txn.account_review?.decision_outcome === "not_applicable" ||
+        txn.account_review?.source === "not_bank_transaction"
+      ) return false;
+      const currentTarget = (
+        suggestion?.current_target_account_number ??
+        txn.account_review?.current_target_account_number ??
+        txn.split_account_number ??
+        ""
+      ).trim();
+      if (currentTarget) return false;
+
+      const appliedTarget =
+        suggestion && appliedSuggestionRows.has(suggestion.row_number)
+          ? (getVisibleSuggestedTargetNumber(suggestion) ?? "").trim()
+          : "";
+      if (
+        appliedTarget &&
+        appliedTarget !== "MANUAL_REVIEW" &&
+        suggestion &&
+        !isSelfTargetSuggestion(suggestion)
+      ) return false;
+
+      return !(counterChangedRows.get(txn.line_id)?.accountNumber ?? "").trim();
+    }),
+    [appliedSuggestionRows, counterChangedRows, workbookRows]
+  );
+  const requiredSaveFixRows = useMemo(() => {
+    const rowsByLineId = new Map<number, WorkbookPreviewRow>();
+    for (const row of missingCurrentTargetRows) {
+      const targetRow = findBankChargeFixRow(workbookRows, row);
+      rowsByLineId.set(targetRow.txn.line_id, targetRow);
+    }
+    return [...rowsByLineId.values()];
+  }, [missingCurrentTargetRows, workbookRows]);
+  const offAccountBankChargeByLineId = useMemo(() => {
+    const relatedRows = new Map<number, WorkbookPreviewRow>();
+    for (const row of workbookRows) {
+      if (isWorkbookBankOrCreditCardRow(row)) continue;
+      const currentTarget = String(
+        row.txn.account_review?.current_target_account_number ??
+          row.txn.split_account_number ??
+          ""
+      ).trim();
+      if (currentTarget) continue;
+      const bankCharge = findBankChargeFixRow(workbookRows, row);
+      if (bankCharge.txn.line_id !== row.txn.line_id) {
+        relatedRows.set(row.txn.line_id, bankCharge);
+      }
+    }
+    return relatedRows;
+  }, [workbookRows]);
+  const offAccountJournalCounterpartByLineId = useMemo(() => {
+    const relatedRows = new Map<number, WorkbookPreviewRow>();
+    for (const row of workbookRows) {
+      if (isWorkbookBankOrCreditCardRow(row)) continue;
+      if (offAccountBankChargeByLineId.has(row.txn.line_id)) continue;
+      const currentTarget = String(
+        row.txn.account_review?.current_target_account_number ??
+          row.txn.split_account_number ??
+          ""
+      ).trim();
+      if (currentTarget) continue;
+      const counterpart = findJournalCounterpartRow(workbookRows, row);
+      if (counterpart) {
+        relatedRows.set(row.txn.line_id, counterpart);
+      }
+    }
+    return relatedRows;
+  }, [offAccountBankChargeByLineId, workbookRows]);
+  const requiredSaveFixChanges = useMemo<ApplySuggestedTargetRequest[]>(() => {
+    const companyId = summary?.company_id ?? selectedBook?.company_id ?? 0;
+    if (!companyId) return [];
+
+    const seenRows = new Set<number>();
+    const changes: ApplySuggestedTargetRequest[] = [];
+    for (const { suggestion } of requiredSaveFixRows) {
+      if (
+        !suggestion ||
+        suggestion.requires_manual_review ||
+        isSelfTargetSuggestion(suggestion)
+      ) continue;
+      const accountNumber = getVisibleSuggestedTargetNumber(suggestion)?.trim();
+      if (!accountNumber || accountNumber === "MANUAL_REVIEW") continue;
+      if (seenRows.has(suggestion.row_number)) continue;
+      seenRows.add(suggestion.row_number);
+      changes.push({
+        company_id: companyId,
+        row_number: suggestion.row_number,
+        target_field: suggestion.target_field,
+        suggested_account_number: accountNumber,
+      });
+    }
+    return changes;
+  }, [requiredSaveFixRows, selectedBook?.company_id, summary?.company_id]);
   const xgboostWorkbookRows = useMemo(
     () => workbookRows.filter(isWorkbookXgboostReviewRow),
     [workbookRows]
@@ -538,6 +666,7 @@ export default function GeneralLedgerUpload() {
     if (activeReviewFinder === "xgboost") return xgboostWorkbookRows;
     if (activeReviewFinder === "split_lookup") return splitLookupWorkbookRows;
     if (activeReviewFinder === "human_review") return humanReviewWorkbookRows;
+    if (activeReviewFinder === "missing_targets") return requiredSaveFixRows;
     if (activeReviewFinder === "differences") return differencesWorkbookRows;
     return [];
   }, [
@@ -549,6 +678,7 @@ export default function GeneralLedgerUpload() {
     differencesWorkbookRows,
     humanReviewWorkbookRows,
     qbRuleWorkbookRows,
+    requiredSaveFixRows,
     splitLookupWorkbookRows,
     xgboostWorkbookRows,
   ]);
@@ -609,35 +739,14 @@ export default function GeneralLedgerUpload() {
         target: "upload",
       });
     } else {
-      const emptyCurrentTargetRows = workbookRows.filter(({ txn, suggestion }) => {
-        const currentTarget = (
-          suggestion?.current_target_account_number ??
-          txn.account_review?.current_target_account_number ??
-          txn.split_account_number ??
-          ""
-        ).trim();
-        if (currentTarget) return false;
-
-        const appliedTarget =
-          suggestion && appliedSuggestionRows.has(suggestion.row_number)
-            ? (getVisibleSuggestedTargetNumber(suggestion) ?? "").trim()
-            : "";
-        if (appliedTarget && appliedTarget !== "MANUAL_REVIEW") return false;
-
-        return !(counterChangedRows.get(txn.line_id)?.accountNumber ?? "").trim();
-      });
-      if (emptyCurrentTargetRows.length > 0) {
-        const sampleRows = emptyCurrentTargetRows
-          .slice(0, 8)
-          .map(({ txn }) => txn.line_id)
-          .join(", ");
-        const remaining = emptyCurrentTargetRows.length - Math.min(emptyCurrentTargetRows.length, 8);
+      if (missingCurrentTargetRows.length > 0) {
         blockers.push({
           key: "empty-current-targets",
           title: "Current targets are required",
-          detail: `${emptyCurrentTargetRows.length.toLocaleString("en-US")} GL row(s) still have an empty current target. Apply a suggested target or select an account for rows ${sampleRows}${remaining > 0 ? ` (and ${remaining.toLocaleString("en-US")} more)` : ""}.`,
-          actionLabel: "Go to import review",
-          target: "import_review",
+          detail: `${missingCurrentTargetRows.length.toLocaleString("en-US")} GL row(s) still need a current target. The fix list points each off account to its related bank charge or journal counterpart when one can be identified.`,
+          actionLabel: `View all ${requiredSaveFixRows.length.toLocaleString("en-US")} fixes`,
+          target: "missing_targets",
+          fixCount: missingCurrentTargetRows.length,
         });
       }
       if (!preview.reconciliation?.is_balanced) {
@@ -656,6 +765,7 @@ export default function GeneralLedgerUpload() {
           detail: `${mismatchedChecks.map((check) => check.check).join(", ")} must match the source file before save.`,
           actionLabel: "Go to checks",
           target: "reconciliation",
+          fixCount: mismatchedChecks.length,
         });
       }
     }
@@ -701,15 +811,15 @@ export default function GeneralLedgerUpload() {
     return blockers;
   }, [
     accountReviewProgressLabel,
-    appliedSuggestionRows,
     applySuggestedTargetMutation.isPending,
     canSaveDryRun,
-    counterChangedRows,
     isDryRun,
     isIncrementalPreviewLoading,
     isReviewingAccounts,
     isSavingImport,
+    missingCurrentTargetRows,
     preview,
+    requiredSaveFixRows,
     incrementalPreviewProgress,
     reconciliationChecks,
     reviewDifference,
@@ -1117,6 +1227,10 @@ export default function GeneralLedgerUpload() {
       scrollToSection("import-review");
       return;
     }
+    if (blocker.target === "missing_targets") {
+      setActiveReviewFinder("missing_targets");
+      return;
+    }
     scrollToSection("save-import");
   }
 
@@ -1398,6 +1512,11 @@ export default function GeneralLedgerUpload() {
       null;
     if (!previewToken) return;
 
+    const requestId = ++previewPageRequestIdRef.current;
+    if (openingCachedPreview) {
+      setOpeningQueuePreviewToken(previewToken);
+    }
+
     setError(null);
     pendingImportReviewScrollRef.current = true;
     setBackgroundUploadMessage("Loading saved dry-run preview...");
@@ -1407,6 +1526,7 @@ export default function GeneralLedgerUpload() {
         page,
         pageSize: DRY_RUN_PREVIEW_LIMIT,
       });
+      if (requestId !== previewPageRequestIdRef.current) return;
       if (openingCachedPreview) {
         // A queue preview belongs to the server-side upload and its already
         // queued account-review job. Keeping the old local File here makes
@@ -1443,6 +1563,7 @@ export default function GeneralLedgerUpload() {
       window.history.replaceState(null, "", "/general-ledger/upload#import-review");
       scrollToImportReview();
     } catch (err) {
+      if (requestId !== previewPageRequestIdRef.current) return;
       setBackgroundUploadMessage(null);
       if (isPreviewExpiredError(err)) {
         // Stale token from a reopened/refreshed link: clear it and reset so we
@@ -1454,6 +1575,12 @@ export default function GeneralLedgerUpload() {
         return;
       }
       setError(err instanceof Error ? err.message : "Failed to load dry-run preview page");
+    } finally {
+      if (openingCachedPreview) {
+        setOpeningQueuePreviewToken((current) =>
+          current === previewToken ? null : current
+        );
+      }
     }
   }
 
@@ -1764,6 +1891,12 @@ export default function GeneralLedgerUpload() {
       setError("Choose a valid suggested target before applying.");
       return;
     }
+    if (isSelfTargetSuggestion(suggestion)) {
+      setError(
+        `Account ${suggestedAccountNumber} is already the transaction's other side. Choose the actual counter account.`
+      );
+      return;
+    }
 
     const currentTargetNumber = String(
       suggestion.current_target_account_number ??
@@ -1798,6 +1931,34 @@ export default function GeneralLedgerUpload() {
           return next;
         });
       }
+      setAccountSuggestions((current) => {
+        if (!current) return current;
+        const updatedSuggestions = current.suggestions.map((row) =>
+          applySuggestionKey(row) === suggestionKey
+            ? {
+                ...row,
+                requires_manual_review: false,
+                is_suggested_change: true,
+                decision_outcome: "suggested_change" as const,
+                review_source: "manual",
+                review_status: "manual_approved",
+                review_label: "Manually approved",
+                rule: "manual_review_approved",
+                reason: `Manually approved for Save Import. ${row.reason ?? ""}`.trim(),
+              }
+            : row
+        );
+        return {
+          ...current,
+          suggestions: updatedSuggestions,
+          changed_suggestion_count: countChangedSuggestions(updatedSuggestions),
+          manual_review_count: updatedSuggestions.filter(
+            (row) => row.requires_manual_review
+          ).length,
+          decision_outcome_counts:
+            countSuggestionDecisionOutcomes(updatedSuggestions),
+        };
+      });
       setApplyingSuggestionKey((current) => (current === suggestionKey ? null : current));
       return;
     }
@@ -1855,6 +2016,11 @@ export default function GeneralLedgerUpload() {
             reason: "Suggested target was applied to the staged import.",
             rule: "applied_suggested_target",
             requires_manual_review: false,
+            is_suggested_change: true,
+            decision_outcome: "suggested_change" as const,
+            review_source: "manual",
+            review_status: "manual_approved",
+            review_label: "Manually approved",
           };
 
           if (response.applied_change.target_field === "split_account") {
@@ -1879,6 +2045,8 @@ export default function GeneralLedgerUpload() {
           suggestions: updatedSuggestions,
           changed_suggestion_count: countChangedSuggestions(updatedSuggestions),
           manual_review_count: updatedSuggestions.filter((row) => row.requires_manual_review).length,
+          decision_outcome_counts:
+            countSuggestionDecisionOutcomes(updatedSuggestions),
         };
       });
     } catch (err) {
@@ -2045,6 +2213,25 @@ export default function GeneralLedgerUpload() {
           review_label: "Manual selection",
           requires_manual_review: false,
           is_suggested_change: true,
+          decision_outcome:
+            accountNumber === (row.current_target_account_number ?? "").trim()
+              ? "keep_current"
+              : "suggested_change",
+          pipeline_stage: "manual_override",
+          decision_priority: 0,
+          decision_policy: "manual_override",
+          alternative_suggestions: [
+            ...(row.alternative_suggestions ?? []),
+            ...(getVisibleSuggestedTargetNumber(row)
+              ? [{
+                  source: row.pipeline_stage || row.review_source || "previous_suggestion",
+                  account_number: getVisibleSuggestedTargetNumber(row),
+                  account_name: getVisibleSuggestedTargetName(row),
+                  confidence: row.confidence,
+                  rejected_reason: "Replaced by the user's manual selection.",
+                }]
+              : []),
+          ],
         };
 
         if (row.target_field === "split_account") {
@@ -2059,6 +2246,7 @@ export default function GeneralLedgerUpload() {
         suggestions: updatedSuggestions,
         changed_suggestion_count: countChangedSuggestions(updatedSuggestions),
         manual_review_count: updatedSuggestions.filter((row) => row.requires_manual_review).length,
+        decision_outcome_counts: countSuggestionDecisionOutcomes(updatedSuggestions),
       };
     });
   }
@@ -2074,6 +2262,7 @@ export default function GeneralLedgerUpload() {
       if (suggestion.requires_manual_review) continue;
       const suggestedAccountNumber = getVisibleSuggestedTargetNumber(suggestion)?.trim();
       if (!suggestedAccountNumber || suggestedAccountNumber === "MANUAL_REVIEW") continue;
+      if (isSelfTargetSuggestion(suggestion)) continue;
       const currentTargetNumber = String(
         suggestion.current_target_account_number ??
           (suggestion.target_field === "ledger_account"
@@ -2127,6 +2316,81 @@ export default function GeneralLedgerUpload() {
       }
       return next;
     });
+  }
+
+  async function handleApplyRequiredSaveFixes() {
+    const changes = requiredSaveFixChanges;
+    if (changes.length === 0) {
+      setError("The remaining required save fixes need a manual target selection.");
+      setActiveReviewFinder("missing_targets");
+      return;
+    }
+
+    setError(null);
+    try {
+      if (isDryRun || summary?.source_file_id === null) {
+        setAppliedSuggestionRows((current) => {
+          const next = new Set(current);
+          for (const change of changes) next.add(change.row_number);
+          return next;
+        });
+        setCounterChangedRows((current) => {
+          const next = new Map(current);
+          for (const change of changes) {
+            const suggestion = accountSuggestions?.suggestions.find(
+              (item) => item.row_number === change.row_number
+            );
+            if (!suggestion) continue;
+            const counterRowNumber = findMirroredPreviewRowNumber(preview, suggestion);
+            if (counterRowNumber !== null) {
+              next.set(counterRowNumber, {
+                accountNumber: change.suggested_account_number,
+                accountName: getVisibleSuggestedTargetName(suggestion) ?? null,
+              });
+            }
+          }
+          return next;
+        });
+      } else if (summary?.source_file_id) {
+        const response = await applySuggestedTargetsMutation.mutateAsync({
+          sourceFileId: summary.source_file_id,
+          companyId: summary.company_id,
+          suggestions: changes,
+        });
+        setLocalPreview(response.preview);
+        setAppliedSuggestionRows((current) => {
+          const next = new Set(current);
+          for (const change of response.applied_changes) next.add(change.row_number);
+          return next;
+        });
+        setCounterChangedRows((current) => {
+          const next = new Map(current);
+          for (const change of response.applied_changes) {
+            if (!change.counter_change) continue;
+            next.set(change.counter_change.line_id, {
+              accountNumber: change.counter_change.applied_account_number,
+              accountName: change.counter_change.applied_account_name,
+            });
+          }
+          return next;
+        });
+        if (response.errors.length > 0) {
+          setError(
+            `${response.applied_count.toLocaleString("en-US")} fix(es) applied; ${response.error_count.toLocaleString("en-US")} could not be applied.`
+          );
+        }
+      }
+
+      const manualCount = Math.max(0, requiredSaveFixRows.length - changes.length);
+      setBackgroundUploadMessage(
+        manualCount > 0
+          ? `${changes.length.toLocaleString("en-US")} required save fix(es) applied. ${manualCount.toLocaleString("en-US")} row(s) still need manual targets.`
+          : `${changes.length.toLocaleString("en-US")} required save fix(es) applied.`
+      );
+      if (manualCount > 0) setActiveReviewFinder("missing_targets");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to apply required save fixes");
+    }
   }
 
   async function handleUnapplyAllSuggestedTargets() {
@@ -2243,7 +2507,7 @@ export default function GeneralLedgerUpload() {
           hasMore={Boolean(hasNextUploadQueuePage)}
           isLoadingMore={isFetchingNextUploadQueuePage}
           onLoadMore={() => void fetchNextUploadQueuePage()}
-          isPreviewLoading={isPreviewPageLoading}
+          openingPreviewToken={openingQueuePreviewToken}
           onRefresh={() => void refetchUploadQueue()}
           onOpenPreview={(token) => handleDryRunPreviewPage(1, token)}
           onCancelJob={(jobId) => handleCancelQueueJob(jobId)}
@@ -2934,6 +3198,9 @@ export default function GeneralLedgerUpload() {
                         applyingSuggestionKey={applyingSuggestionKey}
                         appliedSuggestionRows={appliedSuggestionRows}
                         counterChangedRows={counterChangedRows}
+                        relatedBankChargeByLineId={offAccountBankChargeByLineId}
+                        relatedJournalCounterpartByLineId={offAccountJournalCounterpartByLineId}
+                        onGoToRelatedBankCharge={goToReviewFinderRow}
                         isLoadingTransactions={isIncrementalPreviewLoading}
                         isExporting={exportingAccountKey === account.account_key}
                         onExport={() => void handleExportAccount(account)}
@@ -3005,7 +3272,12 @@ export default function GeneralLedgerUpload() {
               </p>
               {saveImportBlockers.length > 0 ? (
                 <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/40 dark:text-amber-100">
-                  <div className="font-medium">Save Import is disabled</div>
+                  <div className="font-medium">
+                    Save Import is disabled — {saveImportBlockers.reduce(
+                      (total, blocker) => total + (blocker.fixCount ?? 1),
+                      0
+                    ).toLocaleString("en-US")} fix(es) needed
+                  </div>
                   <div className="mt-1 text-xs text-amber-800 dark:text-amber-200">
                     Fix these items before saving.
                   </div>
@@ -3021,15 +3293,29 @@ export default function GeneralLedgerUpload() {
                             {blocker.detail}
                           </div>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="shrink-0 border-amber-300 bg-white text-amber-900 hover:bg-amber-100 dark:border-amber-400/40 dark:bg-background dark:text-amber-100"
-                          onClick={() => handleSaveImportBlockerAction(blocker)}
-                        >
-                          {blocker.actionLabel}
-                        </Button>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          {blocker.target === "missing_targets" && requiredSaveFixChanges.length > 0 ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => void handleApplyRequiredSaveFixes()}
+                              disabled={applySuggestedTargetsMutation.isPending}
+                            >
+                              {applySuggestedTargetsMutation.isPending
+                                ? "Applying fixes..."
+                                : `Apply ${requiredSaveFixChanges.length.toLocaleString("en-US")} suggested fix(es)`}
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 dark:border-amber-400/40 dark:bg-background dark:text-amber-100"
+                            onClick={() => handleSaveImportBlockerAction(blocker)}
+                          >
+                            {blocker.actionLabel}
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -3352,6 +3638,7 @@ function reviewFinderTitle(kind: ReviewFinderKind) {
   if (kind === "ai") return "AI Review finder";
   if (kind === "ai_changed") return "AI Changed finder";
   if (kind === "human_review") return "Human review finder";
+  if (kind === "missing_targets") return "Required save fixes";
   if (kind === "differences") return "Differences finder";
   return "XGBoost finder";
 }
@@ -3360,6 +3647,7 @@ function reviewFinderCountLabel(kind: ReviewFinderKind) {
   if (kind === "ai_changed") return "changed transactions";
   if (kind === "differences") return "differing transactions";
   if (kind === "split_lookup") return "split account matches";
+  if (kind === "missing_targets") return "transactions requiring a target";
   return "reviewed transactions";
 }
 
@@ -3384,6 +3672,9 @@ function reviewFinderEmptyText(kind: ReviewFinderKind) {
   }
   if (kind === "human_review") {
     return "No Human review transactions are available in this preview.";
+  }
+  if (kind === "missing_targets") {
+    return "Every GL transaction has a current target and is ready for this save check.";
   }
   if (kind === "differences") {
     return "No transactions with differing current and suggested targets are available in this preview.";
@@ -3608,6 +3899,9 @@ function ReviewAccountGroup({
   applyingSuggestionKey,
   appliedSuggestionRows,
   counterChangedRows,
+  relatedBankChargeByLineId,
+  relatedJournalCounterpartByLineId,
+  onGoToRelatedBankCharge,
   isLoadingTransactions,
   isExporting,
   onExport,
@@ -3624,6 +3918,9 @@ function ReviewAccountGroup({
   applyingSuggestionKey?: string | null;
   appliedSuggestionRows?: Set<number>;
   counterChangedRows?: Map<number, { accountNumber: string; accountName: string | null }>;
+  relatedBankChargeByLineId?: Map<number, WorkbookPreviewRow>;
+  relatedJournalCounterpartByLineId?: Map<number, WorkbookPreviewRow>;
+  onGoToRelatedBankCharge?: (row: WorkbookPreviewRow) => void;
   isLoadingTransactions?: boolean;
   isExporting?: boolean;
   onExport: () => void;
@@ -3723,15 +4020,24 @@ function ReviewAccountGroup({
                 );
                 const counterChange = counterChangedRows?.get(txn.line_id);
                 const isCounterChanged = Boolean(counterChange);
+                const relatedBankCharge = relatedBankChargeByLineId?.get(txn.line_id);
+                const relatedJournalCounterpart = relatedJournalCounterpartByLineId?.get(txn.line_id);
                 const visibleSuggestedTargetNumber = suggestion
                   ? getVisibleSuggestedTargetNumber(suggestion)
                   : null;
+                const isSelfTarget = Boolean(
+                  suggestion && isSelfTargetSuggestion(suggestion)
+                );
+                const requiresManualApproval = Boolean(
+                  suggestion?.requires_manual_review
+                );
                 const canApplySuggestedTarget = Boolean(
                   suggestion &&
                     onApplySuggestedTarget &&
                     visibleSuggestedTargetNumber &&
                     visibleSuggestedTargetNumber !== "MANUAL_REVIEW" &&
-                    isChangedSuggestion(suggestion) &&
+                    !isSelfTarget &&
+                    isApprovableSuggestion(suggestion) &&
                     !isApplied
                 );
                 const canUnapplySuggestedTarget = Boolean(
@@ -3776,7 +4082,35 @@ function ReviewAccountGroup({
                   <TableCell className="min-w-[220px] max-w-[280px]" title={suggestedTargetTitle}>
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
-                        {suggestion ? (
+                        {relatedBankCharge && onGoToRelatedBankCharge ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-auto min-h-8 whitespace-normal border-blue-300 text-left text-blue-800 hover:bg-blue-50 dark:border-blue-400/40 dark:text-blue-200 dark:hover:bg-blue-950/40"
+                            onClick={() => onGoToRelatedBankCharge(relatedBankCharge)}
+                            title="Open the related bank-account charge where the target must be reviewed"
+                          >
+                            No change here — edit bank charge
+                            <span className="ml-1 font-normal opacity-80">
+                              ({formatAccountLabel(relatedBankCharge.account)})
+                            </span>
+                          </Button>
+                        ) : relatedJournalCounterpart && onGoToRelatedBankCharge ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-auto min-h-8 whitespace-normal border-amber-300 text-left text-amber-800 hover:bg-amber-50 dark:border-amber-400/40 dark:text-amber-200 dark:hover:bg-amber-950/40"
+                            onClick={() => onGoToRelatedBankCharge(relatedJournalCounterpart)}
+                            title="This journal entry has no bank-account side. Open its accounting counterpart instead."
+                          >
+                            No bank charge — review journal counterpart
+                            <span className="ml-1 font-normal opacity-80">
+                              ({formatAccountLabel(relatedJournalCounterpart.account)})
+                            </span>
+                          </Button>
+                        ) : suggestion ? (
                           <SuggestedAccountValue suggestion={suggestion} aiReviewRunState={aiReviewRunState} />
                         ) : previewReview?.suggested_account_number ? (
                           <div className="min-w-0">
@@ -3813,7 +4147,9 @@ function ReviewAccountGroup({
                             title={
                               isApplied
                                 ? "Remove this change from Save Import"
-                                : "Apply this suggested target"
+                                : requiresManualApproval
+                                  ? "Approve this reviewed target and select it for Save Import"
+                                  : "Apply this suggested target"
                             }
                           >
                             {isApplying ? (
@@ -3827,7 +4163,9 @@ function ReviewAccountGroup({
                               ? "Applying..."
                               : isApplied
                                 ? "Unapply"
-                                : "Apply"}
+                                : requiresManualApproval
+                                  ? "Approve & Apply"
+                                  : "Apply"}
                           </Button>
                         )}
                     </div>
@@ -3843,8 +4181,8 @@ function ReviewAccountGroup({
                     )}
                     {suggestion && onRequestManualTarget && (
                       <ManualTargetAccountSelect
-                        value={visibleSuggestedTargetNumber ?? ""}
-                        name={getVisibleSuggestedTargetName(suggestion) ?? ""}
+                        value={isSelfTarget ? "" : visibleSuggestedTargetNumber ?? ""}
+                        name={isSelfTarget ? "" : getVisibleSuggestedTargetName(suggestion) ?? ""}
                         disabled={isApplying}
                         onOpen={() => onRequestManualTarget(suggestion)}
                       />
@@ -4156,8 +4494,122 @@ function findMirroredPreviewRowNumber(
   return matches.length === 1 ? matches[0].txn.line_id : null;
 }
 
+function findBankChargeFixRow(
+  rows: WorkbookPreviewRow[],
+  source: WorkbookPreviewRow
+): WorkbookPreviewRow {
+  if (isWorkbookBankOrCreditCardRow(source)) return source;
+
+  const normalize = (value: unknown) =>
+    String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const sourceAccount = normalize(source.account.account_number);
+  const sourceCounterAccount = normalize(source.txn.split_account_number);
+  const sameTransactionIdentity = (candidate: WorkbookPreviewRow) =>
+    candidate.txn.entry_date === source.txn.entry_date &&
+    normalize(candidate.txn.transaction_type) === normalize(source.txn.transaction_type) &&
+    normalize(candidate.txn.transaction_number) === normalize(source.txn.transaction_number) &&
+    normalize(candidate.txn.name) === normalize(source.txn.name);
+  const accountPairMatches = (candidate: WorkbookPreviewRow) => {
+    const candidateAccount = normalize(candidate.account.account_number);
+    const candidateCounterAccount = normalize(candidate.txn.split_account_number);
+    return (
+      (sourceCounterAccount === candidateAccount &&
+        (!candidateCounterAccount || candidateCounterAccount === sourceAccount)) ||
+      (candidateCounterAccount === sourceAccount &&
+        (!sourceCounterAccount || sourceCounterAccount === candidateAccount))
+    );
+  };
+  const oppositeAmount = (candidate: WorkbookPreviewRow) =>
+    Math.abs(Number(candidate.txn.amount) + Number(source.txn.amount)) < 0.005;
+
+  const linkedBankRows = rows.filter((candidate) =>
+    candidate.txn.line_id !== source.txn.line_id &&
+    isWorkbookBankOrCreditCardRow(candidate) &&
+    oppositeAmount(candidate) &&
+    accountPairMatches(candidate) &&
+    (candidate.txn.entry_id === source.txn.entry_id || sameTransactionIdentity(candidate))
+  );
+  if (linkedBankRows.length === 1) return linkedBankRows[0];
+
+  // QuickBooks GL exports commonly repeat the two sides of a transaction while
+  // leaving both Split columns blank. In that case, exact transaction identity
+  // and opposite amount establish the relationship.
+  const exactBankRows = rows.filter((candidate) =>
+    candidate.txn.line_id !== source.txn.line_id &&
+    isWorkbookBankOrCreditCardRow(candidate) &&
+    oppositeAmount(candidate) &&
+    sameTransactionIdentity(candidate)
+  );
+  if (exactBankRows.length === 1) return exactBankRows[0];
+  if (exactBankRows.length > 1) {
+    const sameSideRows = rows.filter((candidate) =>
+      !isWorkbookBankOrCreditCardRow(candidate) &&
+      Number(candidate.txn.amount) === Number(source.txn.amount) &&
+      sameTransactionIdentity(candidate)
+    );
+    if (sameSideRows.length === exactBankRows.length) {
+      const occurrence = sameSideRows.findIndex(
+        (candidate) => candidate.txn.line_id === source.txn.line_id
+      );
+      if (occurrence >= 0) return exactBankRows[occurrence];
+    }
+  }
+
+  const sameEntryBankRows = rows.filter((candidate) =>
+    candidate.txn.line_id !== source.txn.line_id &&
+    isWorkbookBankOrCreditCardRow(candidate) &&
+    candidate.txn.entry_id === source.txn.entry_id &&
+    oppositeAmount(candidate)
+  );
+  return sameEntryBankRows.length === 1 ? sameEntryBankRows[0] : source;
+}
+
+function findJournalCounterpartRow(
+  rows: WorkbookPreviewRow[],
+  source: WorkbookPreviewRow
+): WorkbookPreviewRow | null {
+  const normalize = (value: unknown) =>
+    String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+  const sameTransactionIdentity = (candidate: WorkbookPreviewRow) =>
+    candidate.txn.entry_date === source.txn.entry_date &&
+    normalize(candidate.txn.transaction_type) === normalize(source.txn.transaction_type) &&
+    normalize(candidate.txn.transaction_number) === normalize(source.txn.transaction_number) &&
+    normalize(candidate.txn.name) === normalize(source.txn.name) &&
+    normalize(candidate.txn.memo) === normalize(source.txn.memo);
+  const oppositeAmount = (candidate: WorkbookPreviewRow) =>
+    Math.abs(Number(candidate.txn.amount) + Number(source.txn.amount)) < 0.005;
+
+  const matches = rows.filter((candidate) =>
+    candidate.txn.line_id !== source.txn.line_id &&
+    !isWorkbookBankOrCreditCardRow(candidate) &&
+    oppositeAmount(candidate) &&
+    (candidate.txn.entry_id === source.txn.entry_id || sameTransactionIdentity(candidate))
+  );
+  return matches.length === 1 ? matches[0] : null;
+}
+
 function countChangedSuggestions(suggestions: GLAccountSuggestion[]) {
   return suggestions.filter(isChangedSuggestion).length;
+}
+
+function countSuggestionDecisionOutcomes(suggestions: GLAccountSuggestion[]) {
+  const counts: GLAccountSuggestionsResponse["decision_outcome_counts"] = {
+    keep_current: 0,
+    suggested_change: 0,
+    manual_review: 0,
+    not_applicable: 0,
+    no_suggestion: 0,
+  };
+  for (const suggestion of suggestions) {
+    const outcome = suggestion.decision_outcome ||
+      (suggestion.requires_manual_review
+        ? "manual_review"
+        : isChangedSuggestion(suggestion)
+          ? "suggested_change"
+          : "keep_current");
+    counts[outcome] += 1;
+  }
+  return counts;
 }
 
 function getGeminiReviewedRowNumbers(
@@ -4894,7 +5346,7 @@ function AccountSuggestionReview({
                   onApplySuggestedTarget &&
                     visibleSuggestedTargetNumber &&
                     visibleSuggestedTargetNumber !== "MANUAL_REVIEW" &&
-                    isChangedSuggestion(suggestion) &&
+                    isApprovableSuggestion(suggestion) &&
                     !isApplied
                 );
                 const canUnapplySuggestedTarget = Boolean(
@@ -4902,7 +5354,11 @@ function AccountSuggestionReview({
                 );
                 const suggestionKey = applySuggestionKey(suggestion);
                 const isApplying = applyingSuggestionKey === suggestionKey;
-                const actionLabel = isApplied ? "Unapply" : "Apply";
+                const actionLabel = isApplied
+                  ? "Unapply"
+                  : suggestion.requires_manual_review
+                    ? "Approve & Apply"
+                    : "Apply";
                 const busyActionLabel = isApplied ? "Unapplying" : "Applying";
 
                 return (
@@ -5023,7 +5479,9 @@ function AccountSuggestionReview({
                         canUnapplySuggestedTarget
                           ? "Undo applied target on staged import"
                           : canApplySuggestedTarget
-                            ? "Apply suggested target to staged import"
+                            ? suggestion.requires_manual_review
+                              ? "Approve this reviewed target and apply it to the staged import"
+                              : "Apply suggested target to staged import"
                             : suggestedTargetTitle
                       }
                     >
@@ -5306,6 +5764,17 @@ function SuggestedAccountValue({
   const suggestedName = getVisibleSuggestedTargetName(suggestion);
   const noChangeLabel = formatNoChangeSuggestionLabel(suggestion, aiReviewRunState);
 
+  if (isSelfTargetSuggestion(suggestion)) {
+    return (
+      <div className="min-w-0">
+        <span className="font-medium text-red-700 dark:text-red-300">
+          Invalid self-target — choose the counter account
+        </span>
+        <ConfidenceValue suggestion={suggestion} className="mt-1" />
+      </div>
+    );
+  }
+
   if (shouldShowAiPendingForSuggestion(suggestion, aiReviewRunState)) {
     return (
       <div className="min-w-0">
@@ -5328,6 +5797,16 @@ function SuggestedAccountValue({
     return (
       <div className="min-w-0">
         <span className="font-medium text-red-700 dark:text-red-300">Manual review</span>
+        <ConfidenceValue suggestion={suggestion} className="mt-1" />
+      </div>
+    );
+  }
+  if (suggestion.decision_outcome === "no_suggestion") {
+    return (
+      <div className="min-w-0">
+        <span className="font-medium text-amber-700 dark:text-amber-300">
+          No safe suggestion
+        </span>
         <ConfidenceValue suggestion={suggestion} className="mt-1" />
       </div>
     );
@@ -5486,6 +5965,9 @@ function SuggestionBadge({ suggestion }: { suggestion: GLAccountSuggestion }) {
 }
 
 function isNoChangeSuggestion(suggestion: GLAccountSuggestion) {
+  if (suggestion.decision_outcome) {
+    return suggestion.decision_outcome === "keep_current";
+  }
   if (shouldUseXgboostFallbackSuggestion(suggestion)) return false;
   const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
 
@@ -5501,6 +5983,9 @@ function isNoChangeSuggestion(suggestion: GLAccountSuggestion) {
 }
 
 function isMarkedSuggestedChange(suggestion: GLAccountSuggestion) {
+  if (suggestion.decision_outcome) {
+    return suggestion.decision_outcome === "suggested_change";
+  }
   const suggestedNumber = getVisibleSuggestedTargetNumber(suggestion);
   if (shouldUseXgboostFallbackSuggestion(suggestion)) {
     return Boolean(
@@ -5521,12 +6006,32 @@ function isMarkedSuggestedChange(suggestion: GLAccountSuggestion) {
 }
 
 function isChangedSuggestion(suggestion: GLAccountSuggestion) {
+  if (suggestion.decision_outcome) {
+    return suggestion.decision_outcome === "suggested_change";
+  }
   const suggestedCode = getVisibleSuggestedTargetNumber(suggestion)?.trim();
   const currentCode = (suggestion.current_target_account_number ?? "").trim();
   return Boolean(
     suggestedCode &&
       suggestedCode !== "MANUAL_REVIEW" &&
       suggestedCode !== currentCode
+  );
+}
+
+function isApprovableSuggestion(suggestion: GLAccountSuggestion) {
+  const suggestedCode = getVisibleSuggestedTargetNumber(suggestion)?.trim();
+  if (!suggestedCode || suggestedCode === "MANUAL_REVIEW") return false;
+  if (isSelfTargetSuggestion(suggestion)) return false;
+  const currentCode = String(
+    suggestion.current_target_account_number ??
+      (suggestion.target_field === "ledger_account"
+        ? suggestion.ledger_account_number
+        : suggestion.current_split_account_number) ??
+      ""
+  ).trim();
+  return (
+    suggestedCode !== currentCode &&
+    (isChangedSuggestion(suggestion) || suggestion.requires_manual_review)
   );
 }
 
@@ -6006,6 +6511,13 @@ function formatReviewFinderMarker(
   aiReviewRunState: AiReviewRunState = "completed"
 ) {
   const review = row.txn.account_review;
+  if (kind === "missing_targets") {
+    return `Transaction requiring a target: ${formatReviewSuggestedTarget(
+      row.suggestion ?? undefined,
+      review,
+      aiReviewRunState
+    )}`;
+  }
   if (kind === "ai_changed" || kind === "differences") {
     const current = formatReviewCurrentTarget(
       row.txn,
@@ -6097,6 +6609,19 @@ function getVisibleSuggestedTargetName(suggestion: GLAccountSuggestion) {
     : suggestion.suggested_target_account_name;
 }
 
+function isSelfTargetSuggestion(suggestion: GLAccountSuggestion) {
+  const suggestedCode = getVisibleSuggestedTargetNumber(suggestion)?.trim();
+  if (!suggestedCode || suggestedCode === "MANUAL_REVIEW") return false;
+  const oppositeCode = String(
+    (
+      suggestion.target_field === "ledger_account"
+        ? suggestion.current_split_account_number
+        : suggestion.ledger_account_number
+    ) ?? ""
+  ).trim();
+  return Boolean(oppositeCode && suggestedCode === oppositeCode);
+}
+
 function isAiReviewPendingState(aiReviewRunState: AiReviewRunState) {
   return aiReviewRunState === "running" || aiReviewRunState === "not_run" || aiReviewRunState === "incomplete";
 }
@@ -6138,13 +6663,27 @@ function formatNoChangeSuggestionLabel(
 ) {
   return shouldShowAiPendingForSuggestion(suggestion, aiReviewRunState)
     ? formatAiReviewPendingLabel(aiReviewRunState)
-    : "No change";
+    : suggestion.decision_outcome === "no_suggestion"
+      ? "No safe suggestion"
+      : "Keep current";
 }
 
 function formatMissingSuggestedTargetLabel(
   review?: ImportPreviewAccountReview | null,
   aiReviewRunState: AiReviewRunState = "completed"
 ) {
+  if (review?.decision_outcome === "not_applicable") {
+    return "Not applicable — this is not the bank/credit-card side";
+  }
+  if (review?.decision_outcome === "no_suggestion") {
+    return "No safe suggestion";
+  }
+  if (review?.decision_outcome === "keep_current") {
+    return "Keep current";
+  }
+  if (review?.decision_outcome === "manual_review") {
+    return review.requires_ai_review ? "AI review required" : "Manual review required";
+  }
   if (review?.requires_ai_review) {
     return isAiReviewPendingState(aiReviewRunState)
       ? formatAiReviewPendingLabel(aiReviewRunState)
@@ -6152,6 +6691,9 @@ function formatMissingSuggestedTargetLabel(
   }
   if (!review && isAiReviewPendingState(aiReviewRunState)) {
     return formatAiReviewPendingLabel(aiReviewRunState);
+  }
+  if (review?.source === "not_bank_transaction") {
+    return "Not a bank charge — no single matching counterpart";
   }
   return "No change";
 }
@@ -6353,6 +6895,11 @@ function isHumanReviewSuggestion(suggestion: GLAccountSuggestion) {
 }
 
 function formatPreviewReviewStatus(review: ImportPreviewAccountReview) {
+  if (review.decision_outcome === "not_applicable") return "Not applicable";
+  if (review.decision_outcome === "no_suggestion") return "No safe suggestion";
+  if (review.decision_outcome === "keep_current") return "Keep current";
+  if (review.decision_outcome === "suggested_change") return "Suggested change";
+  if (review.decision_outcome === "manual_review") return "Manual review required";
   if (review.requires_human_review) return "Human review required";
   if (review.requires_ai_review) return "AI review required";
   if (review.source === "bank_transfer") return "Bank transfer";
@@ -6383,6 +6930,9 @@ function formatReviewMarker(
     return `review_source: ${review.source} | review_status: ${review.status}`;
   }
   if (suggestion) {
+    if (suggestion.decision_outcome) {
+      return `${formatDecisionOutcomeLabel(suggestion.decision_outcome)} · ${suggestion.pipeline_stage || suggestion.review_source || "rules"}`;
+    }
     const source = suggestion.review_source || inferSuggestionReviewSource(suggestion);
     const status = suggestion.review_status || inferSuggestionReviewStatus(suggestion);
     return `review_source: ${source} | review_status: ${status}`;
@@ -6391,6 +6941,14 @@ function formatReviewMarker(
     return `review_source: ${review.source} | review_status: ${review.status}`;
   }
   return "-";
+}
+
+function formatDecisionOutcomeLabel(outcome: GLAccountSuggestion["decision_outcome"]) {
+  if (outcome === "keep_current") return "Keep current";
+  if (outcome === "suggested_change") return "Suggested change";
+  if (outcome === "manual_review") return "Manual review";
+  if (outcome === "not_applicable") return "Not applicable";
+  return "No safe suggestion";
 }
 
 function inferSuggestionReviewSource(suggestion: GLAccountSuggestion) {

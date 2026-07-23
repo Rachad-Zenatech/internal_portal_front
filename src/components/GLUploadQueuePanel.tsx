@@ -22,7 +22,7 @@ export function GLUploadQueuePanel({
   onDeleteJob,
   onDeleteJobs,
   deletingJobId = null,
-  isPreviewLoading = false,
+  openingPreviewToken = null,
   headerAction,
 }: {
   jobs: GLUploadQueueItem[];
@@ -38,7 +38,7 @@ export function GLUploadQueuePanel({
   onDeleteJob?: (jobId: number) => void;
   onDeleteJobs?: (jobIds: number[]) => void;
   deletingJobId?: number | null;
-  isPreviewLoading?: boolean;
+  openingPreviewToken?: string | null;
   headerAction?: React.ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(true);
@@ -84,7 +84,7 @@ export function GLUploadQueuePanel({
                 </p>
                 {typeof total === "number" && total > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Showing {jobs.length.toLocaleString("en-US")} of {total.toLocaleString("en-US")} retained uploads.
+                    Showing {jobs.length.toLocaleString("en-US")} of {total.toLocaleString("en-US")} retained upload records.
                   </p>
                 )}
               </div>
@@ -231,7 +231,7 @@ export function GLUploadQueuePanel({
                         variant="secondary"
                         onClick={() => onOpenPreview(job.preview_token as string)}
                         title="Dry-run Preview"
-                        disabled={isPreviewLoading}
+                        disabled={openingPreviewToken === job.preview_token}
                       >
                         <Play className="h-4 w-4" />
                       </Button>
@@ -285,13 +285,14 @@ function queueStatusLabel(status: string) {
   if (status === "canceled") return "Canceled";
   if (status === "discarded") return "Deleted";
   if (status === "completed") return "Ready";
+  if (status === "expired") return "Expired";
   if (status === "failed") return "Failed";
   return status || "Unknown";
 }
 
 function queueStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "completed") return "default";
-  if (status === "failed") return "destructive";
+  if (status === "failed" || status === "expired") return "destructive";
   if (status === "processing" || status === "cancel_requested") return "secondary";
   return "outline";
 }
@@ -310,6 +311,7 @@ function queueProgressText(job: GLUploadQueueItem) {
     return progress <= 1 ? "Backend worker starting..." : `${progress}% complete`;
   }
   if (job.status === "completed") return "Ready to open";
+  if (job.status === "expired") return "Preview expired — upload the file again";
   return `${queueProgressPercent(job)}% complete`;
 }
 
@@ -347,6 +349,9 @@ function aiReviewStatusVariant(
 }
 
 function aiReviewStatusLabel(job: GLUploadQueueItem) {
+  if (job.status === "expired") {
+    return "Temporary preview expired; upload the file again";
+  }
   const status = job.ai_review_status;
   if (!status) {
     if (["queued", "queued_local"].includes(job.status)) {

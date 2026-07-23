@@ -66,6 +66,8 @@ export type GLUploadQueueItem = {
   gl_entry_lines?: number | null;
   preview_token?: string | null;
   preview_url?: string | null;
+  preview_available?: boolean;
+  preview_expires_at?: string | null;
   error_message?: string | null;
   ai_review_job_id?: number | null;
   ai_review_status?: string | null;
@@ -276,6 +278,21 @@ export type GLAccountReviewAi = {
   } | null;
 };
 
+export type GLAccountDecisionOutcome =
+  | "keep_current"
+  | "suggested_change"
+  | "manual_review"
+  | "not_applicable"
+  | "no_suggestion";
+
+export type GLAccountSuggestionAlternative = {
+  source: string;
+  account_number: string | null;
+  account_name: string | null;
+  confidence: number | null;
+  rejected_reason: string;
+};
+
 export type GLAccountSuggestion = {
   row_number: number;
   date: string | null;
@@ -304,6 +321,12 @@ export type GLAccountSuggestion = {
   review_source?: "xgboost" | "gemini" | "rules" | "manual" | string;
   review_status?: string;
   review_label?: string;
+  decision_outcome: GLAccountDecisionOutcome;
+  pipeline_stage: string;
+  decision_priority: number;
+  decision_policy: string;
+  pipeline_version: string;
+  alternative_suggestions: GLAccountSuggestionAlternative[];
   is_xgboost_suggestion?: boolean;
   is_suggested_change?: boolean;
   xgboost_suggested_account_number: string | null;
@@ -336,6 +359,9 @@ export type GLAccountSuggestionsResponse = {
   changed_suggestion_count: number;
   manual_review_count: number;
   review_mode: string;
+  decision_policy: string;
+  pipeline_version: string;
+  decision_outcome_counts: Record<GLAccountDecisionOutcome, number>;
   xgboost_min_confidence: number;
   xgboost_model_status: {
     xgboost_installed?: boolean;
@@ -370,6 +396,7 @@ export type ImportPreviewAccountReview = {
   xgboost_candidate: Record<string, unknown> | null;
   ai_context: Record<string, unknown> | null;
   is_bank_transaction: boolean;
+  decision_outcome: GLAccountDecisionOutcome;
   approved_account?: string | null;
 };
 
@@ -382,6 +409,7 @@ export type ImportPreviewAccountReviewSummary = {
   human_review_count: number;
   bank_transaction_count: number;
   not_applicable_count: number;
+  decision_outcome_counts?: Record<GLAccountDecisionOutcome, number>;
 };
 
 export type ImportPreviewRow = {
