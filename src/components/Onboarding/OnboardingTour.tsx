@@ -269,14 +269,14 @@ const TOUR_STEPS: TourStep[] = [
     title: "Search across the portal",
     description:
       "Use global search to find companies, active accounts, GL entries, and bank transactions.",
-    selector: "[data-onboarding='global-search']",
+    selector: "[data-onboarding-practice='search']",
   },
   {
     id: "assistant",
     title: "Ask ZenaBot",
     description:
       "Use the assistant for explanations and permitted tasks. It follows your role and MCP-tool permissions.",
-    selector: "[data-onboarding='ai-assistant']",
+    selector: "[data-onboarding-practice='assistant']",
   },
   {
     id: "finish",
@@ -1171,7 +1171,10 @@ function PracticeTaskPanel({
 
   if (completed) {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 bg-white px-4 py-3 text-xs shadow-[inset_4px_0_0_0_rgb(16_185_129)] dark:border-emerald-800 dark:bg-slate-950">
+      <div
+        data-onboarding-practice={stepId}
+        className="flex flex-wrap items-center justify-between gap-3 border-b border-emerald-200 bg-white px-4 py-3 text-xs shadow-[inset_4px_0_0_0_rgb(16_185_129)] dark:border-emerald-800 dark:bg-slate-950"
+      >
         <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
           <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
             <Check className="h-3.5 w-3.5" />
@@ -1184,7 +1187,10 @@ function PracticeTaskPanel({
   }
 
   return (
-    <div className="relative m-3 overflow-hidden rounded-xl border-2 border-blue-500 bg-white p-4 shadow-[0_12px_32px_-12px_rgb(37_99_235_/_0.55),0_0_0_4px_rgb(59_130_246_/_0.14)] dark:bg-slate-950">
+    <div
+      data-onboarding-practice={stepId}
+      className="relative m-3 overflow-hidden rounded-xl border-2 border-blue-500 bg-white p-4 shadow-[0_12px_32px_-12px_rgb(37_99_235_/_0.55),0_0_0_4px_rgb(59_130_246_/_0.14)] dark:bg-slate-950"
+    >
       <div className="absolute inset-y-0 left-0 w-1 bg-blue-600" />
       <div className="flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm">
@@ -2234,23 +2240,40 @@ export default function OnboardingTour() {
     }
 
     let timer: number | null = null;
-    const updateTarget = () => {
+    let frame: number | null = null;
+    const findTarget = () => {
       const selector =
         step.selector ||
         (step.path ? `[data-onboarding-path="${step.path}"]` : null);
       const target = selector ? document.querySelector(selector) : null;
-      if (target instanceof HTMLElement) {
-        target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      return target instanceof HTMLElement ? target : null;
+    };
+    const measureTarget = () => {
+      const target = findTarget();
+      setTargetRect(target ? target.getBoundingClientRect() : null);
+    };
+    const updateTarget = () => {
+      const target = findTarget();
+      if (target) {
+        target.scrollIntoView({
+          block: "center",
+          inline: "nearest",
+          behavior: "auto",
+        });
         setTargetRect(target.getBoundingClientRect());
+        frame = window.requestAnimationFrame(measureTarget);
       } else {
         setTargetRect(null);
       }
     };
     timer = window.setTimeout(updateTarget, 220);
     window.addEventListener("resize", updateTarget);
+    document.addEventListener("scroll", measureTarget, true);
     return () => {
       if (timer !== null) window.clearTimeout(timer);
+      if (frame !== null) window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", updateTarget);
+      document.removeEventListener("scroll", measureTarget, true);
     };
   }, [isActive, step]);
 
@@ -2308,6 +2331,22 @@ export default function OnboardingTour() {
       : currentModule
         ? "Next step"
         : "Start Tour 1";
+  const guidePosition =
+    isFirst || isLast
+      ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+      : targetRect
+        ? `${
+            targetRect.left + targetRect.width / 2 >
+            document.documentElement.clientWidth / 2
+              ? "left-6"
+              : "right-6"
+          } ${
+            targetRect.top + targetRect.height / 2 >
+            document.documentElement.clientHeight / 2
+              ? "top-6"
+              : "bottom-6"
+          }`
+        : "bottom-6 right-6";
 
   function skipCurrentModule() {
     if (!currentModule) return;
@@ -2380,11 +2419,7 @@ export default function OnboardingTour() {
         role="dialog"
         aria-modal="true"
         aria-label="Application onboarding"
-        className={`pointer-events-auto fixed z-[3] max-h-[calc(100vh-3rem)] w-[min(92vw,520px)] overflow-y-auto rounded-2xl border bg-card p-0 text-card-foreground shadow-2xl ${
-          isFirst || isLast
-            ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            : "bottom-6 right-6"
-        }`}
+        className={`pointer-events-auto fixed z-[3] max-h-[calc(100vh-3rem)] w-[min(92vw,520px)] overflow-y-auto rounded-2xl border bg-card p-0 text-card-foreground shadow-2xl ${guidePosition}`}
       >
         <div className="border-b px-5 py-4">
           <div className="mb-3 flex items-center justify-between gap-3">
