@@ -55,12 +55,11 @@ export function useStreamingChat() {
       abortControllerRef.current = abortController;
 
       try {
-        const token = sessionStorage.getItem("token");
         const res = await fetch(`${import.meta.env.VITE_API_BASE_URL || ""}/ai/chat`, {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             message: question,

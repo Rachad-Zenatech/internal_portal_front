@@ -59,10 +59,7 @@ export default function BankStatementPreview() {
           fetch(`${BASE_URL}/api/bank-statements/${bankStatementId}`, {
             method: 'DELETE',
             keepalive: true,
-            credentials: 'include',
-            headers: {
-              'Authorization': `Bearer ${sessionStorage.getItem('token')}` // Ensure we pass token if needed
-            }
+            credentials: 'include'
           }).catch(() => {});
           
           // Remove from local cache so user can't navigate back and see stale data

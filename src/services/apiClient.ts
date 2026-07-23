@@ -3,11 +3,6 @@ import { handleResponse } from "./helper";
 const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || "";
 export const BASE_URL = rawBaseUrl.endsWith("/") ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
 
-const getAuthHeaders = (): Record<string, string> => {
-  const token = sessionStorage.getItem("token");
-  return token ? { "Authorization": `Bearer ${token}` } : {};
-};
-
 const configuredSlowRequestMs = Number(import.meta.env.VITE_SLOW_REQUEST_MS ?? 2000);
 const SLOW_REQUEST_MS = Number.isFinite(configuredSlowRequestMs)
   ? Math.max(250, configuredSlowRequestMs)
@@ -71,10 +66,7 @@ async function monitoredFetch(endpoint: string, options: RequestInit): Promise<R
           method: "POST",
           credentials: "include",
           keepalive: true,
-          headers: { 
-            "Content-Type": "application/json",
-            ...getAuthHeaders()
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             method,
             path,
@@ -94,7 +86,6 @@ export const apiClient = {
       method: "GET",
       credentials: "include",
       headers: {
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>)
       } as HeadersInit
     });
@@ -109,7 +100,6 @@ export const apiClient = {
       credentials: "include",
       headers: {
         ...(isFormData ? {} : { "Content-Type": "application/json" }),
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>),
       } as HeadersInit,
       body: isFormData ? body : JSON.stringify(body),
@@ -124,7 +114,6 @@ export const apiClient = {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>),
       } as HeadersInit,
       body: JSON.stringify(body),
@@ -139,7 +128,6 @@ export const apiClient = {
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>),
       } as HeadersInit,
       body: JSON.stringify(body),
@@ -153,7 +141,6 @@ export const apiClient = {
       method: "DELETE",
       credentials: "include",
       headers: {
-        ...getAuthHeaders(),
         ...(options?.headers as Record<string, string>)
       } as HeadersInit
     });

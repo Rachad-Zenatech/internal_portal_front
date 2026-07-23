@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -32,6 +39,7 @@ import {
 const CURRENT_ONBOARDING_VERSION = 3;
 const ONBOARDING_PRACTICE_EVENT = "onboarding-practice-start";
 const ONBOARDING_DEMO_SAMPLE_EVENT = "onboarding-demo-sample";
+const ONBOARDING_TARGET_REFRESH_EVENT = "onboarding-target-refresh";
 
 type DemoKind = "gl" | "bank";
 
@@ -431,25 +439,25 @@ const PRACTICE_TASKS: Record<string, PracticeTask> = {
     feedback: "Morgan Sample now has Demo Accountant in the browser-only preview.",
   },
   "role-permissions": {
-    title: "Review module permissions",
-    instructions: "Select Demo Accountant and review General Ledger actions.",
+    title: "Grant a module permission",
+    instructions: "Select Demo Accountant, open General Ledger, and allow View access.",
     startLabel: "Select demo role",
-    finishLabel: "Confirm module access",
-    feedback: "The fake module permissions were reviewed without changing real access.",
+    finishLabel: "Save fake module access",
+    feedback: "Demo Accountant now has fake View access to General Ledger; unrelated actions were unchanged.",
   },
   "role-api-permissions": {
-    title: "Review API permissions",
-    instructions: "Open the Accounting module and inspect its supported actions.",
+    title: "Grant an API permission",
+    instructions: "Select Demo Accountant, open Accounting / General Ledger, and allow Read access.",
     startLabel: "Open fake API module",
-    finishLabel: "Confirm endpoint access",
-    feedback: "The fake endpoint permissions were reviewed.",
+    finishLabel: "Save fake endpoint access",
+    feedback: "The selected fake Accounting API now allows Read; Create, Update, and Delete were unchanged.",
   },
   "mcp-permissions": {
-    title: "Review an AI tool permission",
-    instructions: "Select search_chart_of_accounts and verify the Demo Accountant role can use it.",
+    title: "Grant an AI tool permission",
+    instructions: "Select Demo Accountant and allow only search_chart_of_accounts.",
     startLabel: "Select fake tool",
-    finishLabel: "Confirm tool access",
-    feedback: "The fake AI tool permission was reviewed without changing real roles.",
+    finishLabel: "Save fake tool access",
+    feedback: "Demo Accountant can now use the fake chart search tool; save_general_ledger remains blocked.",
   },
   xgboost: {
     title: "Inspect a model prediction",
@@ -1012,7 +1020,7 @@ const PAGE_FORMATS: Partial<Record<string, TrainingPageFormat>> = {
     subtitle: "Configure module actions for the selected role.",
     search: "Search roles...",
     columns: ["Permission Group", "View", "Create", "Update", "Delete"],
-    rows: [["General Ledger", "Allowed", "Allowed", "Allowed", "Blocked"], ["Administration", "Allowed", "Blocked", "Blocked", "Blocked"]],
+    rows: [["General Ledger", "Blocked", "Allowed", "Allowed", "Blocked"], ["Administration", "Allowed", "Blocked", "Blocked", "Blocked"]],
     layout: "split",
   },
   "role-api-permissions": {
@@ -1020,7 +1028,7 @@ const PAGE_FORMATS: Partial<Record<string, TrainingPageFormat>> = {
     subtitle: "Configure detailed API access for the selected role.",
     search: "Search APIs/Modules...",
     columns: ["Module / API", "Read", "Create", "Update", "Delete"],
-    rows: [["Accounting / General Ledger", "Allowed", "Allowed", "Allowed", "Blocked"]],
+    rows: [["Accounting / General Ledger", "Blocked", "Allowed", "Allowed", "Blocked"]],
     layout: "split",
   },
   "mcp-permissions": {
@@ -1028,7 +1036,7 @@ const PAGE_FORMATS: Partial<Record<string, TrainingPageFormat>> = {
     subtitle: "Configure AI tool access for the selected role.",
     search: "Search tools...",
     columns: ["MCP Tool", "Description", "Allowed"],
-    rows: [["search_chart_of_accounts", "Search active demo accounts", "Allowed"], ["save_general_ledger", "Save reviewed ledger data", "Blocked"]],
+    rows: [["search_chart_of_accounts", "Search active demo accounts", "Blocked"], ["save_general_ledger", "Save reviewed ledger data", "Blocked"]],
     layout: "split",
   },
   xgboost: {
@@ -1121,13 +1129,15 @@ function PracticeTaskPanel({
   task,
   completed,
   onComplete,
-  onReset,
+  onContinue,
+  continueLabel,
 }: {
   stepId: string;
   task: PracticeTask;
   completed: boolean;
   onComplete: () => void;
-  onReset: () => void;
+  onContinue: () => void;
+  continueLabel: string;
 }) {
   const [started, setStarted] = useState(completed);
   const [primary, setPrimary] = useState("");
@@ -1149,6 +1159,13 @@ function PracticeTaskPanel({
     setToggled(false);
     setConfirming(false);
   }, [completed, stepId, task.title]);
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event(ONBOARDING_TARGET_REFRESH_EVENT));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [completed, confirming, primary, secondary, started, stepId, toggled]);
 
   useEffect(() => {
     const startPractice = (event: Event) => {
@@ -1181,7 +1198,10 @@ function PracticeTaskPanel({
           </span>
           <span><strong>Practice applied:</strong> {task.feedback}</span>
         </div>
-        <Button size="sm" variant="outline" onClick={onReset}>Practice again</Button>
+        <Button size="sm" onClick={onContinue}>
+          {continueLabel}
+          <ArrowRight className="ml-2 h-4 w-4" />
+        </Button>
       </div>
     );
   }
@@ -1210,16 +1230,7 @@ function PracticeTaskPanel({
         </div>
       </div>
 
-      {completed ? (
-        <div className="mt-3 space-y-3">
-          <div className="rounded-lg border border-emerald-200 bg-background p-3 text-xs text-emerald-700 dark:border-emerald-900 dark:text-emerald-300">
-            <span className="font-semibold">Task complete.</span> {task.feedback}
-          </div>
-          <Button size="sm" variant="outline" onClick={onReset}>
-            Practice again
-          </Button>
-        </div>
-      ) : started ? (
+      {started ? (
         <div className="mt-3 space-y-3">
           <div className="rounded-lg border bg-background p-3">
             <div className="flex items-center justify-between gap-3 border-b pb-2">
@@ -1347,12 +1358,16 @@ function DemoUpload({
   completed,
   onComplete,
   onReset,
+  onContinue,
+  continueLabel,
   onStatusChange,
 }: {
   kind: DemoKind;
   completed: boolean;
   onComplete: () => void;
   onReset?: () => void;
+  onContinue: () => void;
+  continueLabel: string;
   onStatusChange?: (status: DemoStatus) => void;
 }) {
   const [status, setStatus] = useState<DemoStatus>(
@@ -1372,6 +1387,13 @@ function DemoUpload({
   ] as const;
 
   useEffect(() => onStatusChange?.(status), [onStatusChange, status]);
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      window.dispatchEvent(new Event(ONBOARDING_TARGET_REFRESH_EVENT));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [fileSummary, kind, status]);
 
   useEffect(
     () => () => {
@@ -1431,7 +1453,10 @@ function DemoUpload({
   }
 
   return (
-    <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+    <div
+      data-onboarding-demo={kind}
+      className="mt-4 rounded-xl border border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/30"
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -1554,7 +1579,10 @@ function DemoUpload({
               </p>
             </div>
           </div>
-          <Button size="sm" variant="outline" onClick={resetDemo}>Practice again</Button>
+          <Button size="sm" onClick={onContinue}>
+            {continueLabel}
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
         </div>
       )}
 
@@ -1727,18 +1755,20 @@ function OriginalFormatTrainingPreview({
   demoCompleted,
   onDemoComplete,
   onDemoReset,
+  onContinue,
+  continueLabel,
   taskCompleted,
   onTaskComplete,
-  onTaskReset,
 }: {
   step: ResolvedTourStep;
   rect: DOMRect | null;
   demoCompleted: boolean;
   onDemoComplete: () => void;
   onDemoReset: () => void;
+  onContinue: () => void;
+  continueLabel: string;
   taskCompleted: boolean;
   onTaskComplete: () => void;
-  onTaskReset: () => void;
 }) {
   const format = PAGE_FORMATS[step.id];
   const tabs = ORIGINAL_TABS[step.id] || [];
@@ -1789,12 +1819,23 @@ function OriginalFormatTrainingPreview({
     displayRows = format.rows.map((row) =>
       row.map((cell, index) => index === 2 ? "Demo Accountant" : cell)
     );
-  } else if (
-    taskCompleted &&
-    ["role-permissions", "role-api-permissions", "mcp-permissions"].includes(step.id)
-  ) {
+  } else if (taskCompleted && step.id === "role-permissions") {
     displayRows = format.rows.map((row) =>
-      row.map((cell) => cell === "Blocked" ? "Allowed" : cell)
+      row[0] === "General Ledger"
+        ? row.map((cell, index) => index === 1 ? "Allowed" : cell)
+        : row
+    );
+  } else if (taskCompleted && step.id === "role-api-permissions") {
+    displayRows = format.rows.map((row) =>
+      row[0] === "Accounting / General Ledger"
+        ? row.map((cell, index) => index === 1 ? "Allowed" : cell)
+        : row
+    );
+  } else if (taskCompleted && step.id === "mcp-permissions") {
+    displayRows = format.rows.map((row) =>
+      row[0] === "search_chart_of_accounts"
+        ? row.map((cell, index) => index === 2 ? "Allowed" : cell)
+        : row
     );
   } else if (taskCompleted && step.id === "dashboard") {
     displayRows = format.rows.filter((row) => row[2] === "Northstar Demo LLC");
@@ -1945,6 +1986,8 @@ function OriginalFormatTrainingPreview({
             completed={demoCompleted}
             onComplete={onDemoComplete}
             onReset={onDemoReset}
+            onContinue={onContinue}
+            continueLabel={continueLabel}
             onStatusChange={setDemoStage}
           />
         )}
@@ -2063,7 +2106,8 @@ function OriginalFormatTrainingPreview({
                 task={PRACTICE_TASKS[step.id]}
                 completed={taskCompleted}
                 onComplete={onTaskComplete}
-                onReset={onTaskReset}
+                onContinue={onContinue}
+                continueLabel={continueLabel}
               />
             )}
             <div className="overflow-x-auto">
@@ -2129,6 +2173,9 @@ export default function OnboardingTour() {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(
     () => new Set()
   );
+  const [skippedModules, setSkippedModules] = useState<Set<string>>(
+    () => new Set()
+  );
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [contentRect, setContentRect] = useState<DOMRect | null>(null);
   const automaticStartRef = useRef<string | null>(null);
@@ -2155,6 +2202,7 @@ export default function OnboardingTour() {
     setStepIndex(0);
     setCompletedDemos(new Set());
     setCompletedTasks(new Set());
+    setSkippedModules(new Set());
     setIsRequired(required);
     setIsActive(true);
   }, []);
@@ -2241,8 +2289,13 @@ export default function OnboardingTour() {
 
     let timer: number | null = null;
     let frame: number | null = null;
+    let targetObserver: ResizeObserver | null = null;
     const findTarget = () => {
       const selector =
+        (step.demo ? `[data-onboarding-demo="${step.demo}"]` : null) ||
+        (PRACTICE_TASKS[step.id]
+          ? `[data-onboarding-practice="${step.id}"]`
+          : null) ||
         step.selector ||
         (step.path ? `[data-onboarding-path="${step.path}"]` : null);
       const target = selector ? document.querySelector(selector) : null;
@@ -2252,27 +2305,42 @@ export default function OnboardingTour() {
       const target = findTarget();
       setTargetRect(target ? target.getBoundingClientRect() : null);
     };
+    const centerAndMeasureTarget = (target: HTMLElement) => {
+      target.scrollIntoView({
+        block: "center",
+        inline: "nearest",
+        behavior: "auto",
+      });
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        setTargetRect(target.getBoundingClientRect());
+      });
+    };
     const updateTarget = () => {
       const target = findTarget();
       if (target) {
-        target.scrollIntoView({
-          block: "center",
-          inline: "nearest",
-          behavior: "auto",
+        centerAndMeasureTarget(target);
+        targetObserver?.disconnect();
+        targetObserver = new ResizeObserver(() => {
+          centerAndMeasureTarget(target);
         });
-        setTargetRect(target.getBoundingClientRect());
-        frame = window.requestAnimationFrame(measureTarget);
+        targetObserver.observe(target);
       } else {
+        targetObserver?.disconnect();
+        targetObserver = null;
         setTargetRect(null);
       }
     };
     timer = window.setTimeout(updateTarget, 220);
     window.addEventListener("resize", updateTarget);
+    window.addEventListener(ONBOARDING_TARGET_REFRESH_EVENT, updateTarget);
     document.addEventListener("scroll", measureTarget, true);
     return () => {
       if (timer !== null) window.clearTimeout(timer);
       if (frame !== null) window.cancelAnimationFrame(frame);
+      targetObserver?.disconnect();
       window.removeEventListener("resize", updateTarget);
+      window.removeEventListener(ONBOARDING_TARGET_REFRESH_EVENT, updateTarget);
       document.removeEventListener("scroll", measureTarget, true);
     };
   }, [isActive, step]);
@@ -2316,7 +2384,7 @@ export default function OnboardingTour() {
     : isLast
       ? 100
       : 0;
-  const guideItems = TRAINING_TABS[step.id] || DEFAULT_TABS;
+  const guideItems = isLast ? [] : TRAINING_TABS[step.id] || DEFAULT_TABS;
   const practiceTask = PRACTICE_TASKS[step.id];
   const taskIncomplete = Boolean(
     practiceTask && !completedTasks.has(step.id)
@@ -2347,18 +2415,65 @@ export default function OnboardingTour() {
               : "bottom-6"
           }`
         : "bottom-6 right-6";
+  const tutorialResults = TOUR_MODULES.map((module) => {
+    const outcomes = module.stepIds.flatMap((stepId) => {
+      const task = PRACTICE_TASKS[stepId];
+      const tourStep = TOUR_STEPS.find((candidate) => candidate.id === stepId);
+      if (task) {
+        return [{
+          completed: completedTasks.has(stepId),
+          detail: task.feedback,
+        }];
+      }
+      if (tourStep?.demo) {
+        return [{
+          completed: completedDemos.has(tourStep.demo),
+          detail:
+            tourStep.demo === "gl"
+              ? "The fake General Ledger sample was reviewed and confirmed without saving data."
+              : "The fake bank statement sample was reviewed and confirmed without saving data.",
+        }];
+      }
+      return [];
+    });
+    const skipped = skippedModules.has(module.id);
+    const completed =
+      outcomes.length === 0 || outcomes.every((outcome) => outcome.completed);
+    return {
+      ...module,
+      status: skipped ? "Skipped" : completed ? "Completed" : "Incomplete",
+      detail: skipped
+        ? "This tour was skipped; the following tour still remained available."
+        : outcomes.map((outcome) => outcome.detail).join(" "),
+    };
+  });
+  const completedTourCount = tutorialResults.filter(
+    (result) => result.status === "Completed"
+  ).length;
+  const skippedTourCount = tutorialResults.filter(
+    (result) => result.status === "Skipped"
+  ).length;
 
   function skipCurrentModule() {
     if (!currentModule) return;
     const targetStepId = nextModule?.stepIds[0] || "finish";
     const targetIndex = steps.findIndex((candidate) => candidate.id === targetStepId);
     if (targetIndex < 0) return;
+    setSkippedModules((current) => new Set(current).add(currentModule.id));
     setStepIndex(targetIndex);
     toast.info(`${currentModule.title} tour skipped`, {
       description: nextModule
         ? `Tour ${currentModuleIndex + 2}: ${nextModule.title} is still required.`
         : "Continue to the final onboarding summary.",
     });
+  }
+
+  function goToNextStep() {
+    if (isLast) {
+      finishTour();
+      return;
+    }
+    setStepIndex((value) => Math.min(steps.length - 1, value + 1));
   }
 
   return (
@@ -2371,6 +2486,13 @@ export default function OnboardingTour() {
         onDemoComplete={() => {
           if (!step.demo) return;
           setCompletedDemos((current) => new Set(current).add(step.demo!));
+          if (currentModule) {
+            setSkippedModules((current) => {
+              const next = new Set(current);
+              next.delete(currentModule.id);
+              return next;
+            });
+          }
         }}
         onDemoReset={() => {
           if (!step.demo) return;
@@ -2380,17 +2502,19 @@ export default function OnboardingTour() {
             return next;
           });
         }}
+        onContinue={goToNextStep}
+        continueLabel={nextLabel}
         taskCompleted={completedTasks.has(step.id)}
-        onTaskComplete={() =>
-          setCompletedTasks((current) => new Set(current).add(step.id))
-        }
-        onTaskReset={() =>
-          setCompletedTasks((current) => {
-            const next = new Set(current);
-            next.delete(step.id);
-            return next;
-          })
-        }
+        onTaskComplete={() => {
+          setCompletedTasks((current) => new Set(current).add(step.id));
+          if (currentModule) {
+            setSkippedModules((current) => {
+              const next = new Set(current);
+              next.delete(currentModule.id);
+              return next;
+            });
+          }
+        }}
       />
       {targetRect ? (
         <>
@@ -2463,6 +2587,62 @@ export default function OnboardingTour() {
           <p className="text-sm leading-6 text-muted-foreground">
             {step.description}
           </p>
+          {isLast && (
+            <div className="mt-4 overflow-hidden rounded-xl border bg-white shadow-sm dark:bg-slate-950">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-slate-50 px-4 py-3 dark:bg-slate-900">
+                <div>
+                  <p className="text-sm font-semibold">Tutorial results</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    All practice changes below used fake browser-only data.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">
+                    {completedTourCount} completed
+                  </Badge>
+                  {skippedTourCount > 0 && (
+                    <Badge variant="outline" className="border-amber-300 text-amber-700">
+                      {skippedTourCount} skipped
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-72 divide-y overflow-y-auto">
+                {tutorialResults.map((result, index) => (
+                  <div key={result.id} className="flex items-start gap-3 px-4 py-3">
+                    <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                      result.status === "Completed"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : result.status === "Skipped"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-600"
+                    }`}>
+                      {result.status === "Completed" ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold">
+                          Tour {index + 1}: {result.title}
+                        </p>
+                        <span className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${
+                          result.status === "Completed"
+                            ? "text-emerald-700"
+                            : result.status === "Skipped"
+                              ? "text-amber-700"
+                              : "text-slate-500"
+                        }`}>
+                          {result.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                        {result.detail || "This informational workflow was reviewed."}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {guideItems.length > 0 && (
             <div className="mt-4 rounded-xl border bg-muted/30 p-3">
               <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -2538,13 +2718,7 @@ export default function OnboardingTour() {
                 taskIncomplete ||
                 demoIncomplete
               }
-              onClick={() => {
-                if (isLast) {
-                  finishTour();
-                } else {
-                  setStepIndex((value) => Math.min(steps.length - 1, value + 1));
-                }
-              }}
+              onClick={goToNextStep}
             >
               {completeMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

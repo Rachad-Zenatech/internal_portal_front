@@ -287,9 +287,9 @@ export default function StatementPreviewReview({
 
       fetch(`/api/bank-statements/feedback`, {
         method: "POST",
+        credentials: "include",
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${sessionStorage.getItem("internal_portal_token")}`
+          "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
       }).catch(console.error);
