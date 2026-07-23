@@ -67,7 +67,6 @@ export default function Users() {
   const [formData, setFormData] = useState({
     email: "",
     full_name: "",
-    password: "",
     is_active: true,
     is_super_admin: false,
   });
@@ -112,22 +111,7 @@ export default function Users() {
     const finalEmail = formData.email.includes("@") ? formData.email : `${formData.email}@zenatech.com`;
     const payload = { ...formData, email: finalEmail };
 
-    if (payload.password) {
-      if (payload.password.length < 10) {
-        toast.error("Password must be at least 10 characters long");
-        return;
-      }
-      if (!/[!@#$%^&*(),.?":{}|<>]/.test(payload.password)) {
-        toast.error("Password must contain at least 1 symbol");
-        return;
-      }
-    }
-
     if (editingUser) {
-      // Don't send password if empty
-      if (!payload.password) {
-        delete (payload as any).password;
-      }
       updateMutation.mutate({ id: editingUser.id, payload });
     } else {
       createMutation.mutate(payload as typeof formData);
@@ -136,7 +120,7 @@ export default function Users() {
 
   const openCreateDialog = () => {
     setEditingUser(null);
-    setFormData({ email: "", full_name: "", password: "", is_active: true, is_super_admin: false });
+    setFormData({ email: "", full_name: "", is_active: true, is_super_admin: false });
     setIsDialogOpen(true);
   };
 
@@ -172,7 +156,6 @@ export default function Users() {
     setFormData({ 
       email: user.email.replace(/@zenatech\.com$/, ""), 
       full_name: user.full_name || "", 
-      password: "", 
       is_active: (user as any).is_active ?? true, 
       is_super_admin: user.is_super_admin 
     });
@@ -447,16 +430,6 @@ export default function Users() {
                   @zenatech.com
                 </span>
               </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Password {editingUser && "(Leave blank to keep current)"}</label>
-              <Input 
-                type="password"
-                required={!editingUser}
-                value={formData.password} 
-                onChange={e => setFormData({...formData, password: e.target.value})} 
-                placeholder="••••••••"
-              />
             </div>
             <div className="flex items-center space-x-2 pt-2">
               <input 
