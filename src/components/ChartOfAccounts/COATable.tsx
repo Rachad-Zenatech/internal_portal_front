@@ -140,8 +140,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
       {
         onSuccess: () => {
           toast.success(
-            `Account ${accountToToggle.account_number} ${
-              nextIsActive ? "enabled" : "disabled"
+            `Account ${accountToToggle.account_number} ${nextIsActive ? "enabled" : "disabled"
             }.`
           );
           setAccountToToggle(null);
@@ -172,7 +171,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
             <ArrowUpDown className="ml-2 h-4 w-4" />
           </Button>
         ),
-        cell: ({ row }) => <span className="font-medium">{row.original.account_number}</span>,
+        cell: ({ row }) => <div className="whitespace-pre-wrap break-words max-w-sm">{row.original.detail_type}</div>,
       },
       {
         accessorKey: "account_name",
@@ -284,9 +283,9 @@ export default function COATable({ result, loadingData }: COATableProps) {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <Input 
-              type="text" 
-              placeholder="Search accounts..." 
+            <Input
+              type="text"
+              placeholder="Search accounts..."
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
               className="pl-10 w-64 sm:w-80"
@@ -328,9 +327,9 @@ export default function COATable({ result, loadingData }: COATableProps) {
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -353,9 +352,8 @@ export default function COATable({ result, loadingData }: COATableProps) {
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className={`cursor-pointer hover:bg-slate-50/50 ${
-                      row.original.is_active ? "" : "bg-slate-50/70 text-slate-500"
-                    }`}
+                    className={`cursor-pointer hover:bg-slate-50/50 ${row.original.is_active ? "" : "bg-slate-50/70 text-slate-500"
+                      }`}
                     onClick={(e) => {
                       // Prevent firing if clicking on actions button
                       if ((e.target as HTMLElement).closest('button')) return;
@@ -408,10 +406,10 @@ export default function COATable({ result, loadingData }: COATableProps) {
             <div className="grid grid-cols-4 items-start gap-4"><Label className="text-right mt-2">Name</Label><Input value={editForm.account_name} onChange={(e) => setEditForm({ ...editForm, account_name: e.target.value })} className="col-span-3" /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSaveClick}>Save changes</Button></DialogFooter>
-          
+
           {infoOpen && (
             <div ref={dragRef} className="fixed z-[100] w-[500px] shadow-2xl bg-white border border-slate-200 rounded-lg top-[20%] left-[60%] flex flex-col pointer-events-auto" style={{ transform: `translate(${currentPos.current.x}px, ${currentPos.current.y}px)` }}>
-              <div 
+              <div
                 className="cursor-move bg-slate-100 rounded-t-lg py-3 px-4 border-b flex items-center justify-between"
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
