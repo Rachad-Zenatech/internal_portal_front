@@ -6,7 +6,7 @@ import COATable from "@/components/ChartOfAccounts/COATable";
 import { useAuth } from "@/lib/AuthContext";
 
 export default function ChartOfAccounts() {
-  const { data: result, isPending: loadingData } = useChartOfAccounts();
+  const { data: result, isPending: loadingData } = useChartOfAccounts(true);
   const { hasPermission } = useAuth();
   
   const canUpdate = hasPermission("CONFIG_CHART_OF_ACCOUNTS_UPDATE");

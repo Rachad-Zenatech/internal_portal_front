@@ -62,14 +62,14 @@ export default function AddAccountDialog() {
   };
 
   const [newAccount, setNewAccount] = useState<ChartOfAccount>({
-    account_number: "", account_type: "", detail_type: "", account_name: "",
+    account_number: "", account_type: "", detail_type: "", account_name: "", is_active: true,
   });
 
   const addAccount = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     mutate(newAccount, {
       onSuccess: () => {
-        setNewAccount({ account_number: "", account_type: "", detail_type: "", account_name: "" });
+        setNewAccount({ account_number: "", account_type: "", detail_type: "", account_name: "", is_active: true });
         toast("Account has been created", { description: "Your new account has been saved successfully.", position: "top-center" });
         setOpen(false);
       },

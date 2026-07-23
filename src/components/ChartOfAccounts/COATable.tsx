@@ -1,16 +1,17 @@
 import { useState, useMemo, useRef } from "react";
 import type { ChartOfAccount, ChartOfAccounts } from "@/types/chartOfAccount";
-import { useDeleteChartOfAccount, useUpdateChartOfAccount } from "@/hooks/useChartOfAccount";
+import { useDeleteChartOfAccount, useSetChartOfAccountStatus, useUpdateChartOfAccount } from "@/hooks/useChartOfAccount";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { AlertTriangle, Trash2, Search, ChevronDown, ArrowUpDown, Info } from "lucide-react";
+import { AlertTriangle, Trash2, Search, ChevronDown, ArrowUpDown, Info, Power, PowerOff } from "lucide-react";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { DataTablePagination } from "@/components/ui/data-table-pagination";
@@ -60,6 +61,8 @@ export default function COATable({ result, loadingData }: COATableProps) {
   const canDelete = hasPermission("CONFIG_CHART_OF_ACCOUNTS_DELETE");
   const { mutate: deleteAccount } = useDeleteChartOfAccount();
   const { mutate: updateAccount } = useUpdateChartOfAccount();
+  const { mutate: setAccountStatus, isPending: isChangingStatus } =
+    useSetChartOfAccountStatus();
 
   // Edit State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -90,12 +93,14 @@ export default function COATable({ result, loadingData }: COATableProps) {
   };
 
   const [editForm, setEditForm] = useState<ChartOfAccount>({
-    id: 0, account_number: "", account_type: "", detail_type: "", account_name: "",
+    id: 0, account_number: "", account_type: "", detail_type: "", account_name: "", is_active: true,
   });
 
   // Delete State
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [accountToDelete, setAccountToDelete] =
+    useState<ChartOfAccount | null>(null);
+  const [accountToToggle, setAccountToToggle] =
     useState<ChartOfAccount | null>(null);
 
   const handleEditClick = (account: ChartOfAccount) => {
@@ -125,6 +130,29 @@ export default function COATable({ result, loadingData }: COATableProps) {
     if (accountToDelete?.id !== undefined) deleteAccount(accountToDelete.id);
     setIsDeleteDialogOpen(false);
     setAccountToDelete(null);
+  };
+
+  const confirmStatusChange = () => {
+    if (accountToToggle?.id === undefined) return;
+    const nextIsActive = !accountToToggle.is_active;
+    setAccountStatus(
+      { id: accountToToggle.id, isActive: nextIsActive },
+      {
+        onSuccess: () => {
+          toast.success(
+            `Account ${accountToToggle.account_number} ${
+              nextIsActive ? "enabled" : "disabled"
+            }.`
+          );
+          setAccountToToggle(null);
+        },
+        onError: (error: Error) => {
+          toast.error("Failed to change account status", {
+            description: error.message,
+          });
+        },
+      }
+    );
   };
 
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -175,26 +203,52 @@ export default function COATable({ result, loadingData }: COATableProps) {
           </Button>
         ),
         cell: ({ row }) => <span>{row.original.detail_type}</span>,
+      },
+      {
+        accessorKey: "is_active",
+        header: "Status",
+        cell: ({ row }) => (
+          <Badge variant={row.original.is_active ? "default" : "secondary"}>
+            {row.original.is_active ? "Active" : "Disabled"}
+          </Badge>
+        ),
       }
     ];
 
-    if (canDelete) {
+    if (canUpdate || canDelete) {
       cols.push({
         id: "actions",
         header: () => <div className="text-right">Actions</div>,
         cell: ({ row }) => (
           <div className="text-right space-x-2">
-            <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => handleDeleteClick(row.original)}>
-              <Trash2 className="h-3.5 w-3.5" />
-              Remove
-            </Button>
+            {canUpdate && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setAccountToToggle(row.original)}
+              >
+                {row.original.is_active ? (
+                  <PowerOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Power className="h-3.5 w-3.5" />
+                )}
+                {row.original.is_active ? "Disable" : "Enable"}
+              </Button>
+            )}
+            {canDelete && (
+              <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => handleDeleteClick(row.original)}>
+                <Trash2 className="h-3.5 w-3.5" />
+                Remove
+              </Button>
+            )}
           </div>
         ),
       });
     }
 
     return cols;
-  }, [canDelete]);
+  }, [canDelete, canUpdate]);
 
   const table = useReactTable({
     data: accounts,
@@ -212,7 +266,8 @@ export default function COATable({ result, loadingData }: COATableProps) {
       const name = (row.getValue("account_name") as string)?.toLowerCase() || "";
       const type = (row.getValue("account_type") as string)?.toLowerCase() || "";
       const detail = (row.getValue("detail_type") as string)?.toLowerCase() || "";
-      return num.includes(search) || name.includes(search) || type.includes(search) || detail.includes(search);
+      const status = row.original.is_active ? "active" : "disabled";
+      return num.includes(search) || name.includes(search) || type.includes(search) || detail.includes(search) || status.includes(search);
     },
     state: {
       sorting,
@@ -289,6 +344,7 @@ export default function COATable({ result, loadingData }: COATableProps) {
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-24" /></TableCell>
                     <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
                     <TableCell className="text-right"><Skeleton className="h-8 w-16 ml-auto" /></TableCell>
                   </TableRow>
                 ))
@@ -297,7 +353,9 @@ export default function COATable({ result, loadingData }: COATableProps) {
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
-                    className="cursor-pointer hover:bg-slate-50/50"
+                    className={`cursor-pointer hover:bg-slate-50/50 ${
+                      row.original.is_active ? "" : "bg-slate-50/70 text-slate-500"
+                    }`}
                     onClick={(e) => {
                       // Prevent firing if clicking on actions button
                       if ((e.target as HTMLElement).closest('button')) return;
@@ -386,6 +444,53 @@ export default function COATable({ result, loadingData }: COATableProps) {
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setAccountToDelete(null)}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={(e) => { e.preventDefault(); confirmDelete(); }} className="bg-red-600 hover:bg-red-700">Yes, Delete Account</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={accountToToggle !== null}
+        onOpenChange={(open) => {
+          if (!open && !isChangingStatus) setAccountToToggle(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              {accountToToggle?.is_active ? (
+                <PowerOff className="h-5 w-5 text-amber-500" />
+              ) : (
+                <Power className="h-5 w-5 text-emerald-600" />
+              )}
+              {accountToToggle?.is_active ? "Disable Account?" : "Enable Account?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {accountToToggle?.is_active ? (
+                <>
+                  Account <strong>{accountToToggle.account_number} - {accountToToggle.account_name}</strong> will no longer be available to GL uploads, AI/vector matching, or XGBoost suggestions. Historical ledger entries will remain unchanged.
+                </>
+              ) : (
+                <>
+                  Account <strong>{accountToToggle?.account_number} - {accountToToggle?.account_name}</strong> will become available for new uploads and account suggestions again.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isChangingStatus}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isChangingStatus}
+              onClick={(event) => {
+                event.preventDefault();
+                confirmStatusChange();
+              }}
+            >
+              {isChangingStatus
+                ? "Saving..."
+                : accountToToggle?.is_active
+                  ? "Disable Account"
+                  : "Enable Account"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

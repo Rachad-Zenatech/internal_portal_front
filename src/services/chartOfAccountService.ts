@@ -7,8 +7,10 @@ export const ChartOfAccountService = {
     return apiClient.get<ChartOfAccount>(`/accounting/chart-of-accounts/${id}`);
   },
 
-  async getChartOfAccounts(): Promise<ChartOfAccounts> {
-    return apiClient.get<ChartOfAccounts>(`/accounting/chart-of-accounts`);
+  async getChartOfAccounts(includeInactive = false): Promise<ChartOfAccounts> {
+    return apiClient.get<ChartOfAccounts>(
+      `/accounting/chart-of-accounts?include_inactive=${includeInactive}`
+    );
   },
 
   async insertChartOfAccount(
@@ -32,6 +34,16 @@ export const ChartOfAccountService = {
     return apiClient.put<{ message: string }>(
       `/accounting/chart-of-accounts/${data.id}`,
       data
+    );
+  },
+
+  async setChartOfAccountStatus(
+    id: number,
+    isActive: boolean,
+  ): Promise<{ chart_of_account: ChartOfAccount }> {
+    return apiClient.patch<{ chart_of_account: ChartOfAccount }>(
+      `/accounting/chart-of-accounts/${id}/status`,
+      { is_active: isActive }
     );
   },
 

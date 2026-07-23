@@ -2,10 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChartOfAccountService } from '../services/index';
 import type { ChartOfAccount, ChartOfAccounts } from '../types/chartOfAccount';
 
-export const useChartOfAccounts = () => {
+export const useChartOfAccounts = (includeInactive = false) => {
   return useQuery<ChartOfAccounts, Error>({
-    queryKey: ['chart-of-accounts'],
-    queryFn: ChartOfAccountService.getChartOfAccounts,
+    queryKey: ['chart-of-accounts', { includeInactive }],
+    queryFn: () => ChartOfAccountService.getChartOfAccounts(includeInactive),
   });
 };
 
@@ -52,6 +52,18 @@ export const useUpdateChartOfAccount = () => {
     mutationFn: (data: ChartOfAccount) => ChartOfAccountService.updateChartOfAccount(data),
     onSuccess: () => {
       // Refresh the table data automatically
+      queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] });
+    },
+  });
+};
+
+export const useSetChartOfAccountStatus = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
+      ChartOfAccountService.setChartOfAccountStatus(id, isActive),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chart-of-accounts'] });
     },
   });

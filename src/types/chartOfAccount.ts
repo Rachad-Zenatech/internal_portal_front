@@ -4,6 +4,7 @@ export interface ChartOfAccount {
     account_type: string;
     detail_type: string;
     account_name: string;
+    is_active: boolean;
 }
 
 export interface ChartOfAccounts {
