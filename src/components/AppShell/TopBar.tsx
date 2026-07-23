@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Bell, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, Mail, BellRing, Settings2, CheckCheck } from "lucide-react";
+import { Search, Bell, Building2, BookText, FileText, Banknote, Loader2, LogOut, User, Sparkles, Mail, BellRing, Settings2, CheckCheck, CircleHelp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -119,7 +119,7 @@ export default function TopBar() {
   return (
     <header className="h-20 border-b border-border bg-card text-card-foreground flex items-center justify-between px-4 sm:px-6 md:px-8 shrink-0 transition-all duration-300 gap-4">
       <div className="flex-1 flex items-center min-w-0">
-        <div ref={containerRef} className="relative w-full max-w-md z-50">
+        <div ref={containerRef} data-onboarding="global-search" className="relative w-full max-w-md z-50">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
             placeholder="Search for anything here..." 
@@ -209,6 +209,25 @@ export default function TopBar() {
       
       <div className="flex items-center gap-2 sm:gap-4 md:gap-5 shrink-0">
         <TopBarClock />
+        <TooltipProvider delayDuration={0}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                data-onboarding="tour-help"
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                aria-label="Start guided tour"
+                onClick={() => window.dispatchEvent(new Event("start-onboarding"))}
+              >
+                <CircleHelp className="h-5 w-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Guided tour</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <TooltipProvider delayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>

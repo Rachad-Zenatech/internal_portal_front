@@ -6,6 +6,7 @@ import FloatingChat from "./FloatingChat";
 import Breadcrumbs from "./Breadcrumbs";
 import SessionTimeout from "./SessionTimeout";
 import { GlobalProgressOverlay } from "./GlobalProgressOverlay";
+import OnboardingTour from "@/components/Onboarding/OnboardingTour";
 
 
 interface Props {
@@ -40,7 +41,10 @@ export default function AppShell({ children }: Props) {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
         <TopBar />
-        <main className="flex-1 overflow-auto p-8 bg-background flex flex-col min-h-0">
+        <main
+          data-onboarding="app-content"
+          className="flex-1 overflow-auto p-8 bg-background flex flex-col min-h-0"
+        >
           <Breadcrumbs />
           <div className="flex-1 flex flex-col min-h-0">
             {children}
@@ -51,6 +55,7 @@ export default function AppShell({ children }: Props) {
       </div>
 
       <SessionTimeout />
+      <OnboardingTour />
     </div>
   );
 }

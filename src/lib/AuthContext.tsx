@@ -7,6 +7,8 @@ export interface User {
   full_name: string;
   is_super_admin: boolean;
   is_active?: boolean;
+  onboarding_version: number;
+  onboarding_completed_at?: string | null;
 }
 
 export interface Role {

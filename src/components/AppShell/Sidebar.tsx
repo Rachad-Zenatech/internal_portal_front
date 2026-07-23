@@ -1,12 +1,35 @@
 import { ChevronDown, ChevronRight, PanelRight } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { navigation } from "./Navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import zenatechLogo from "@/assets/zenatech_logo.png";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "../../lib/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
+import {
+  ONBOARDING_NAVIGATION_EVENT,
+  type OnboardingNavigationFocus,
+} from "@/lib/onboardingEvents";
+import type { LucideIcon } from "lucide-react";
+
+interface SidebarUser {
+  is_super_admin?: boolean;
+  assigned_roles?: Array<{ code: string }>;
+}
+
+interface SidebarNavigationItem {
+  label: string;
+  path?: string;
+  icon: LucideIcon;
+  section?: string;
+  navigationCode?: string;
+  subItems?: Array<{
+    label: string;
+    path: string;
+    navigationCode?: string;
+  }>;
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -25,20 +48,42 @@ export default function Sidebar({
 
   const { data: users } = useQuery({
     queryKey: ["users"],
-    queryFn: () => apiClient.get<any[]>("/api/configuration/users"),
+    queryFn: () => apiClient.get<SidebarUser[]>("/api/configuration/users"),
     enabled: !!isSuperAdmin,
   });
 
-  const pendingUsersCount = users?.filter((u: any) => 
+  const pendingUsersCount = users?.filter((u) =>
     !u.is_super_admin && 
-    (!u.assigned_roles || u.assigned_roles.length === 0 || u.assigned_roles.every((r: any) => r.code === "PENDING_USER"))
+    (!u.assigned_roles || u.assigned_roles.length === 0 || u.assigned_roles.every((role) => role.code === "PENDING_USER"))
   ).length || 0;
 
   const toggleExpand = (label: string) => {
     setExpandedItems(prev => ({ ...prev, [label]: !prev[label] }));
   };
 
-  const groupedNavigation = navigation.reduce((acc, item) => {
+  useEffect(() => {
+    const focusNavigation = (event: Event) => {
+      const { path } = (event as CustomEvent<OnboardingNavigationFocus>).detail;
+      if (!path) return;
+
+      const parent = navigation.find((item) =>
+        item.subItems?.some((subItem) => subItem.path === path)
+      );
+      if (!parent) return;
+
+      setExpandedItems((current) => ({
+        ...current,
+        [parent.label]: true,
+      }));
+      if (!isOpen) onToggle();
+    };
+
+    window.addEventListener(ONBOARDING_NAVIGATION_EVENT, focusNavigation);
+    return () =>
+      window.removeEventListener(ONBOARDING_NAVIGATION_EVENT, focusNavigation);
+  }, [isOpen, onToggle]);
+
+  const groupedNavigation = navigation.reduce<Record<string, SidebarNavigationItem[]>>((acc, item) => {
     if (item.navigationCode && !hasPermission(`${item.navigationCode}_READ`)) return acc;
 
     const filteredSubItems = item.subItems 
@@ -55,7 +100,7 @@ export default function Sidebar({
     
     acc[section].push({ ...item, subItems: filteredSubItems });
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {});
 
   return (
     <aside
@@ -138,12 +183,13 @@ export default function Sidebar({
                     isOpen && isExpanded ? "max-h-[1000px] mt-1 opacity-100" : "max-h-0 opacity-0"
                   }`}
                 >
-                  {item.subItems.map((sub: any) => {
+                  {item.subItems.map((sub) => {
                     const isSubActive = location.pathname === sub.path || location.pathname.startsWith(sub.path + "/");
                     return (
                       <Link
                         key={sub.path}
                         to={sub.path}
+                        data-onboarding-path={sub.path}
                         className={`
                           flex items-center justify-between h-10 px-3 rounded-lg text-sm transition-all duration-300
                           ${isSubActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm font-semibold" : "text-muted-foreground hover:bg-sidebar-accent"}
@@ -169,6 +215,7 @@ export default function Sidebar({
               <TooltipTrigger asChild>
                 <Link
                   to={item.path!}
+                  data-onboarding-path={item.path}
                   className={
                     `
                       flex items-center h-12 overflow-hidden rounded-lg transition-all duration-300 ease-in-out

@@ -11,6 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Timer, AlertTriangle } from "lucide-react";
+import {
+  ONBOARDING_ACTIVE_DATASET_KEY,
+  ONBOARDING_SESSION_EVENT,
+  type OnboardingSessionState,
+} from "@/lib/onboardingEvents";
 
 const IDLE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const COUNTDOWN_MS = 5 * 60 * 1000; // 5 minutes (Total 15 mins)
@@ -21,7 +26,8 @@ export default function SessionTimeout() {
   const isOpenRef = useRef(false);
   const [timeLeft, setTimeLeft] = useState(COUNTDOWN_MS);
   
-  const lastActivityRef = useRef<number>(Date.now());
+  const lastActivityRef = useRef<number>(0);
+  const onboardingActiveRef = useRef(false);
   const checkIntervalRef = useRef<number | undefined>(undefined);
 
   const resetTimer = useCallback(() => {
@@ -43,6 +49,19 @@ export default function SessionTimeout() {
     let throttleTimer: number | null = null;
     let lastHeartbeatSent = Date.now();
 
+    const handleOnboardingState = (event: Event) => {
+      const customEvent = event as CustomEvent<OnboardingSessionState>;
+      onboardingActiveRef.current = Boolean(customEvent.detail?.active);
+      lastActivityRef.current = Date.now();
+      setTimeLeft(COUNTDOWN_MS);
+      if (isOpenRef.current) {
+        setIsOpen(false);
+        isOpenRef.current = false;
+      }
+      apiClient.post('/auth/heartbeat').catch(() => {});
+      lastHeartbeatSent = Date.now();
+    };
+
     const handleActivity = () => {
       if (throttleTimer) return;
       if (isOpenRef.current) return;
@@ -54,9 +73,28 @@ export default function SessionTimeout() {
     };
 
     events.forEach(event => document.addEventListener(event, handleActivity));
+    window.addEventListener(ONBOARDING_SESSION_EVENT, handleOnboardingState);
 
     checkIntervalRef.current = window.setInterval(() => {
       const now = Date.now();
+      const onboardingIsActive =
+        onboardingActiveRef.current ||
+        document.documentElement.dataset[ONBOARDING_ACTIVE_DATASET_KEY] === "true";
+
+      if (onboardingIsActive) {
+        lastActivityRef.current = now;
+        if (now - lastHeartbeatSent >= 60000) {
+          apiClient.post('/auth/heartbeat').catch(() => {});
+          lastHeartbeatSent = now;
+        }
+        if (isOpenRef.current) {
+          setIsOpen(false);
+          isOpenRef.current = false;
+          setTimeLeft(COUNTDOWN_MS);
+        }
+        return;
+      }
+
       const idleTime = now - lastActivityRef.current;
 
       // Send a heartbeat every 60 seconds IF the user has been active since the last heartbeat
@@ -86,6 +124,7 @@ export default function SessionTimeout() {
 
     return () => {
       events.forEach(event => document.removeEventListener(event, handleActivity));
+      window.removeEventListener(ONBOARDING_SESSION_EVENT, handleOnboardingState);
       if (checkIntervalRef.current) clearInterval(checkIntervalRef.current);
       if (throttleTimer) clearTimeout(throttleTimer);
     };
