@@ -784,7 +784,7 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
       </TableHeader>
       <TableBody className="[&_tr:last-child>td]:pb-8">
         {sorted.map((r) => {
-          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "bg-green-500/5 hover:bg-green-500/10" : 
+          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "" : 
                             r.confidence_score === "MEDIUM_CONFIDENCE" ? "bg-yellow-500/5 hover:bg-yellow-500/10" : 
                             (r.confidence_score === "LOW_CONFIDENCE" || r.confidence_score === "INVALID") ? "bg-red-500/5 hover:bg-red-500/10" : "";
           return (
@@ -878,7 +878,7 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
       </TableHeader>
       <TableBody className="[&_tr:last-child>td]:pb-8">
         {sorted.map((r) => {
-          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "bg-green-500/5 hover:bg-green-500/10" : 
+          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "" : 
                             r.confidence_score === "MEDIUM_CONFIDENCE" ? "bg-yellow-500/5 hover:bg-yellow-500/10" : 
                             (r.confidence_score === "LOW_CONFIDENCE" || r.confidence_score === "INVALID") ? "bg-red-500/5 hover:bg-red-500/10" : "";
           return (
