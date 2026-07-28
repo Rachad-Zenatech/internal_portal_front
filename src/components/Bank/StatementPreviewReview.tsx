@@ -85,8 +85,8 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number];
 
-type EditableCheck = PreviewCheckTransaction & { _id: string };
-type EditableDeposit = PreviewDepositTransaction & { _id: string };
+type EditableCheck = PreviewCheckTransaction & { _id: string, isNew?: boolean };
+type EditableDeposit = PreviewDepositTransaction & { _id: string, isNew?: boolean };
 type CheckUpdate = <K extends keyof EditableCheck>(
   id: string,
   field: K,
@@ -362,6 +362,7 @@ export default function StatementPreviewReview({
             ...next[safeActiveIndex].deposits,
             {
               _id: crypto.randomUUID(),
+              isNew: true,
               section: activeTab,
               date: localPreview.statement_date ?? "",
               deposit_id: "",
@@ -382,6 +383,7 @@ export default function StatementPreviewReview({
             ...next[safeActiveIndex].checks,
             {
               _id: crypto.randomUUID(),
+              isNew: true,
               section: activeTab,
               date: localPreview.statement_date ?? "",
               check_number: "",
@@ -782,14 +784,17 @@ function CheckTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Editabl
       </TableHeader>
       <TableBody className="[&_tr:last-child>td]:pb-8">
         {sorted.map((r) => {
-          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "bg-green-500/5 hover:bg-green-500/10" : 
+          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "" : 
                             r.confidence_score === "MEDIUM_CONFIDENCE" ? "bg-yellow-500/5 hover:bg-yellow-500/10" : 
                             (r.confidence_score === "LOW_CONFIDENCE" || r.confidence_score === "INVALID") ? "bg-red-500/5 hover:bg-red-500/10" : "";
           return (
           <TableRow key={r._id} className={confClass}>
             {cols.includes("Date") && (
               <TableCell>
-                <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+                <div className="flex items-center gap-2">
+                  {r.isNew && <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">New</Badge>}
+                  <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+                </div>
               </TableCell>
             )}
             {cols.includes("Check #") && (
@@ -873,14 +878,17 @@ function DepositTable({ rows, onUpdate, onRemove, hiddenColumns }: { rows: Edita
       </TableHeader>
       <TableBody className="[&_tr:last-child>td]:pb-8">
         {sorted.map((r) => {
-          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "bg-green-500/5 hover:bg-green-500/10" : 
+          const confClass = r.confidence_score === "HIGH_CONFIDENCE" ? "" : 
                             r.confidence_score === "MEDIUM_CONFIDENCE" ? "bg-yellow-500/5 hover:bg-yellow-500/10" : 
                             (r.confidence_score === "LOW_CONFIDENCE" || r.confidence_score === "INVALID") ? "bg-red-500/5 hover:bg-red-500/10" : "";
           return (
           <TableRow key={r._id} className={confClass}>
             {cols.includes("Date") && (
               <TableCell>
-                <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+                <div className="flex items-center gap-2">
+                  {r.isNew && <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-blue-200">New</Badge>}
+                  <input type="date" value={toHTMLDate(r.date)} onChange={e => onUpdate(r._id, "date", fromHTMLDate(e.target.value))} className={inputCls} />
+                </div>
               </TableCell>
             )}
             {cols.includes("Deposit ID") && (
