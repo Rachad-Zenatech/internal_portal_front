@@ -103,7 +103,7 @@ export default function Users() {
       queryClient.invalidateQueries({ queryKey: ["users"] });
       toast.success("User deactivated/deleted successfully");
     },
-    onError: (err: any) => toast.error(err.message || "Failed to delete user"),
+    onError: (err: any) => toast.error(err.response?.data?.detail || err.message || "Failed to delete user"),
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -261,6 +261,14 @@ export default function Users() {
                 setIsDeactivateDialogOpen(true);
               }} title={isActive ? "Deactivate" : "Activate"}>
                 {isActive ? <Ban className="h-4 w-4 text-orange-600" /> : <Power className="h-4 w-4 text-green-600" />}
+              </Button>
+            )}
+            {hasPermission("CONFIG_USERS_DELETE") && (
+              <Button variant="ghost" size="icon" onClick={() => {
+                setUserToDelete(user);
+                setIsDeleteDialogOpen(true);
+              }} title="Delete">
+                <span className="text-red-600 font-semibold leading-none">×</span>
               </Button>
             )}
           </div>
