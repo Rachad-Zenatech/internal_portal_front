@@ -38,7 +38,7 @@ function App() {
     <AuthProvider>
       <GlobalProgressProvider>
         <BrowserRouter>
-        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading...</div>}>
+        <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading..</div>}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/pending-access" element={<PendingAccess />} />
