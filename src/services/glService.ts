@@ -26,6 +26,7 @@ import type {
   GLExtractionFormat,
   GLFormatsResponse,
   ImportPreview,
+  ImportPreviewAccount,
   MissingInBooksExportDownload,
   MissingInBooksExportRow,
   ManualGlEntryRequest,
@@ -149,6 +150,116 @@ export const GLService = {
     });
     return {
       backgroundJobId: response.backgroundJobId || response.jobId || "",
+    };
+  },
+
+  /**
+   * Parse a GL file through the background worker instead of the synchronous
+   * /imports/parse endpoint. The synchronous parse holds the HTTP connection
+   * open for the whole parse + COA validation + preview build, which exceeds the
+   * CloudFront origin-response timeout on large workbooks and surfaces as a 504.
+   *
+   * This queues the parse, polls the upload queue until the worker has cached a
+   * preview, then loads every preview page and merges them so the caller gets a
+   * ParseImportResponse with the complete (unpaginated) preview — a drop-in
+   * replacement for parseImport that never blocks a single long request.
+   */
+  async parseImportViaBackground(
+    params: GLParseImportRequest,
+    options?: {
+      onProgress?: (progress: number) => void;
+      isCanceled?: () => boolean;
+    }
+  ): Promise<ParseImportResponse> {
+    const queued = await GLService.parseImportInBackground({
+      companyBookId: params.companyBookId,
+      file: params.file,
+      dryRun: params.dryRun ?? true,
+    });
+    const jobId = Number(queued.backgroundJobId ?? queued.jobId);
+    if (!Number.isFinite(jobId)) {
+      throw new Error("Background GL parse did not return a job id.");
+    }
+
+    // Poll the upload queue until the worker finishes and a preview token exists.
+    const POLL_INTERVAL_MS = 2000;
+    const MAX_ATTEMPTS = 150; // ~5 minutes
+    let previewToken: string | null = null;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      if (options?.isCanceled?.()) throw new Error("GL parse canceled.");
+      const queue = await GLService.getUploadQueue(50, 0);
+      const job = queue.jobs.find((candidate) => candidate.id === jobId);
+      if (job) {
+        if (typeof job.progress === "number") options?.onProgress?.(job.progress);
+        if (job.status === "completed" && job.preview_token) {
+          previewToken = job.preview_token;
+          break;
+        }
+        if (
+          ["failed", "canceled", "cancel_requested", "discarded", "expired"].includes(
+            job.status
+          )
+        ) {
+          throw new Error(job.error_message || `GL parse ${job.status}.`);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    if (!previewToken) {
+      throw new Error("Timed out waiting for the GL parse to finish.");
+    }
+
+    // Load every page so the caller receives the full preview, matching the old
+    // synchronous parseImport response that returned all rows in one shot.
+    const PAGE_SIZE = 5000;
+    const firstPage = await GLService.getDryRunPreviewPage({
+      previewToken,
+      page: 1,
+      pageSize: PAGE_SIZE,
+    });
+    const pageCount = firstPage.preview?.pagination?.page_count ?? 1;
+    if (pageCount <= 1) return firstPage;
+
+    const pages: ParseImportResponse[] = [firstPage];
+    for (let page = 2; page <= pageCount; page++) {
+      if (options?.isCanceled?.()) throw new Error("GL parse canceled.");
+      pages.push(
+        await GLService.getDryRunPreviewPage({ previewToken, page, pageSize: PAGE_SIZE })
+      );
+    }
+
+    // Merge paged rows/accounts back into a single complete preview. Account
+    // aggregates are identical on every page (they span all rows); only the
+    // per-account transaction detail is paginated, so we concatenate that.
+    const mergedRows = pages.flatMap((page) => page.preview?.rows ?? []);
+    const accountByKey = new Map<string, ImportPreviewAccount>();
+    pages.forEach((page) => {
+      (page.preview?.accounts ?? []).forEach((account) => {
+        const existing = accountByKey.get(account.account_key);
+        if (existing) {
+          existing.transactions = [
+            ...(existing.transactions ?? []),
+            ...(account.transactions ?? []),
+          ];
+        } else {
+          accountByKey.set(account.account_key, {
+            ...account,
+            transactions: [...(account.transactions ?? [])],
+          });
+        }
+      });
+    });
+
+    return {
+      ...firstPage,
+      preview: firstPage.preview
+        ? {
+            ...firstPage.preview,
+            rows: mergedRows,
+            accounts: Array.from(accountByKey.values()),
+          }
+        : firstPage.preview,
     };
   },
 

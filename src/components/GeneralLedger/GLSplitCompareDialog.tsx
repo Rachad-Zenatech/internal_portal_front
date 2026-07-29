@@ -95,9 +95,10 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
         }
       }
 
-      // 1. Parse Original File (if no localPreview)
+      // 1. Parse Original File (if no localPreview) via the background worker so
+      // large workbooks do not time out (504) on the synchronous parse endpoint.
       if (!localPreview) {
-        origRes = await GLService.parseImport({
+        origRes = await GLService.parseImportViaBackground({
           companyBookId: Number(activeBookId),
           file: originalFile!,
           dryRun: true,
@@ -111,7 +112,7 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
         });
 
         if (origRes.preview?.accounts && origRes.preview.accounts.length > 0) {
-          origRows = origRes.preview.accounts.flatMap((acc: any) => 
+          origRows = origRes.preview.accounts.flatMap((acc: any) =>
             (acc.transactions || []).map((txn: any) => ({
               ...txn,
               date: txn.date || origDateByLine.get(txn.line_id) || null,
@@ -162,43 +163,9 @@ export function GLSplitCompareDialog({ books, bookId, localPreview, localSuggest
           }
         });
       }
-      
-      // 1. Parse Original File (if no localPreview)
-      if (!localPreview) {
-        origRes = await GLService.parseImport({
-          companyBookId: Number(activeBookId),
-          file: originalFile!,
-          dryRun: true,
-        });
-        const origRawRows = origRes.preview?.rows || [];
-        let lastOrigDate = "";
-        const origDateByLine = new Map<number, string>();
-        origRawRows.forEach((r: any) => {
-          if (r.date) lastOrigDate = r.date;
-          origDateByLine.set(r.line_id, lastOrigDate);
-        });
 
-        if (origRes.preview?.accounts && origRes.preview.accounts.length > 0) {
-          origRows = origRes.preview.accounts.flatMap((acc: any) => 
-            (acc.transactions || []).map((txn: any) => ({
-              ...txn,
-              date: txn.date || origDateByLine.get(txn.line_id) || null,
-              ledger_account_number: acc.account_number || txn.ledger_account_number,
-              ledger_account_name: acc.account_name || txn.ledger_account_name,
-              account_number: txn.account_number,
-              account_name: txn.account_name
-            }))
-          );
-        } else {
-          origRows = origRawRows.map((txn: any) => ({
-            ...txn,
-            date: txn.date || origDateByLine.get(txn.line_id) || null
-          }));
-        }
-      }
-
-      // 2. Parse Expected File
-      const expRes = await GLService.parseImport({
+      // 2. Parse Expected File via the background worker (avoids 504 timeouts).
+      const expRes = await GLService.parseImportViaBackground({
         companyBookId: Number(activeBookId),
         file: expectedFile,
         dryRun: true,
