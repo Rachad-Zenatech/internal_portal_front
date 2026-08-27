@@ -4118,12 +4118,12 @@ function ReviewAccountGroup({
                               number={previewReview.suggested_account_number}
                               name={previewReview.suggested_account_name}
                             />
-                            <ConfidenceValue review={previewReview} className="mt-1" />
+                            <ConfidenceValue suggestion={suggestion} review={previewReview} className="mt-1" />
                           </div>
                         ) : previewReview ? (
                           <div className="min-w-0">
                             <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
-                            <ConfidenceValue review={previewReview} className="mt-1" />
+                            <ConfidenceValue suggestion={suggestion} review={previewReview} className="mt-1" />
                           </div>
                         ) : (
                           <span className="text-muted-foreground">{missingSuggestedTargetLabel}</span>
@@ -5652,14 +5652,14 @@ function DraggableWorkbookPreview({
                         number={row.txn.account_review.suggested_account_number}
                         name={row.txn.account_review.suggested_account_name}
                       />
-                      <ConfidenceValue review={row.txn.account_review} className="mt-1" />
+                      <ConfidenceValue suggestion={row.suggestion ?? undefined} review={row.txn.account_review} className="mt-1" />
                     </div>
                   ) : row.txn.account_review ? (
                     <div className="min-w-0">
                       <span className="text-muted-foreground">
                         {formatMissingSuggestedTargetLabel(row.txn.account_review, aiReviewRunState)}
                       </span>
-                      <ConfidenceValue review={row.txn.account_review} className="mt-1" />
+                      <ConfidenceValue suggestion={row.suggestion ?? undefined} review={row.txn.account_review} className="mt-1" />
                     </div>
                   ) : (
                     <span className="text-muted-foreground">
@@ -5842,7 +5842,7 @@ function SuggestedAccountValue({
 function ConfidenceValue({
   suggestion,
   review,
-  compact = false,
+  compact: _compact = false,
   className = "",
 }: {
   suggestion?: GLAccountSuggestion | null;
@@ -5864,7 +5864,7 @@ function ConfidenceValue({
       className={`inline-flex items-center rounded-sm border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-foreground ${className}`}
       title={formatReviewConfidenceTitle(suggestion ?? undefined, review ?? undefined)}
     >
-      {compact ? confidence : `Confidence ${confidence}`}
+      {confidence}
     </span>
   );
 }
@@ -7036,7 +7036,7 @@ function formatAccountSuggestionTitle(
 
 function formatAccountReviewTransactionTitle(
   txn: ImportPreviewAccountTransaction,
-  suggestion?: GLAccountSuggestion,
+  suggestion?: GLAccountSuggestion | null,
   review?: ImportPreviewAccountReview | null,
   aiReviewRunState: AiReviewRunState = "completed"
 ) {
@@ -7050,33 +7050,223 @@ function formatAccountReviewTransactionTitle(
     `Debit: ${formatOptionalMoney(txn.debit)}`,
     `Credit: ${formatOptionalMoney(txn.credit)}`,
     `Balance: ${formatOptionalMoney(txn.balance_after)}`,
-    `Current target: ${formatReviewCurrentTarget(txn, suggestion, review)}`,
-    `Suggested target: ${formatReviewSuggestedTarget(suggestion, review, aiReviewRunState)}`,
-    `Status: ${formatReviewStatus(suggestion, review)}`,
-    `Review marker: ${formatReviewMarker(suggestion, review)}`,
+    `Current target: ${formatReviewCurrentTarget(txn, suggestion ?? undefined, review)}`,
+    `Suggested target: ${formatReviewSuggestedTarget(suggestion ?? undefined, review, aiReviewRunState)}`,
+    `Status: ${formatReviewStatus(suggestion ?? undefined, review)}`,
+    `Review marker: ${formatReviewMarker(suggestion ?? undefined, review)}`,
   ];
 
-  if (suggestion) {
-    lines.push(`Suggestion confidence: ${formatPercent(suggestion.confidence)}`);
-    lines.push(`Suggestion reason: ${formatReviewText(suggestion.reason)}`);
+  const visibleConfidence = formatReviewConfidence(suggestion ?? undefined, review ?? undefined);
+  if (visibleConfidence !== "-") {
+    lines.push(`Visible Confidence: ${visibleConfidence}`);
   }
-  if (review && review.source !== "not_bank_transaction") {
-    lines.push(`Review source: ${formatReviewText(review.source)}`);
-    lines.push(`Review confidence: ${formatPercent(review.confidence)}`);
-    lines.push(`Review reason: ${formatReviewText(review.reason)}`);
+
+  const reason = suggestion?.reason || review?.reason;
+  if (reason) {
+    lines.push(`Suggestion Reason: ${formatReviewText(reason)}`);
+  }
+
+  if (suggestion) {
+    const modelProb =
+      suggestion.model_probability ??
+      suggestion.xgboost_confidence ??
+      suggestion.confidence;
+    if (modelProb != null) {
+      lines.push(`Model Confidence: ${formatPercent(modelProb)}`);
+    }
+    if (suggestion.ai_confidence != null) {
+      lines.push(`AI Confidence: ${formatPercent(suggestion.ai_confidence)}`);
+    }
+    if (suggestion.training_support || modelProb != null || (suggestion && isXgboostSuggestion(suggestion))) {
+      const vRows = suggestion.training_support?.vendor_training_rows ?? 0;
+      const aRows = suggestion.training_support?.account_training_rows ?? 0;
+      const tRows = suggestion.training_support?.total_training_rows;
+      const parts: string[] = [];
+      parts.push(`Vendor rows: ${vRows}`);
+      parts.push(`Account rows: ${aRows}`);
+      if (tRows != null) parts.push(`Total rows: ${tRows}`);
+      lines.push(`Historical Counts: ${parts.join(" · ")}`);
+    }
+  } else if (review && review.source !== "not_bank_transaction") {
+    lines.push(`Review Source: ${formatReviewText(review.source)}`);
+    const xg = review.xgboost_candidate as {
+      model_probability?: number | null;
+      vendor_training_rows?: number | null;
+      account_training_rows?: number | null;
+      total_training_rows?: number | null;
+    } | null;
+    const modelProb = xg?.model_probability ?? review.confidence;
+    if (modelProb != null) {
+      lines.push(`Model Confidence: ${formatPercent(modelProb)}`);
+    }
+    if (review.requires_ai_review && review.confidence != null) {
+      lines.push(`AI Confidence: ${formatPercent(review.confidence)}`);
+    }
+    if (xg || review.source === "xgboost") {
+      const vRows = xg?.vendor_training_rows ?? 0;
+      const aRows = xg?.account_training_rows ?? 0;
+      const tRows = xg?.total_training_rows;
+      const parts: string[] = [];
+      parts.push(`Vendor rows: ${vRows}`);
+      parts.push(`Account rows: ${aRows}`);
+      if (tRows != null) parts.push(`Total rows: ${tRows}`);
+      lines.push(`Historical Counts: ${parts.join(" · ")}`);
+    }
   }
 
   return lines.join("\n");
+}
+
+function extractVendorTrainingRows(
+  suggestion?: GLAccountSuggestion,
+  review?: ImportPreviewAccountReview | null
+): number | null {
+  const support = suggestion?.training_support ?? (review?.xgboost_candidate as {
+    vendor_training_rows?: number | null;
+    account_vendor_training_rows?: number | null;
+  } | null);
+  if (support?.vendor_training_rows != null) {
+    return Number(support.vendor_training_rows);
+  }
+  if (support?.account_vendor_training_rows != null) {
+    return Number(support.account_vendor_training_rows);
+  }
+  const reason = suggestion?.reason || review?.reason || "";
+  const matchVendor = reason.match(/(\d+)\s+vendor\s+row/i);
+  if (matchVendor) return parseInt(matchVendor[1], 10);
+  const matchHist = reason.match(/(\d+)\s+historical\s+transaction/i);
+  if (matchHist) return parseInt(matchHist[1], 10);
+  const matchRows = reason.match(/\((\d+)\s+rows?\)/i);
+  if (matchRows) return parseInt(matchRows[1], 10);
+  return null;
+}
+
+function formatMlConfidenceWithSupport(
+  prob: number | null | undefined,
+  vendorRows: number | null,
+  vendorSeen?: boolean | null,
+  accountRows?: number | null
+): string {
+  const probPct = formatPercent(prob);
+  const vRows = vendorRows ?? 0;
+  if (vRows === 0 || vendorSeen === false) {
+    return `${probPct} ML · 0 rows (new vendor)`;
+  }
+  if (vRows === 1) {
+    return `${probPct} ML · 1 row (low support)`;
+  }
+  if (vRows > 1) {
+    return `${probPct} ML · ${vRows} vendor rows`;
+  }
+  if (accountRows != null && accountRows > 0) {
+    return `${probPct} ML · ${accountRows} account rows`;
+  }
+  return `${probPct} ML · 0 rows (new vendor)`;
 }
 
 function formatReviewConfidence(
   suggestion?: GLAccountSuggestion,
   review?: ImportPreviewAccountReview | null
 ) {
-  if (suggestion?.confidence != null) return formatPercent(suggestion.confidence);
-  if (review && review.source !== "not_bank_transaction" && review.confidence != null) {
-    return formatPercent(review.confidence);
+  const existingQuickInfo = suggestion?.quick_info || review?.quick_info;
+  if (
+    existingQuickInfo &&
+    (existingQuickInfo.includes("row") ||
+      existingQuickInfo.includes("Exact match") ||
+      existingQuickInfo.includes("Approved") ||
+      existingQuickInfo.includes("QB Rule ·"))
+  ) {
+    return existingQuickInfo;
   }
+
+  if (suggestion) {
+    const modelProb =
+      suggestion.model_probability ??
+      suggestion.xgboost_confidence ??
+      (isXgboostSuggestion(suggestion) ? suggestion.confidence : null);
+    const vendorRows = extractVendorTrainingRows(suggestion, review);
+    const vendorSeen = suggestion.training_support?.vendor_seen;
+    const accountRows = suggestion.training_support?.account_training_rows;
+    const rule = suggestion.rule;
+
+    if (suggestion.review_status === "manual_approved") {
+      return "Approved by you";
+    }
+    if (rule === "quickbooks_rule" || suggestion.review_source === "quickbooks_rule") {
+      if (modelProb != null) {
+        return `QB Rule · ${formatPercent(modelProb)} ML (${vendorRows ?? 0} rows)`;
+      }
+      return "Exact match · QB Rule";
+    }
+    if (rule === "bank_transfer" || isBankTransferSuggestion(suggestion)) {
+      return "Exact match · Bank transfer";
+    }
+    if (rule === "account_split_lookup" || suggestion.review_source === "account_split_lookup") {
+      return "Exact match · 1-to-1 mapping";
+    }
+    if (isXgboostSuggestion(suggestion) || modelProb != null) {
+      return formatMlConfidenceWithSupport(modelProb, vendorRows, vendorSeen, accountRows);
+    }
+    if (isAiFallbackSuggestion(suggestion) || isGeminiSuggestion(suggestion)) {
+      if (suggestion.ai_confidence != null) {
+        return `AI · ${formatPercent(suggestion.ai_confidence)} confidence`;
+      }
+      return "AI suggestion";
+    }
+    if (rule === "accounts_receivable_contact") {
+      return "Exact match · A/R Customer";
+    }
+    if (rule === "accounts_payable_contact") {
+      return "Exact match · A/P Payee";
+    }
+    if (suggestion.confidence != null) {
+      return formatPercent(suggestion.confidence);
+    }
+  }
+
+  if (review && review.source !== "not_bank_transaction") {
+    const xg = review.xgboost_candidate as {
+      model_probability?: number | null;
+      vendor_training_rows?: number | null;
+      vendor_seen?: boolean;
+      account_training_rows?: number | null;
+    } | null;
+    const modelProb = xg?.model_probability ?? review.confidence;
+    const vendorRows = extractVendorTrainingRows(suggestion, review);
+    const vendorSeen = xg?.vendor_seen;
+    const accountRows = xg?.account_training_rows;
+
+    if (review.source === "quickbooks_rule") {
+      if (modelProb != null) {
+        return `QB Rule · ${formatPercent(modelProb)} ML (${vendorRows ?? 0} rows)`;
+      }
+      return "Exact match · QB Rule";
+    }
+    if (review.source === "bank_transfer") {
+      return "Exact match · Bank transfer";
+    }
+    if (review.source === "account_split_lookup") {
+      return "Exact match · 1-to-1 mapping";
+    }
+    if (review.source === "xgboost") {
+      return formatMlConfidenceWithSupport(modelProb, vendorRows, vendorSeen, accountRows);
+    }
+    if (review.source === "accounts_receivable_contact") {
+      return "Exact match · A/R Customer";
+    }
+    if (review.source === "accounts_payable_contact") {
+      return "Exact match · A/P Payee";
+    }
+    if (review.requires_ai_review) {
+      return review.confidence != null
+        ? `AI · ${formatPercent(review.confidence)} confidence`
+        : "AI suggestion";
+    }
+    if (review.confidence != null) {
+      return formatPercent(review.confidence);
+    }
+  }
+
   return "-";
 }
 
@@ -7086,19 +7276,46 @@ function formatReviewConfidenceTitle(
 ) {
   const lines: string[] = [];
   const visibleConfidence = formatReviewConfidence(suggestion, review);
-  lines.push(`Visible confidence: ${visibleConfidence}`);
-
-  if (suggestion) {
-    lines.push(`Suggestion confidence: ${formatPercent(suggestion.confidence)}`);
-    if (suggestion.ai_confidence != null) {
-      lines.push(`AI confidence: ${formatPercent(suggestion.ai_confidence)}`);
-    }
-    if (suggestion.xgboost_confidence != null) {
-      lines.push(`XGBoost confidence: ${formatPercent(suggestion.xgboost_confidence)}`);
-    }
+  if (visibleConfidence !== "-") {
+    lines.push(`Visible Confidence: ${visibleConfidence}`);
   }
-  if (review && review.source !== "not_bank_transaction") {
-    lines.push(`Preview review confidence: ${formatPercent(review.confidence)}`);
+
+  const reason = suggestion?.reason || review?.reason;
+  if (reason) {
+    lines.push(`Suggestion Reason: ${formatReviewText(reason)}`);
+  }
+
+  const modelProb =
+    suggestion?.model_probability ??
+    suggestion?.xgboost_confidence ??
+    (review?.xgboost_candidate as { model_probability?: number | null } | null)?.model_probability;
+  if (modelProb != null) {
+    lines.push(`Model Confidence: ${formatPercent(Number(modelProb))}`);
+  }
+
+  const aiConf =
+    suggestion?.ai_confidence ??
+    (review?.requires_ai_review ? review?.confidence : null);
+  if (aiConf != null) {
+    lines.push(`AI Confidence: ${formatPercent(Number(aiConf))}`);
+  }
+
+  const support =
+    suggestion?.training_support ??
+    (review?.xgboost_candidate as {
+      vendor_training_rows?: number | null;
+      account_training_rows?: number | null;
+      total_training_rows?: number | null;
+    } | null);
+  if (support || modelProb != null || (suggestion && isXgboostSuggestion(suggestion))) {
+    const vRows = support?.vendor_training_rows ?? 0;
+    const aRows = support?.account_training_rows ?? 0;
+    const tRows = (support as { total_training_rows?: number | null } | null)?.total_training_rows;
+    const parts: string[] = [];
+    parts.push(`Vendor rows: ${vRows}`);
+    parts.push(`Account rows: ${aRows}`);
+    if (tRows != null) parts.push(`Total rows: ${tRows}`);
+    lines.push(`Historical Counts: ${parts.join(" · ")}`);
   }
 
   return lines.join("\n");

@@ -343,6 +343,17 @@ export type GLAccountSuggestion = {
   ai_reason?: string | null;
   ai_requires_manual_review?: boolean | null;
   ai_fits_when?: string | null;
+  quick_info?: string | null;
+  decision_source?: string | null;
+  decision_strength?: string | null;
+  model_probability?: number | null;
+  training_support?: {
+    vendor_seen?: boolean;
+    vendor_training_rows?: number | null;
+    account_training_rows?: number | null;
+    total_training_rows?: number | null;
+    [key: string]: unknown;
+  } | null;
   training_vendor: string | null;
   training_amount: number;
   training_description: string | null;
@@ -398,6 +409,7 @@ export type ImportPreviewAccountReview = {
   is_bank_transaction: boolean;
   decision_outcome: GLAccountDecisionOutcome;
   approved_account?: string | null;
+  quick_info?: string | null;
 };
 
 export type ImportPreviewAccountReviewSummary = {
