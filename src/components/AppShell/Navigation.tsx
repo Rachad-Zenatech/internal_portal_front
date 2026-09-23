@@ -55,6 +55,13 @@ export const navigation = [
     navigationCode: "CONSOLIDATED_TRIAL_BALANCE",
   },
   {
+    label: "SEC Filings",
+    path: "/sec-filings",
+    icon: ScrollText,
+    section: "SEC FILINGS",
+    navigationCode: "SEC_FILINGS",
+  },
+  {
     label: "Reports",
     path: "/reports",
     icon: ScrollText,

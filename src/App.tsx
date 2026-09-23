@@ -30,6 +30,7 @@ const XgboostModel = lazy(() => import("./pages/Configurations/XgboostModel"));
 const GeneralLedgerUpload = lazy(() => import("./pages/GeneralLedgerUpload"));
 const CompanyGeneralLedger = lazy(() => import("./pages/CompanyGeneralLedger"));
 const AuditLog = lazy(() => import("./pages/Log/AuditLog"));
+const SecFilings = lazy(() => import("./pages/SecFilings/SecFilingsPage"));
 const Login = lazy(() => import("./pages/Login"));
 const PendingAccess = lazy(() => import("./pages/PendingAccess"));
 
@@ -56,6 +57,7 @@ function App() {
             <Route path="/bank-statements/:bankStatementId/preview" element={<ProtectedRoute navigationCode="BANK_STATEMENT_PREVIEW"><BankStatementPreview /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE_MATRIX"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
+            <Route path="/sec-filings" element={<ProtectedRoute><SecFilings /></ProtectedRoute>} />
 
             {/* Configuration Routes */}
             <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />
