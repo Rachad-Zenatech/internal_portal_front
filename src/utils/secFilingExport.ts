@@ -41,6 +41,13 @@ const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?:
   return false;
 };
 
+const getTopSpacingTwips = (spacingTop: number | undefined, defaultTwips: number): number => {
+  if (typeof spacingTop === 'number') {
+    return Math.max(0, Math.round(spacingTop * 15));
+  }
+  return defaultTwips;
+};
+
 type DocxImageType = 'jpg' | 'png' | 'gif' | 'bmp';
 
 const getDocxImageType = (mimeType: string, url: string): DocxImageType => {
@@ -125,7 +132,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                 font: 'Calibri'
               })
             ],
-            spacing: { before: 200, after: 100 }
+            spacing: { before: getTopSpacingTwips(block.spacingTop, 200), after: 100 }
           })
         );
       }
@@ -223,7 +230,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
               font: 'Calibri'
             })
           ],
-          spacing: { before: isStatementTitle ? 0 : 200, after: 100 }
+          spacing: { before: getTopSpacingTwips(block.spacingTop, isStatementTitle ? 0 : 200), after: 100 }
         })
       );
     } else if (block.type === 'paragraph') {
@@ -247,10 +254,14 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
               font: 'Calibri'
             })
           ],
-          spacing: { before: 60, after: 80, line: 260 }
+          spacing: { before: getTopSpacingTwips(block.spacingTop, 60), after: 80, line: 260 }
         })
       );
     } else if (block.type === 'callout') {
+      const calloutTop = getTopSpacingTwips(block.spacingTop, 160);
+      if (calloutTop > 0) {
+        children.push(new Paragraph({ spacing: { before: calloutTop, after: 0 } }));
+      }
       children.push(
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
@@ -445,6 +456,10 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
         );
       }
 
+      const tableTop = getTopSpacingTwips(block.spacingTop, 100);
+      if (tableTop > 0) {
+        children.push(new Paragraph({ spacing: { before: tableTop, after: 0 } }));
+      }
       children.push(
         new Table({
           width: { size: 100, type: WidthType.PERCENTAGE },
@@ -560,7 +575,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                 transformation: { width: image.width, height: image.height }
               })
             ],
-            spacing: { before: 100, after: block.caption ? 40 : 120 }
+            spacing: { before: getTopSpacingTwips(block.spacingTop, 100), after: block.caption ? 40 : 120 }
           })
         );
       } catch {
@@ -576,7 +591,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                 font: 'Calibri'
               })
             ],
-            spacing: { before: 100, after: block.caption ? 40 : 120 }
+            spacing: { before: getTopSpacingTwips(block.spacingTop, 100), after: block.caption ? 40 : 120 }
           })
         );
       }
@@ -799,15 +814,17 @@ export function printSecFiling(doc: SecFilingDocument) {
               if (b.type === 'heading') {
                 const alignClass = `align-${b.alignment || 'left'}`;
                 const isStatement = b.text.includes('Statements of');
-                return `<h${b.level} class="${alignClass} ${isStatement ? 'page-break' : ''}" style="margin: 14px 0 6px 0; font-weight: bold; color: ${b.color || '#0E2841'};">${b.text}</h${b.level}>`;
+                const topMargin = typeof b.spacingTop === 'number' ? `${b.spacingTop}px` : '14px';
+                return `<h${b.level} class="${alignClass} ${isStatement ? 'page-break' : ''}" style="margin: ${topMargin} 0 6px 0; font-weight: bold; color: ${b.color || '#0E2841'};">${b.text}</h${b.level}>`;
               }
               if (b.type === 'paragraph') {
                 const alignClass = `align-${b.alignment || 'left'}`;
-                return `<p class="${alignClass}" style="margin: 5px 0; color: ${b.color || 'inherit'};">${b.text}</p>`;
+                const topMargin = typeof b.spacingTop === 'number' ? `${b.spacingTop}px` : '5px';
+                return `<p class="${alignClass}" style="margin: ${topMargin} 0; color: ${b.color || 'inherit'};">${b.text}</p>`;
               }
               if (b.type === 'callout') {
                 return `
-                  <div class="callout">
+                  <div class="callout" style="margin-top: ${typeof b.spacingTop === 'number' ? `${b.spacingTop}px` : '14px'};">
                     ${b.title ? `<strong>${b.title}</strong><br/>` : ''}
                     <em>${b.content}</em>
                   </div>
@@ -815,8 +832,9 @@ export function printSecFiling(doc: SecFilingDocument) {
               }
               if (b.type === 'financial_table') {
                 const headerBg = b.headerShading || '#CCECFF';
+                const topMargin = typeof b.spacingTop === 'number' ? `${b.spacingTop}px` : '14px';
                 return `
-                  <table>
+                  <table style="margin-top: ${topMargin};">
                     <thead>
                       ${b.periodHeaders?.length ? `
                         <tr>
