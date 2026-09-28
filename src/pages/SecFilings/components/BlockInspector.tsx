@@ -94,7 +94,7 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
                 Top Spacing Gap
               </label>
               <span className="text-[10px] text-slate-400 block">
-                Vertical distance / blank space above this block
+                Adjust vertical position of this block (does not move other blocks)
               </span>
             </div>
             <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-zinc-700 shadow-2xs">

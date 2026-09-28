@@ -73,8 +73,7 @@ export function estimateBlockHeight(block: SecBlock, globalSpacing: SecBlockSpac
       baseHeight = 40;
   }
 
-  const customSpacingTop = typeof block.spacingTop === 'number' ? block.spacingTop : 0;
-  return Math.round(baseHeight * mult) + customSpacingTop;
+  return Math.round(baseHeight * mult);
 }
 
 /**
@@ -139,4 +138,3 @@ export function paginateBlocks(
 
   return pages.length > 0 ? pages : [{ pageNumber: 1, blocks: [], estimatedHeight: 0 }];
 }
-

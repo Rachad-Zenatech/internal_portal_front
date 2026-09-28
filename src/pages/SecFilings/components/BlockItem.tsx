@@ -126,8 +126,8 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 
   if (isHighlighted) {
     wrapperClass = isWordMode
-      ? `relative ${spacingMarginClass} rounded-sm ring-2 ring-blue-500/70 bg-blue-50/25 dark:bg-blue-950/30`
-      : `relative rounded-xl border border-blue-500 ring-2 ring-blue-500/30 shadow-md bg-blue-50/10 dark:bg-zinc-900 ${spacingMarginClass}`;
+      ? `relative z-20 ${spacingMarginClass} rounded-sm ring-2 ring-blue-500/70 bg-blue-50/25 dark:bg-blue-950/30`
+      : `relative z-20 rounded-xl border border-blue-500 ring-2 ring-blue-500/30 shadow-md bg-blue-50/10 dark:bg-zinc-900 ${spacingMarginClass}`;
   } else if (diffType === 'added') {
     wrapperClass = `relative ${spacingMarginClass} border-l-4 border-emerald-500 bg-emerald-50/20 pl-2 rounded`;
   } else if (diffType === 'modified') {
@@ -185,7 +185,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
         }
       }}
       style={{
-        marginTop: currentSpacingTop !== 0 ? `${currentSpacingTop}px` : undefined
+        transform: currentSpacingTop !== 0 ? `translateY(${currentSpacingTop}px)` : undefined
       }}
       className={`group ${wrapperClass}`}
     >
