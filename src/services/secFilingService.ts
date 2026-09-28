@@ -9,22 +9,127 @@ import type {
 } from '../types/secFiling';
 import { INITIAL_SEC_FILING_DOC, INITIAL_PROPOSALS, INITIAL_VERSION_HISTORY } from '../data/initialSecFilingData';
 
-function sanitizeBlockHeaders(blocks: SecBlock[]): SecBlock[] {
+export function compactFinancialTableBlock(table: SecBlock): SecBlock {
+  if (table.type !== 'financial_table' || !table.rows) return table;
+
+  const b = {
+    ...table,
+    headers: [...(table.headers || [])],
+    columnAlignments: [...(table.columnAlignments || [])],
+    rows: table.rows.map((r: any) => ({ ...r, cells: [...r.cells] }))
+  };
+
+  const numCols = b.headers.length;
+
+  // 1. Close unclosed ( in cells and merge isolated )
+  for (const r of b.rows) {
+    for (let c = 0; c < r.cells.length; c++) {
+      const val = (r.cells[c] || '').trim();
+      if (val.startsWith('(') && !val.endsWith(')')) {
+        let foundClosing = false;
+        for (let k = c + 1; k < Math.min(c + 4, r.cells.length); k++) {
+          if ((r.cells[k] || '').trim() === ')') {
+            r.cells[c] = val + ')';
+            r.cells[k] = '';
+            foundClosing = true;
+            break;
+          }
+        }
+        if (!foundClosing) {
+          r.cells[c] = val + ')';
+        }
+      } else if (val === ')') {
+        for (let k = c - 1; k >= Math.max(0, c - 3); k--) {
+          const prev = (r.cells[k] || '').trim();
+          if (prev.startsWith('(') && !prev.endsWith(')')) {
+            r.cells[k] = prev + ')';
+            r.cells[c] = '';
+            break;
+          }
+        }
+        if (r.cells[c] === ')') r.cells[c] = '';
+      }
+    }
+  }
+
+  // 2. Merge isolated currency columns ($ or CAD or USD) into next adjacent data cell
+  for (let c = 1; c < numCols; c++) {
+    for (const r of b.rows) {
+      const val = (r.cells[c] || '').trim();
+      if (val === '$' || val === 'CAD' || val === 'USD') {
+        for (let k = c + 1; k < Math.min(c + 3, numCols); k++) {
+          const nextVal = (r.cells[k] || '').trim();
+          if (nextVal && !nextVal.startsWith('$')) {
+            r.cells[k] = val + nextVal;
+            r.cells[c] = '';
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. For header rows at the top (rows with 'Ended', '2026', '2025', 'June 30', etc.):
+  // If text is in col C, but all data rows are in col C+1 or C-1, move the header text into the data column
+  for (let c = 1; c < numCols; c++) {
+    const hasDataRows = b.rows.slice(3).some((r: any) => (r.cells[c] || '').trim() !== '');
+    if (!hasDataRows) {
+      const targetCol = [c + 1, c - 1, c + 2].find(k => k >= 1 && k < numCols && b.rows.slice(3).some((r: any) => (r.cells[k] || '').trim() !== ''));
+      if (targetCol !== undefined) {
+        for (let rIdx = 0; rIdx < Math.min(4, b.rows.length); rIdx++) {
+          const topVal = (b.rows[rIdx].cells[c] || '').trim();
+          const targetVal = (b.rows[rIdx].cells[targetCol] || '').trim();
+          if (topVal && !targetVal) {
+            b.rows[rIdx].cells[targetCol] = topVal;
+            b.rows[rIdx].cells[c] = '';
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Detect and remove completely empty columns across all rows (or columns where >95% are empty)
+  const colsToRemove: number[] = [];
+  for (let c = 1; c < numCols; c++) {
+    let nonEmptyCount = 0;
+    for (const r of b.rows) {
+      if ((r.cells[c] || '').trim() !== '') {
+        nonEmptyCount++;
+      }
+    }
+    const hVal = (b.headers[c] || '').trim();
+    const isGhostHeader = hVal === '' || /^Col\s*\d+$/i.test(hVal) || hVal === '-';
+    if (nonEmptyCount === 0 || (nonEmptyCount <= 1 && numCols > 3 && isGhostHeader)) {
+      colsToRemove.push(c);
+    }
+  }
+
+  if (colsToRemove.length > 0) {
+    const keepIndices = Array.from({ length: numCols }, (_, i) => i).filter(i => !colsToRemove.includes(i));
+    b.headers = keepIndices.map(i => b.headers[i] || '');
+    b.columnAlignments = keepIndices.map(i => b.columnAlignments[i] || 'right');
+    b.rows = b.rows.map((r: any) => ({
+      ...r,
+      cells: keepIndices.map(i => r.cells[i] || '')
+    }));
+  }
+
+  return b as any;
+}
+
+export function sanitizeAndCompactBlocks(blocks: SecBlock[]): SecBlock[] {
   return blocks.map((b) => {
-    if (b.type === 'financial_table' && b.headers) {
-      return {
-        ...b,
-        headers: b.headers.map((h) => (/^Col\s*\d+$/i.test(h?.trim() || '') ? '' : h))
-      };
+    if (b.type === 'financial_table' && b.rows) {
+      return compactFinancialTableBlock(b);
     }
     return b;
   });
 }
 
 const STORAGE_KEYS = {
-  MAIN_DOC: 'sec_filing_main_doc_v2_full',
-  PROPOSALS: 'sec_filing_proposals_v2_full',
-  VERSION_HISTORY: 'sec_filing_versions_v2_full'
+  MAIN_DOC: 'sec_filing_main_doc_v4_compact',
+  PROPOSALS: 'sec_filing_proposals_v4_compact',
+  VERSION_HISTORY: 'sec_filing_versions_v4_compact'
 };
 
 // Cross-tab synchronization via BroadcastChannel
@@ -42,12 +147,12 @@ function broadcastSync(type: string, payload?: any) {
 
 export const secFilingService = {
   getMainDocument(): SecFilingDocument {
-    const saved = localStorage.getItem(STORAGE_KEYS.MAIN_DOC);
+    const saved = localStorage.getItem(STORAGE_KEYS.MAIN_DOC) || localStorage.getItem('sec_filing_main_doc_v2_full') || localStorage.getItem('sec_filing_main_doc');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.blocks)) {
-          parsed.blocks = sanitizeBlockHeaders(parsed.blocks);
+          parsed.blocks = sanitizeAndCompactBlocks(parsed.blocks);
           return parsed;
         }
       } catch (e) {
@@ -64,14 +169,14 @@ export const secFilingService = {
   },
 
   getProposals(): SecChangeProposal[] {
-    const saved = localStorage.getItem(STORAGE_KEYS.PROPOSALS);
+    const saved = localStorage.getItem(STORAGE_KEYS.PROPOSALS) || localStorage.getItem('sec_filing_proposals_v1') || localStorage.getItem('sec_filing_proposals');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map((p: SecChangeProposal) => ({
             ...p,
-            blocks: sanitizeBlockHeaders(p.blocks || [])
+            blocks: sanitizeAndCompactBlocks(p.blocks || [])
           }));
         }
       } catch (e) {

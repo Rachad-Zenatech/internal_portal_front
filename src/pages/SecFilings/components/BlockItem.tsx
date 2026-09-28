@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
 import { mediaBucketService } from '../../../services/mediaBucketService';
+import { compactFinancialTableBlock } from '../../../services/secFilingService';
 import { ZENATECH_LOGO_DATA_URL } from '../../../data/zenatechLogoAsset';
 import type {
   SecBlock,
@@ -1135,6 +1136,17 @@ const FinancialTableBlockEditor: React.FC<{
 }> = ({ block, onUpdate }) => {
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    const hasSplitParens = block.rows?.some(r => r.cells.some(c => c.trim() === ')' || (c.trim().startsWith('(') && !c.trim().endsWith(')'))));
+    const hasGhostCols = block.headers.length > 5 && block.headers.some(h => /^Col\s*\d+$/i.test(h.trim()) || h.trim() === '');
+    if (hasSplitParens || hasGhostCols) {
+      const compacted = compactFinancialTableBlock(block as any) as SecFinancialTableBlock;
+      if (compacted.headers.length !== block.headers.length || JSON.stringify(compacted.rows) !== JSON.stringify(block.rows)) {
+        onUpdate(compacted);
+      }
+    }
+  }, [block, onUpdate]);
 
   const reorderRow = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex || toIndex < 0 || toIndex >= block.rows.length) return;
