@@ -135,6 +135,27 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [selectedBlockIds, selectedBlockId, onMoveMultipleBlocks, onMoveBlock, onClearSelection]);
 
+  // Global click-away listener: clears selected block when clicking off to the side or on canvas margins
+  useEffect(() => {
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // If clicked inside a block item, floating toolbar, popover, or dropdown menu, do not deselect
+      const isInsideBlockOrToolbar = target.closest(
+        '[data-block-item="true"], [role="dialog"], [role="menu"], [data-radix-popper-content-wrapper], [data-slot="popover-content"], [data-slot="dropdown-menu-content"]'
+      );
+
+      if (!isInsideBlockOrToolbar) {
+        onSelectBlock(null);
+        onClearSelection?.();
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [onSelectBlock, onClearSelection]);
+
   // Paginate blocks dynamically taking global spacing into account
   const pages = useMemo(() => {
     return paginateBlocks(filteredBlocks, globalSpacing);

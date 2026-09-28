@@ -239,9 +239,29 @@ export interface SecVersionSnapshot {
   proposalId?: string;
 }
 
+export type SecChangeCategory =
+  | 'spacing'
+  | 'typography'
+  | 'content'
+  | 'structure'
+  | 'financial_data'
+  | 'signature'
+  | 'metadata';
+
+export interface SecChangeTag {
+  category: SecChangeCategory;
+  label: string;
+  detail?: string;
+}
+
 export interface SecBlockDiff {
   blockId: string;
   status: 'unchanged' | 'added' | 'modified' | 'deleted';
+  changeCategories?: SecChangeCategory[];
+  changeTags?: SecChangeTag[];
+  isSpacingOnly?: boolean;
+  isTypographyOnly?: boolean;
+  isContentModified?: boolean;
   originalBlock?: SecBlock;
   proposedBlock?: SecBlock;
   fieldDiffs?: {

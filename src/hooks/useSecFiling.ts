@@ -20,25 +20,18 @@ export type UserFilingRole = 'LEAD_CONTROLLER' | 'CONTRIBUTOR';
 export function useSecFiling() {
   const { user } = useAuth();
 
-  // Role: Default to Lead Controller if super admin or allow quick toggle
-  const [activeRole, setActiveRole] = useState<UserFilingRole>(
-    user?.is_super_admin ? 'LEAD_CONTROLLER' : 'LEAD_CONTROLLER'
-  );
-
+  // --------------------------------------------------------------------------
+  // 1. ALL STATE & REFS (Strictly ordered at the top)
+  // --------------------------------------------------------------------------
+  const [activeRole, setActiveRole] = useState<UserFilingRole>('LEAD_CONTROLLER');
   const [mainDoc, setMainDoc] = useState<SecFilingDocument>(() => secFilingService.getMainDocument());
   const [proposals, setProposals] = useState<SecChangeProposal[]>(() => secFilingService.getProposals());
   const [versionHistory, setVersionHistory] = useState<SecVersionSnapshot[]>(() =>
     secFilingService.getVersionHistory()
   );
-
-  // Active proposal if editing a branch/proposal, or null if editing Main
   const [activeProposalId, setActiveProposalId] = useState<string | null>(null);
-
-  // Search / section filter
   const [sectionFilter, setSectionFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // Contributor invite session data (if opened via share link)
   const [contributorSession, setContributorSession] = useState<{
     isContributor: boolean;
     name?: string;
@@ -46,52 +39,20 @@ export function useSecFiling() {
     assignedSection?: string;
   }>({ isContributor: false });
 
-  // Detect contributor link on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const isContributor =
-      params.get('contributor') === 'true' || window.location.pathname.includes('/contribute');
-    const propId = params.get('proposalId');
-    const name = params.get('name');
-    const role = params.get('role');
-    const section = params.get('section');
-    const title = params.get('title') || undefined;
-    const desc = params.get('desc') || undefined;
+  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
 
-    if (isContributor) {
-      setActiveRole('CONTRIBUTOR');
-      const effectivePropId = propId || 'prop-contrib-session-active';
-      const ensuredProp = secFilingService.getOrCreateContributorProposal({
-        id: effectivePropId,
-        title: title || (name ? `${name}'s Section Revisions` : 'Contributor Draft Revisions'),
-        name: name || undefined,
-        role: role || undefined,
-        section: section || undefined,
-        description: desc
-      });
-      setProposals(secFilingService.getProposals());
-      setActiveProposalId(ensuredProp.id);
+  const [undoStack, setUndoStack] = useState<SecBlock[][]>([]);
+  const [redoStack, setRedoStack] = useState<SecBlock[][]>([]);
+  const isUndoRedoActionRef = useRef<boolean>(false);
 
-      setContributorSession({
-        isContributor: true,
-        name: name || undefined,
-        role: role || undefined,
-        assignedSection: section && section !== 'ALL' ? section : undefined
-      });
-
-      if (section && section !== 'ALL') {
-        setSectionFilter(section);
-      }
-      toast.info(`Welcome ${name || 'Contributor'}! You are editing in Contributor Draft mode.`);
-    }
-  }, []);
-
-  // Active Proposal object if any
+  // --------------------------------------------------------------------------
+  // 2. CORE MEMOS (Derived working document & structure)
+  // --------------------------------------------------------------------------
   const activeProposal = useMemo(() => {
     return proposals.find((p) => p.id === activeProposalId) || null;
   }, [proposals, activeProposalId]);
 
-  // Current Working Blocks: either active proposal's blocks or mainDoc's blocks
   const workingBlocks = useMemo(() => {
     if (activeProposal) {
       return activeProposal.blocks;
@@ -99,11 +60,47 @@ export function useSecFiling() {
     return mainDoc.blocks;
   }, [activeProposal, mainDoc.blocks]);
 
-  // Selected block id for inspector & multi-block selection set
-  const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [selectedBlockIds, setSelectedBlockIds] = useState<string[]>([]);
+  const documentSections = useMemo(() => {
+    const list: string[] = [];
+    workingBlocks.forEach((b) => {
+      if (b.section && !list.includes(b.section)) {
+        list.push(b.section);
+      }
+    });
+    return list;
+  }, [workingBlocks]);
 
-  // Toggle selection for a single or multiple blocks
+  const filteredBlocks = useMemo(() => {
+    return workingBlocks.filter((b) => {
+      if (sectionFilter !== 'ALL' && b.section !== sectionFilter) {
+        return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        if (b.type === 'heading' && b.text.toLowerCase().includes(q)) return true;
+        if (b.type === 'paragraph' && b.text.toLowerCase().includes(q)) return true;
+        if (b.type === 'callout' && (b.content.toLowerCase().includes(q) || b.title?.toLowerCase().includes(q)))
+          return true;
+        if (b.type === 'financial_table') {
+          if (b.title?.toLowerCase().includes(q)) return true;
+          if (b.headers.some((h) => h.toLowerCase().includes(q))) return true;
+          if (b.rows.some((r) => r.cells.some((c) => c.toLowerCase().includes(q)))) return true;
+        }
+        return false;
+      }
+      return true;
+    });
+  }, [workingBlocks, sectionFilter, searchQuery]);
+
+  // --------------------------------------------------------------------------
+  // 3. ALL CALLBACKS
+  // --------------------------------------------------------------------------
+  const refreshAll = useCallback(() => {
+    setMainDoc(secFilingService.getMainDocument());
+    setProposals(secFilingService.getProposals());
+    setVersionHistory(secFilingService.getVersionHistory());
+  }, []);
+
   const toggleBlockSelection = useCallback((id: string, multiSelect = false) => {
     setSelectedBlockIds((prev) => {
       if (!multiSelect) {
@@ -133,7 +130,6 @@ export function useSecFiling() {
     setSelectedBlockId(null);
   }, []);
 
-  // Calculate diffs between mainDoc and active proposal (or selected proposal)
   const calculateDiffForProposal = useCallback(
     (proposal: SecChangeProposal): SecBlockDiff[] => {
       return secFilingService.calculateDiffs(mainDoc.blocks, proposal.blocks);
@@ -141,61 +137,6 @@ export function useSecFiling() {
     [mainDoc.blocks]
   );
 
-  const activeDiffs = useMemo(() => {
-    if (!activeProposal) return [];
-    return calculateDiffForProposal(activeProposal);
-  }, [activeProposal, calculateDiffForProposal]);
-
-  // Sync with service
-  const refreshAll = useCallback(() => {
-    setMainDoc(secFilingService.getMainDocument());
-    setProposals(secFilingService.getProposals());
-    setVersionHistory(secFilingService.getVersionHistory());
-  }, []);
-
-  // Real-time cross-tab synchronization (BroadcastChannel + StorageEvent)
-  useEffect(() => {
-    const handleStorage = (e: StorageEvent) => {
-      if (
-        e.key === 'sec_filing_proposals_v2_full' ||
-        e.key === 'sec_filing_main_doc_v2_full' ||
-        e.key === 'sec_filing_versions_v2_full'
-      ) {
-        refreshAll();
-      }
-    };
-
-    window.addEventListener('storage', handleStorage);
-
-    let bc: BroadcastChannel | null = null;
-    if (typeof BroadcastChannel !== 'undefined') {
-      try {
-        bc = new BroadcastChannel('sec_filing_sync_channel');
-        bc.onmessage = (event) => {
-          if (event.data?.type === 'PROPOSAL_SUBMITTED') {
-            refreshAll();
-            toast.success(`New draft submitted by ${event.data?.author || 'Contributor'}!`, {
-              description: `"${event.data?.title || 'Filing Updates'}" is ready for Lead Controller review in Merge Control.`
-            });
-          } else if (event.data?.type === 'DOC_MERGED') {
-            refreshAll();
-            toast.info('Main document updated with newly approved changes.');
-          } else {
-            refreshAll();
-          }
-        };
-      } catch (err) {
-        console.warn('BroadcastChannel error', err);
-      }
-    }
-
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      if (bc) bc.close();
-    };
-  }, [refreshAll]);
-
-  // Underlying state updater (either in active proposal or main doc)
   const applyWorkingBlocks = useCallback(
     (newBlocks: SecBlock[]) => {
       if (activeProposal) {
@@ -204,7 +145,6 @@ export function useSecFiling() {
           blocks: newBlocks,
           updatedAt: new Date().toISOString()
         };
-        // Update summary
         const diffs = secFilingService.calculateDiffs(mainDoc.blocks, newBlocks);
         updatedProposal.changeSummary = {
           ...updatedProposal.changeSummary,
@@ -229,12 +169,6 @@ export function useSecFiling() {
     [activeProposal, mainDoc, user]
   );
 
-  // Undo / Redo Stacks (stores historical snapshots of workingBlocks)
-  const [undoStack, setUndoStack] = useState<SecBlock[][]>([]);
-  const [redoStack, setRedoStack] = useState<SecBlock[][]>([]);
-  const isUndoRedoActionRef = useRef<boolean>(false);
-
-  // Update working blocks (with undo snapshot tracking)
   const setWorkingBlocks = useCallback(
     (newBlocks: SecBlock[]) => {
       if (!isUndoRedoActionRef.current) {
@@ -255,7 +189,6 @@ export function useSecFiling() {
     [workingBlocks, applyWorkingBlocks]
   );
 
-  // Undo handler (one change at a time)
   const handleUndo = useCallback(() => {
     if (undoStack.length === 0) {
       toast.info('Nothing to undo');
@@ -274,7 +207,6 @@ export function useSecFiling() {
     toast.info('Undid last change (Ctrl+Z / ⌘Z)');
   }, [undoStack, workingBlocks, applyWorkingBlocks]);
 
-  // Redo handler
   const handleRedo = useCallback(() => {
     if (redoStack.length === 0) {
       toast.info('Nothing to redo');
@@ -293,40 +225,6 @@ export function useSecFiling() {
     toast.info('Redid change (Ctrl+Y / ⌘⇧Z)');
   }, [redoStack, workingBlocks, applyWorkingBlocks]);
 
-  // Global Keyboard Listener for Ctrl+Z / Cmd+Z and Ctrl+Y / Cmd+Shift+Z
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-      const isCtrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
-
-      if (!isCtrlOrCmd) return;
-
-      const key = e.key.toLowerCase();
-
-      // Undo: Ctrl+Z or Cmd+Z (without shift)
-      if (key === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleUndo();
-        return;
-      }
-
-      // Redo: Ctrl+Y, or Ctrl+Shift+Z / Cmd+Shift+Z
-      if (key === 'y' || (key === 'z' && e.shiftKey)) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleRedo();
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [handleUndo, handleRedo]);
-
-  // Block Manipulation functions
   const addBlock = useCallback(
     (index: number, type: SecBlockType, defaultSection?: string) => {
       let section = defaultSection && defaultSection !== 'ALL' ? defaultSection : '';
@@ -344,7 +242,6 @@ export function useSecFiling() {
       }
 
       const blockId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
-
       let newBlock: SecBlock;
 
       switch (type) {
@@ -469,10 +366,20 @@ export function useSecFiling() {
             spacing: 'normal'
           };
           break;
+        default:
+          newBlock = {
+            id: blockId,
+            type: 'paragraph',
+            section,
+            text: '',
+            alignment: 'left',
+            spacingTop: 6,
+            spacing: 'normal'
+          };
       }
 
       const nextBlocks = [...workingBlocks];
-      const targetIdx = Math.max(0, Math.min(index, nextBlocks.length));
+      const targetIdx = index >= 0 && index <= nextBlocks.length ? index : nextBlocks.length;
       nextBlocks.splice(targetIdx, 0, newBlock);
       setWorkingBlocks(nextBlocks);
       setSelectedBlockId(newBlock.id);
@@ -489,7 +396,6 @@ export function useSecFiling() {
       const oldSection = currentBlock.section;
       let newSection: string | undefined;
 
-      // Case 1: Explicit section update (e.g. from BlockInspector or bulk move)
       if (typeof updates.section === 'string' && updates.section.trim() !== '') {
         const trimmedSec = updates.section.trim();
         if (trimmedSec !== oldSection) {
@@ -497,7 +403,6 @@ export function useSecFiling() {
         }
       }
 
-      // Case 2: Heading text updated on the page
       const headingTextUpdate = (updates as any).text;
       if (currentBlock.type === 'heading' && typeof headingTextUpdate === 'string') {
         const trimmedText = headingTextUpdate.trim();
@@ -530,7 +435,6 @@ export function useSecFiling() {
           return updated;
         }
 
-        // Cascade section rename to sibling blocks in the same section
         if (newSection && b.section === oldSection) {
           const updatedSibling: SecBlock = {
             ...b,
@@ -574,7 +478,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Move multiple selected blocks simultaneously
   const moveMultipleBlocks = useCallback(
     (ids: string[], direction: 'up' | 'down') => {
       if (!ids || ids.length === 0) return;
@@ -611,7 +514,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Duplicate multiple selected blocks at once
   const duplicateMultipleBlocks = useCallback(
     (ids: string[]) => {
       if (!ids || ids.length === 0) return;
@@ -640,7 +542,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Delete multiple selected blocks
   const deleteMultipleBlocks = useCallback(
     (ids: string[]) => {
       if (!ids || ids.length === 0) return;
@@ -658,7 +559,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Move blocks to section
   const moveMultipleBlocksToSection = useCallback(
     (ids: string[], targetSection: string) => {
       if (!ids || ids.length === 0) return;
@@ -675,7 +575,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Update spacing for multiple selected blocks
   const updateMultipleBlocksSpacing = useCallback(
     (ids: string[], spacing: SecBlockSpacing) => {
       if (!ids || ids.length === 0) return;
@@ -692,7 +591,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Move an entire section (all blocks belonging to it) up or down relative to adjacent sections
   const moveSection = useCallback(
     (sectionName: string, direction: 'up' | 'down') => {
       if (!sectionName) return;
@@ -704,14 +602,13 @@ export function useSecFiling() {
         }
       });
 
-      const secIndex = currentSections.indexOf(sectionName);
-      if (secIndex === -1) return;
-      if (direction === 'up' && secIndex === 0) return;
-      if (direction === 'down' && secIndex === currentSections.length - 1) return;
+      const currentIdx = currentSections.indexOf(sectionName);
+      if (currentIdx === -1) return;
+      if (direction === 'up' && currentIdx === 0) return;
+      if (direction === 'down' && currentIdx === currentSections.length - 1) return;
 
-      const targetSection = direction === 'up'
-        ? currentSections[secIndex - 1]
-        : currentSections[secIndex + 1];
+      const targetSecIndex = direction === 'up' ? currentIdx - 1 : currentIdx + 1;
+      const targetSection = currentSections[targetSecIndex];
 
       const sectionBlocks = workingBlocks.filter((b) => b.section === sectionName);
       const otherBlocks = workingBlocks.filter((b) => b.section !== sectionName);
@@ -739,7 +636,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Move a whole section directly to top or bottom or specific index
   const reorderSection = useCallback(
     (sectionName: string, targetSecIndex: number) => {
       if (!sectionName) return;
@@ -782,7 +678,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
-  // Create a brand new document section with a heading and paragraph
   const createSection = useCallback(
     (name = 'New Section') => {
       let sectionName = name;
@@ -880,7 +775,6 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks, selectedBlockId]
   );
 
-  // Proposals & Merge Actions
   const handleCreateProposal = useCallback(
     (title: string, description: string, assignedSection?: string) => {
       const author = {
@@ -1001,39 +895,131 @@ export function useSecFiling() {
     toast.success('Reset filing document to baseline v22 Review Copy');
   }, [refreshAll]);
 
-  // Unique sections list for sidebar
-  const documentSections = useMemo(() => {
-    const list: string[] = [];
-    workingBlocks.forEach((b) => {
-      if (b.section && !list.includes(b.section)) {
-        list.push(b.section);
-      }
-    });
-    return list;
-  }, [workingBlocks]);
+  // --------------------------------------------------------------------------
+  // 4. MEMOIZED DIFFS
+  // --------------------------------------------------------------------------
+  const activeDiffs = useMemo(() => {
+    if (!activeProposal) return [];
+    return calculateDiffForProposal(activeProposal);
+  }, [activeProposal, calculateDiffForProposal]);
 
-  // Filtered blocks based on search and section
-  const filteredBlocks = useMemo(() => {
-    return workingBlocks.filter((b) => {
-      if (sectionFilter !== 'ALL' && b.section !== sectionFilter) {
-        return false;
+  // --------------------------------------------------------------------------
+  // 5. ALL EFFECTS (Strictly at the bottom)
+  // --------------------------------------------------------------------------
+  // Detect contributor link on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const isContributor =
+      params.get('contributor') === 'true' || window.location.pathname.includes('/contribute');
+    const propId = params.get('proposalId');
+    const name = params.get('name');
+    const role = params.get('role');
+    const section = params.get('section');
+    const title = params.get('title') || undefined;
+    const desc = params.get('desc') || undefined;
+
+    if (isContributor) {
+      setActiveRole('CONTRIBUTOR');
+      const effectivePropId = propId || 'prop-contrib-session-active';
+      const ensuredProp = secFilingService.getOrCreateContributorProposal({
+        id: effectivePropId,
+        title: title || (name ? `${name}'s Section Revisions` : 'Contributor Draft Revisions'),
+        name: name || undefined,
+        role: role || undefined,
+        section: section || undefined,
+        description: desc
+      });
+      setProposals(secFilingService.getProposals());
+      setActiveProposalId(ensuredProp.id);
+
+      setContributorSession({
+        isContributor: true,
+        name: name || undefined,
+        role: role || undefined,
+        assignedSection: section && section !== 'ALL' ? section : undefined
+      });
+
+      if (section && section !== 'ALL') {
+        setSectionFilter(section);
       }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        if (b.type === 'heading' && b.text.toLowerCase().includes(q)) return true;
-        if (b.type === 'paragraph' && b.text.toLowerCase().includes(q)) return true;
-        if (b.type === 'callout' && (b.content.toLowerCase().includes(q) || b.title?.toLowerCase().includes(q)))
-          return true;
-        if (b.type === 'financial_table') {
-          if (b.title?.toLowerCase().includes(q)) return true;
-          if (b.headers.some((h) => h.toLowerCase().includes(q))) return true;
-          if (b.rows.some((r) => r.cells.some((c) => c.toLowerCase().includes(q)))) return true;
-        }
-        return false;
+      toast.info(`Welcome ${name || 'Contributor'}! You are editing in Contributor Draft mode.`);
+    }
+  }, []);
+
+  // Real-time cross-tab synchronization (BroadcastChannel + StorageEvent)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (
+        e.key === 'sec_filing_proposals_v2_full' ||
+        e.key === 'sec_filing_main_doc_v2_full' ||
+        e.key === 'sec_filing_versions_v2_full'
+      ) {
+        refreshAll();
       }
-      return true;
-    });
-  }, [workingBlocks, sectionFilter, searchQuery]);
+    };
+
+    window.addEventListener('storage', handleStorage);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('sec_filing_sync_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'PROPOSAL_SUBMITTED') {
+            refreshAll();
+            toast.success(`New draft submitted by ${event.data?.author || 'Contributor'}!`, {
+              description: `"${event.data?.title || 'Filing Updates'}" is ready for Lead Controller review in Merge Control.`
+            });
+          } else if (event.data?.type === 'DOC_MERGED') {
+            refreshAll();
+            toast.info('Main document updated with newly approved changes.');
+          } else {
+            refreshAll();
+          }
+        };
+      } catch (err) {
+        console.warn('BroadcastChannel error', err);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      if (bc) bc.close();
+    };
+  }, [refreshAll]);
+
+  // Global Keyboard Listener for Ctrl+Z / Cmd+Z and Ctrl+Y / Cmd+Shift+Z
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const isCtrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+      if (!isCtrlOrCmd) return;
+
+      const key = e.key.toLowerCase();
+
+      // Undo: Ctrl+Z or Cmd+Z (without shift)
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleUndo();
+        return;
+      }
+
+      // Redo: Ctrl+Y, or Ctrl+Shift+Z / Cmd+Shift+Z
+      if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRedo();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [handleUndo, handleRedo]);
 
   return {
     mainDoc,

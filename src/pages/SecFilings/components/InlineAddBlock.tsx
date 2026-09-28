@@ -26,63 +26,63 @@ const BLOCK_OPTIONS: {
   icon: React.ComponentType<{ className?: string }>;
   color: string;
 }[] = [
-  {
-    type: 'paragraph',
-    label: 'Paragraph / Disclosure',
-    desc: 'Standard financial text and narrative disclosure',
-    icon: AlignLeft,
-    color: 'text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40'
-  },
-  {
-    type: 'heading',
-    label: 'Section Heading / New Section',
-    desc: 'Starts a section; name on page sets document section name',
-    icon: Heading,
-    color: 'text-purple-500 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40'
-  },
-  {
-    type: 'image',
-    label: 'Picture / Corporate Logo',
-    desc: 'Embed company logos, charts, or images',
-    icon: ImageIcon,
-    color: 'text-pink-500 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40'
-  },
-  {
-    type: 'financial_table',
-    label: 'Financial Statement Table',
-    desc: 'Multi-column statement grid with notes and totals',
-    icon: TableIcon,
-    color: 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
-  },
-  {
-    type: 'callout',
-    label: 'Auditor / Notice Box',
-    desc: 'Highlighted unreviewed or regulatory callout',
-    icon: AlertCircle,
-    color: 'text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40'
-  },
-  {
-    type: 'signature',
-    label: 'Officer Signatures',
-    desc: 'CEO/CFO certification sign-off block',
-    icon: FileSignature,
-    color: 'text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
-  },
-  {
-    type: 'divider',
-    label: 'Section / Page Break',
-    desc: 'Visual divider or hard print page break',
-    icon: Minus,
-    color: 'text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800'
-  },
-  {
-    type: 'metadata',
-    label: 'SEC Filing Header & CIK',
-    desc: 'SEC EDGAR taxonomy and period metadata',
-    icon: Tag,
-    color: 'text-sky-500 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40'
-  }
-];
+    {
+      type: 'paragraph',
+      label: 'Paragraph / Disclosure',
+      desc: 'Standard financial text and narrative disclosure',
+      icon: AlignLeft,
+      color: 'text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40'
+    },
+    {
+      type: 'heading',
+      label: 'Section Heading / New Section',
+      desc: 'Starts a section; name on page sets document section name',
+      icon: Heading,
+      color: 'text-purple-500 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40'
+    },
+    {
+      type: 'image',
+      label: 'Picture / Corporate Logo',
+      desc: 'Embed company logos, charts, or images',
+      icon: ImageIcon,
+      color: 'text-pink-500 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/40'
+    },
+    {
+      type: 'financial_table',
+      label: 'Financial Statement Table',
+      desc: 'Multi-column statement grid with notes and totals',
+      icon: TableIcon,
+      color: 'text-emerald-500 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
+    },
+    {
+      type: 'callout',
+      label: 'Auditor / Notice Box',
+      desc: 'Highlighted unreviewed or regulatory callout',
+      icon: AlertCircle,
+      color: 'text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40'
+    },
+    {
+      type: 'signature',
+      label: 'Officer Signatures',
+      desc: 'CEO/CFO certification sign-off block',
+      icon: FileSignature,
+      color: 'text-indigo-500 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40'
+    },
+    {
+      type: 'divider',
+      label: 'Section / Page Break',
+      desc: 'Visual divider or hard print page break',
+      icon: Minus,
+      color: 'text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-800'
+    },
+    {
+      type: 'metadata',
+      label: 'SEC Filing Header & CIK',
+      desc: 'SEC EDGAR taxonomy and period metadata',
+      icon: Tag,
+      color: 'text-sky-500 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40'
+    }
+  ];
 
 const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
   onAdd,
@@ -157,11 +157,10 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
     <div className={`group/inserter relative h-0 w-full select-none z-20 ${className}`}>
       {/* Invisible hover hotspot zone centered on the seam line (-top-3 to bottom-3) */}
       <div
-        className={`absolute inset-x-0 -top-3 h-6 flex items-center justify-center transition-opacity ${
-          open
-            ? 'opacity-100 pointer-events-auto'
-            : 'opacity-0 hover:opacity-100 pointer-events-auto'
-        }`}
+        className={`absolute inset-x-0 -top-3 h-6 flex items-center justify-center transition-opacity ${open
+          ? 'opacity-100 pointer-events-auto'
+          : 'opacity-0 hover:opacity-100 pointer-events-auto'
+          }`}
       >
         {/* Subtle dashed line connecting across the seam */}
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px border-t border-dashed border-blue-400/80 dark:border-blue-500/80" />
