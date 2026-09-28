@@ -104,7 +104,7 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[92vh] flex flex-col p-0 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
+      <DialogContent className="w-[98vw] max-w-[98vw] sm:max-w-[98vw] h-[96vh] max-h-[96vh] flex flex-col p-0 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-950/70 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -212,7 +212,7 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
         </div>
 
         {/* Diff Content Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[48vh]">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0">
           {changedDiffs.length === 0 ? (
             <div className="py-12 text-center text-slate-400 text-sm">
               No differences found between the proposed changes and the Main document.
@@ -287,7 +287,7 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
 
                   {/* Diff Viewer representation */}
                   {diffViewMode === 'side-by-side' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
                       {/* Original Main */}
                       <div className="p-3 rounded-lg bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 space-y-1">
                         <div className="font-semibold text-slate-500 text-[10px] uppercase">

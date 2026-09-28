@@ -23,7 +23,7 @@ export const VersionHistoryModal: React.FC<VersionHistoryModalProps> = ({
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xl p-6">
+      <DialogContent className="w-full max-w-3xl sm:max-w-3xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl shadow-xl p-6">
         <DialogHeader className="pb-3 border-b border-slate-100 dark:border-zinc-800">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-blue-600" />

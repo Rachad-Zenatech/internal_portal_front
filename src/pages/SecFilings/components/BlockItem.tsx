@@ -196,7 +196,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
         >
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px border-t border-dashed border-blue-400/50" />
           <div className="relative z-10 flex items-center gap-1 bg-white dark:bg-zinc-900 border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 px-1.5 py-0.2 rounded-full text-[9px] font-mono shadow-xs">
-            <span>↑ {currentSpacingTop}px gap</span>
+            <span className="font-semibold">Top Spacing Gap: {currentSpacingTop}px</span>
             <button
               type="button"
               onClick={(e) => {
@@ -678,74 +678,102 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 
         <div className="h-3.5 w-px bg-slate-200 dark:bg-zinc-700 mx-0.5" />
 
-        {/* Per-Block Number Spacing Stepper & Dropdown */}
-        <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded px-1 py-0.2 text-[9px] font-mono border border-slate-200 dark:border-zinc-700">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              updateSpacingTop(-2);
-            }}
-            disabled={currentSpacingTop <= -10}
-            title="Decrease top gap (-2px)"
-            className="px-0.5 hover:text-blue-600 disabled:opacity-30 font-bold"
-          >
-            -
-          </button>
+        {/* Top Spacing Gap Input with Label on top */}
+        <div className="flex flex-col items-center justify-center px-2 py-0.5 bg-slate-100/90 dark:bg-zinc-800/90 rounded-md border border-slate-200/90 dark:border-zinc-700 shadow-2xs select-none">
+          <span className="text-[8px] font-bold text-slate-500 dark:text-zinc-400 uppercase tracking-wider leading-none mb-0.5 whitespace-nowrap">
+            Top Spacing Gap
+          </span>
+          <div className="flex items-center gap-1 font-mono">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                updateSpacingTop(-2);
+              }}
+              disabled={currentSpacingTop <= -20}
+              title="Decrease top gap (-2px)"
+              className="h-4 w-4 flex items-center justify-center rounded bg-slate-200/90 dark:bg-zinc-700 hover:bg-slate-300 text-slate-700 dark:text-zinc-300 disabled:opacity-30 font-bold text-[10px]"
+            >
+              -
+            </button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
+            <div className="flex items-center bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-600 rounded px-1 h-5 shadow-2xs">
+              <input
+                type="number"
+                min={-20}
+                max={150}
+                step={1}
+                value={currentSpacingTop}
                 onClick={(e) => e.stopPropagation()}
-                title="Top Spacing (gap above this block)"
-                className="px-1 font-bold text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-0.5"
-              >
-                <span>{currentSpacingTop}px</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44 p-1 text-xs">
-              <div className="px-2 py-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
-                Top Spacing Gap
-              </div>
-              {[
-                { px: -4, label: '-4px', desc: 'Ultra Close' },
-                { px: -2, label: '-2px', desc: 'Very Close (Subtitle)' },
-                { px: 0, label: '0px', desc: 'Flush (Connected)' },
-                { px: 2, label: '2px', desc: 'Hairline Gap' },
-                { px: 4, label: '4px', desc: 'Tight Gap' },
-                { px: 8, label: '8px', desc: 'Normal Gap' },
-                { px: 12, label: '12px', desc: 'Moderate Gap' },
-                { px: 16, label: '16px', desc: 'Section Gap' },
-                { px: 24, label: '24px', desc: 'Large Gap' },
-                { px: 32, label: '32px', desc: 'Major Break' }
-              ].map((opt) => (
-                <DropdownMenuItem
-                  key={opt.px}
-                  onClick={() => setDirectSpacingTop(opt.px)}
-                  className={`flex items-center justify-between text-xs py-1 cursor-pointer ${
-                    currentSpacingTop === opt.px ? 'font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50' : ''
-                  }`}
-                >
-                  <span>{opt.label}</span>
-                  <span className="text-[10px] text-slate-400">{opt.desc}</span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                onChange={(e) => {
+                  e.stopPropagation();
+                  const val = parseInt(e.target.value, 10);
+                  if (!isNaN(val)) {
+                    setDirectSpacingTop(val);
+                  } else if (e.target.value === '') {
+                    setDirectSpacingTop(0);
+                  }
+                }}
+                className="w-8 h-4 text-center font-bold text-[10px] text-blue-700 dark:text-blue-400 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                title="Write a number in pixels for top spacing gap"
+              />
+              <span className="text-[8px] text-slate-400 select-none">px</span>
+            </div>
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              updateSpacingTop(2);
-            }}
-            disabled={currentSpacingTop >= 120}
-            title="Increase top gap (+2px)"
-            className="px-0.5 hover:text-blue-600 disabled:opacity-30 font-bold"
-          >
-            +
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                updateSpacingTop(2);
+              }}
+              disabled={currentSpacingTop >= 150}
+              title="Increase top gap (+2px)"
+              className="h-4 w-4 flex items-center justify-center rounded bg-slate-200/90 dark:bg-zinc-700 hover:bg-slate-300 text-slate-700 dark:text-zinc-300 disabled:opacity-30 font-bold text-[10px]"
+            >
+              +
+            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Presets for Top Spacing Gap"
+                  className="h-4 px-1 rounded bg-slate-200/60 dark:bg-zinc-700/60 hover:bg-slate-200 text-slate-600 dark:text-zinc-300 text-[9px] flex items-center gap-0.5 ml-0.5"
+                >
+                  <ChevronDown className="w-2.5 h-2.5 text-slate-400" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44 p-1 text-xs">
+                <div className="px-2 py-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Top Spacing Gap Presets
+                </div>
+                {[
+                  { px: -4, label: '-4px', desc: 'Ultra Close' },
+                  { px: -2, label: '-2px', desc: 'Very Close (Subtitle)' },
+                  { px: 0, label: '0px', desc: 'Flush (Connected)' },
+                  { px: 2, label: '2px', desc: 'Hairline Gap' },
+                  { px: 4, label: '4px', desc: 'Tight Gap' },
+                  { px: 8, label: '8px', desc: 'Normal Gap' },
+                  { px: 12, label: '12px', desc: 'Moderate Gap' },
+                  { px: 16, label: '16px', desc: 'Section Gap' },
+                  { px: 24, label: '24px', desc: 'Large Gap' },
+                  { px: 32, label: '32px', desc: 'Major Break' }
+                ].map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.px}
+                    onClick={() => setDirectSpacingTop(opt.px)}
+                    className={`flex items-center justify-between text-xs py-1 cursor-pointer ${
+                      currentSpacingTop === opt.px ? 'font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50' : ''
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    <span className="text-[10px] text-slate-400">{opt.desc}</span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className="h-3.5 w-px bg-slate-200 dark:bg-zinc-700 mx-0.5" />

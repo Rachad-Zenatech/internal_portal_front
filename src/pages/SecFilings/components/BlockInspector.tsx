@@ -86,22 +86,40 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
           </div>
         </div>
 
-        {/* Space Above Block (Distance from Top Block) */}
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
-              Space Above Block (Distance)
-            </label>
-            <span className="text-xs font-mono font-bold text-blue-600">
-              {typeof block.spacingTop === 'number' ? block.spacingTop : 0}px
-            </span>
+        {/* Top Spacing Gap: Editable number input with label on top */}
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <label className="text-[11px] font-bold text-slate-800 dark:text-zinc-100 block uppercase tracking-wider">
+                Top Spacing Gap
+              </label>
+              <span className="text-[10px] text-slate-400 block">
+                Vertical distance / blank space above this block
+              </span>
+            </div>
+            <div className="flex items-center gap-1 bg-white dark:bg-zinc-900 px-2 py-0.5 rounded-lg border border-slate-300 dark:border-zinc-700 shadow-2xs">
+              <input
+                type="number"
+                min={-20}
+                max={150}
+                step={1}
+                value={typeof block.spacingTop === 'number' ? block.spacingTop : 0}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  onUpdate({ spacingTop: !isNaN(val) ? val : 0 });
+                }}
+                className="w-12 text-center text-xs font-mono font-bold text-blue-600 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                title="Write a number in pixels for top spacing gap"
+              />
+              <span className="text-[10px] font-mono text-slate-400">px</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 pt-1">
             <input
               type="range"
-              min={-10}
-              max={80}
-              step={2}
+              min={-20}
+              max={120}
+              step={1}
               value={typeof block.spacingTop === 'number' ? block.spacingTop : 0}
               onChange={(e) => onUpdate({ spacingTop: Number(e.target.value) })}
               className="flex-1 accent-blue-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-zinc-700 rounded-lg"
@@ -113,7 +131,7 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
                 size="sm"
                 onClick={() =>
                   onUpdate({
-                    spacingTop: Math.max(-10, (typeof block.spacingTop === 'number' ? block.spacingTop : 0) - 2)
+                    spacingTop: Math.max(-20, (typeof block.spacingTop === 'number' ? block.spacingTop : 0) - 2)
                   })
                 }
                 className="h-6 w-6 p-0 text-xs font-bold"
@@ -127,13 +145,23 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
                 size="sm"
                 onClick={() =>
                   onUpdate({
-                    spacingTop: Math.min(120, (typeof block.spacingTop === 'number' ? block.spacingTop : 0) + 2)
+                    spacingTop: Math.min(150, (typeof block.spacingTop === 'number' ? block.spacingTop : 0) + 2)
                   })
                 }
                 className="h-6 w-6 p-0 text-xs font-bold"
                 title="Increase gap by 2px (Make farther)"
               >
                 +
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onUpdate({ spacingTop: 0 })}
+                className="h-6 px-1.5 text-[10px] text-slate-400 hover:text-red-500 font-medium"
+                title="Reset top spacing gap to 0px"
+              >
+                Reset
               </Button>
             </div>
           </div>
