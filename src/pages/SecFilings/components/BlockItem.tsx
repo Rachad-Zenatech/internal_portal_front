@@ -117,6 +117,12 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
   const currentSpacingTop =
     typeof block.spacingTop === 'number' ? block.spacingTop : defaultSpacingTop;
 
+  const [spacingInputText, setSpacingInputText] = useState<string>(String(currentSpacingTop));
+
+  useEffect(() => {
+    setSpacingInputText(String(currentSpacingTop));
+  }, [currentSpacingTop]);
+
   const isTextType = block.type === 'heading' || block.type === 'paragraph';
   const currentAlign = (block as any).alignment || 'left';
   const isBold = (block as any).bold !== false && ((block as any).bold === true || block.type === 'heading');
@@ -154,12 +160,12 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
   }
 
   const updateSpacingTop = (delta: number) => {
-    const next = Math.max(-10, Math.min(120, currentSpacingTop + delta));
+    const next = Math.max(-60, Math.min(200, currentSpacingTop + delta));
     onUpdate({ spacingTop: next });
   };
 
   const setDirectSpacingTop = (val: number) => {
-    onUpdate({ spacingTop: Math.max(-10, Math.min(120, val)) });
+    onUpdate({ spacingTop: Math.max(-60, Math.min(200, val)) });
   };
 
   const updateFontSize = (delta: number) => {
@@ -257,7 +263,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
       {/* Floating Rich Formatting Toolbar (Appears ONLY when clicked into the box / selected) */}
       {isHighlighted && (
         <div
-          className="absolute right-1 -top-8.5 z-40 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 shadow-xl text-xs select-none pointer-events-auto animate-in fade-in zoom-in-95 duration-100"
+          className="absolute right-2 -top-12 sm:-top-13 z-50 flex items-center gap-1 px-3 py-1 rounded-full bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-slate-300/90 dark:border-zinc-700 shadow-2xl text-xs select-none pointer-events-auto animate-in fade-in zoom-in-95 duration-100"
         >
         {/* Selection Checkbox */}
         <button
@@ -710,7 +716,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
                 e.stopPropagation();
                 updateSpacingTop(-2);
               }}
-              disabled={currentSpacingTop <= -20}
+              disabled={currentSpacingTop <= -60}
               title="Decrease top gap (-2px)"
               className="h-4 w-4 flex items-center justify-center rounded bg-slate-200/90 dark:bg-zinc-700 hover:bg-slate-300 text-slate-700 dark:text-zinc-300 disabled:opacity-30 font-bold text-[10px]"
             >
@@ -719,23 +725,53 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 
             <div className="flex items-center bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-600 rounded px-1 h-5 shadow-2xs">
               <input
-                type="number"
-                min={-20}
-                max={150}
-                step={1}
-                value={currentSpacingTop}
+                type="text"
+                inputMode="numeric"
+                value={spacingInputText}
                 onClick={(e) => e.stopPropagation()}
                 onChange={(e) => {
                   e.stopPropagation();
-                  const val = parseInt(e.target.value, 10);
-                  if (!isNaN(val)) {
-                    setDirectSpacingTop(val);
-                  } else if (e.target.value === '') {
-                    setDirectSpacingTop(0);
+                  const raw = e.target.value;
+                  // Allow empty or lone minus sign while typing negative numbers
+                  if (raw === '' || raw === '-') {
+                    setSpacingInputText(raw);
+                    return;
+                  }
+                  if (/^-?\d*$/.test(raw)) {
+                    setSpacingInputText(raw);
+                    const val = parseInt(raw, 10);
+                    if (!isNaN(val)) {
+                      setDirectSpacingTop(val);
+                    }
                   }
                 }}
-                className="w-8 h-4 text-center font-bold text-[10px] text-blue-700 dark:text-blue-400 bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                title="Write a number in pixels for top spacing gap"
+                onBlur={() => {
+                  if (spacingInputText === '' || spacingInputText === '-') {
+                    setSpacingInputText('0');
+                    setDirectSpacingTop(0);
+                  } else {
+                    const parsed = parseInt(spacingInputText, 10);
+                    if (!isNaN(parsed)) {
+                      setSpacingInputText(String(parsed));
+                      setDirectSpacingTop(parsed);
+                    } else {
+                      setSpacingInputText(String(currentSpacingTop));
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    updateSpacingTop(2);
+                  } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    updateSpacingTop(-2);
+                  } else if (e.key === 'Enter') {
+                    (e.target as HTMLInputElement).blur();
+                  }
+                }}
+                className="w-8 h-4 text-center font-bold text-[10px] text-blue-700 dark:text-blue-400 bg-transparent focus:outline-none"
+                title="Write a number in pixels for top spacing gap (e.g. -10, 0, 16)"
               />
               <span className="text-[8px] text-slate-400 select-none">px</span>
             </div>
@@ -746,7 +782,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
                 e.stopPropagation();
                 updateSpacingTop(2);
               }}
-              disabled={currentSpacingTop >= 150}
+              disabled={currentSpacingTop >= 200}
               title="Increase top gap (+2px)"
               className="h-4 w-4 flex items-center justify-center rounded bg-slate-200/90 dark:bg-zinc-700 hover:bg-slate-300 text-slate-700 dark:text-zinc-300 disabled:opacity-30 font-bold text-[10px]"
             >
@@ -769,6 +805,8 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
                   Top Spacing Gap Presets
                 </div>
                 {[
+                  { px: -10, label: '-10px', desc: 'Pull up (-10px)' },
+                  { px: -6, label: '-6px', desc: 'Close tuck (-6px)' },
                   { px: -4, label: '-4px', desc: 'Tuck under above' },
                   { px: -2, label: '-2px', desc: 'Very close (Subtitle)' },
                   { px: 0, label: '0px', desc: 'Flush (0 distance)' },
@@ -1336,6 +1374,31 @@ const FinancialTableBlockEditor: React.FC<{
             <Plus className="w-3 h-3" />
             <span>Add Column</span>
           </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if ((block.periodHeaders?.length || 0) > 0) {
+                onUpdate({ periodHeaders: [] });
+              } else {
+                const samplePeriods = block.headers.map((_, idx) => {
+                  if (idx === 0) return null;
+                  const isCurrent = idx === block.headers.length - 2 || idx === 1;
+                  return {
+                    columnIndex: idx,
+                    lines: ['As of', isCurrent ? 'June 30,' : 'December 31,', isCurrent ? '2026' : '2025']
+                  };
+                }).filter(Boolean) as any[];
+                onUpdate({ periodHeaders: samplePeriods });
+              }
+            }}
+            className="h-5 text-[10px] gap-1 px-1.5 text-indigo-700 hover:bg-indigo-50"
+            title="Toggle comparative period header (e.g. As of June 30, 2026 / As of December 31, 2025)"
+          >
+            <span>{(block.periodHeaders?.length || 0) > 0 ? 'Hide Periods' : '+ Period Headers'}</span>
+          </Button>
         </div>
       </div>
 
@@ -1380,7 +1443,7 @@ const FinancialTableBlockEditor: React.FC<{
                 return (
                   <th
                     key={colIdx}
-                    className={`p-1 font-bold text-[#0E2841] text-${align} group/col relative ${
+                    className={`p-1 font-bold text-[#0E2841] ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} group/col relative ${
                       isFirst ? 'min-w-[220px] w-2/5' : 'min-w-[70px]'
                     }`}
                   >
@@ -1389,7 +1452,7 @@ const FinancialTableBlockEditor: React.FC<{
                         type="text"
                         value={header}
                         onChange={(e) => handleHeaderChange(colIdx, e.target.value)}
-                        className={`w-full bg-transparent font-bold text-[#0E2841] text-${align} hover:bg-white/60 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                        style={{ textAlign: align }} className={`w-full bg-transparent font-bold text-[#0E2841] ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} hover:bg-white/60 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />
 
                       {/* Column Sandwich Menu Button */}
@@ -1718,7 +1781,7 @@ const FinancialTableBlockEditor: React.FC<{
                     return (
                       <td
                         key={colIdx}
-                        className={`py-0.5 pr-1.5 ${indentPadding} ${cellBorderStyle} text-${align} ${
+                        className={`py-0.5 pr-1.5 ${indentPadding} ${cellBorderStyle} ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
                           isFirst ? 'min-w-[220px]' : 'min-w-[55px]'
                         }`}
                       >
@@ -1727,7 +1790,7 @@ const FinancialTableBlockEditor: React.FC<{
                           value={cellValue}
                           onChange={(e) => handleCellChange(rowIdx, colIdx, e.target.value)}
                           placeholder={isFirst ? '' : '-'}
-                          className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 text-${align} ${
+                          style={{ textAlign: align }} className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
                             isTotal || row.bold
                               ? 'font-bold text-slate-900 dark:text-zinc-100'
                               : 'text-slate-900 dark:text-zinc-200'

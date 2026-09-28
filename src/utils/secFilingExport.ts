@@ -17,6 +17,7 @@ import {
   PageNumber
 } from 'docx';
 import type { SecFilingDocument } from '../types/secFiling';
+import { ZENATECH_LOGO_DATA_URL } from '../data/zenatechLogoAsset';
 
 type DocxImageType = 'jpg' | 'png' | 'gif' | 'bmp';
 
@@ -28,8 +29,31 @@ const getDocxImageType = (mimeType: string, url: string): DocxImageType => {
   return 'png';
 };
 
-const loadImageForDocx = async (url: string, requestedWidth?: number, requestedHeight?: number) => {
-  const response = await fetch(url);
+const loadImageForDocx = async (url?: string, requestedWidth?: number, requestedHeight?: number) => {
+  const targetUrl = url || ZENATECH_LOGO_DATA_URL;
+
+  // 1. Direct Base64 Data URI handling (100% reliable offline / browser memory)
+  if (targetUrl.startsWith('data:')) {
+    const [header, base64Data] = targetUrl.split(',');
+    const mimeMatch = header.match(/data:([^;]+)/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const width = Math.min(requestedWidth || 260, 600);
+    const height = requestedHeight || Math.round(width * 0.38);
+    return {
+      data: bytes,
+      type: getDocxImageType(mimeType, targetUrl),
+      width,
+      height
+    };
+  }
+
+  // 2. HTTP / Fetch handling
+  const response = await fetch(targetUrl);
   if (!response.ok) throw new Error(`Unable to retrieve image (${response.status})`);
 
   const imageBlob = await response.blob();
@@ -47,7 +71,7 @@ const loadImageForDocx = async (url: string, requestedWidth?: number, requestedH
     const height = requestedHeight || Math.round(width * (naturalHeight / naturalWidth));
     return {
       data: new Uint8Array(await imageBlob.arrayBuffer()),
-      type: getDocxImageType(imageBlob.type, url),
+      type: getDocxImageType(imageBlob.type, targetUrl),
       width,
       height
     };
