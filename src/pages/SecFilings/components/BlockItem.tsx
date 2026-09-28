@@ -1197,7 +1197,7 @@ const FinancialTableBlockEditor: React.FC<{
   };
 
   const addColumn = () => {
-    addColumnAt(block.headers.length, 'New Period ($)', 'right');
+    addColumnAt(block.headers.length, `Col ${block.headers.length + 1}`, 'right');
   };
 
   const addColumnAt = (
@@ -1451,6 +1451,7 @@ const FinancialTableBlockEditor: React.FC<{
                       <input
                         type="text"
                         value={header}
+                        placeholder={`Col ${colIdx + 1}`}
                         onChange={(e) => handleHeaderChange(colIdx, e.target.value)}
                         style={{ textAlign: align }} className={`w-full bg-transparent font-bold text-[#0E2841] ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} hover:bg-white/60 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />

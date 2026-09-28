@@ -801,7 +801,10 @@ export function printSecFiling(doc: SecFilingDocument) {
                       ` : ''}
                       <tr style="background-color: ${headerBg};">
                         ${b.headers
-                          .map((h, i) => `<th class="align-${b.columnAlignments[i] || 'left'}">${h}</th>`)
+                          .map((h, i) => {
+                            const cleaned = /^Col\s*\d+$/i.test(h?.trim() || '') ? '' : (h || '');
+                            return `<th class="align-${b.columnAlignments[i] || 'left'}">${cleaned}</th>`;
+                          })
                           .join('')}
                       </tr>
                     </thead>
