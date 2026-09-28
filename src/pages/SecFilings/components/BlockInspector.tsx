@@ -594,6 +594,12 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
                   src={block.url || ZENATECH_LOGO_DATA_URL}
                   alt={block.alt || 'Preview'}
                   className="max-w-full max-h-full object-contain"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (target.src !== ZENATECH_LOGO_DATA_URL) {
+                      target.src = ZENATECH_LOGO_DATA_URL;
+                    }
+                  }}
                 />
               </div>
               <div className="flex-1 min-w-0 space-y-1">

@@ -1954,6 +1954,12 @@ const ImageBlockEditor: React.FC<{
             src={block.url || ZENATECH_LOGO_DATA_URL}
             alt={block.alt || 'SEC Document Image'}
             className="w-full h-auto object-contain rounded-sm"
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (target.src !== ZENATECH_LOGO_DATA_URL) {
+                target.src = ZENATECH_LOGO_DATA_URL;
+              }
+            }}
           />
 
           {/* Quick Change Overlay Buttons on Hover */}

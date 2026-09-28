@@ -110,12 +110,12 @@ export default function Sidebar({
       `}
     >
       <div className={`flex items-center h-16 px-4 transition-all duration-300 ease-in-out ${isOpen ? "justify-between" : "justify-center"}`}>
-        <Link to="/" className={`transition-all duration-300 ease-in-out ${isOpen ? "opacity-100" : "opacity-0 w-0 h-0 overflow-hidden"}`}>
+        <Link to="/" className="flex items-center overflow-hidden">
           <img
             src={zenatechLogo}
             alt="Zenatech Logo"
             className={`transition-all duration-300 ease-in-out object-contain cursor-pointer ${
-              isOpen ? "h-20 w-auto -translate-x-4" : "w-0 h-0"
+              isOpen ? "h-10 w-auto max-w-[170px]" : "h-7 w-7 object-contain"
             }`}
           />
         </Link>
