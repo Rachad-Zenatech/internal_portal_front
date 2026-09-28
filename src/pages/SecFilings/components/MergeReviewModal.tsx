@@ -84,6 +84,28 @@ function formatRelativeTime(dateString?: string): string {
   return `${diffDay}d ago`;
 }
 
+const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  if (/^As of$/i.test(trimmed)) return true;
+  if (/^Notes?(\s*Ref)?$/i.test(trimmed)) return true;
+  if (/^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test(trimmed)) return true;
+  if (/^Six\s+months\s+20\d\d/i.test(trimmed)) return true;
+  if (/^(Q[1-4]|FY)\s*20\d\d/i.test(trimmed)) return true;
+  if (
+    rowIndex <= 3 &&
+    /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?(\s+\d{4})?(\s+in\s+[$a-zA-Z]+)?$/i.test(
+      trimmed
+    )
+  ) {
+    return true;
+  }
+  if (rowIndex <= 3 && /^(19|20)\d{2}(\s+in\s+[$a-zA-Z]+)?$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+};
+
 interface MergeReviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1678,14 +1700,33 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
           <div className="font-bold text-sm text-[#0E2841]">{b.title}</div>
         )}
         <table className="w-full border-collapse text-xs font-sans">
-          {showHeaderRow && (
-            <thead>
+          <thead>
+            {b.periodHeaders && b.periodHeaders.length > 0 && (
+              <tr className="border-b border-slate-900 text-[#0E2841]">
+                {cleanedHeaders.map((_, i) => {
+                  const periodHeader = b.periodHeaders?.find((header) => header.columnIndex === i);
+                  const align = b.columnAlignments?.[i] || 'center';
+                  return (
+                    <th
+                      key={i}
+                      style={{ textAlign: align, width: b.columnWidths?.[i] || undefined }}
+                      className="py-1 px-2 font-bold text-[#0E2841] text-[11px] align-bottom"
+                    >
+                      {periodHeader?.lines.map((line, lIdx) => (
+                        <div key={lIdx} className="leading-tight">{line}</div>
+                      ))}
+                    </th>
+                  );
+                })}
+              </tr>
+            )}
+            {showHeaderRow && (
               <tr className="border-t-2 border-b border-slate-900 bg-slate-50/50">
                 {cleanedHeaders.map((h, i) => (
                   <th
                     key={i}
                     style={{
-                      textAlign: b.columnAlignments?.[i] || (i === 0 ? 'left' : 'right'),
+                      textAlign: b.columnAlignments?.[i] || (i === 0 ? 'left' : 'center'),
                       width: b.columnWidths?.[i] || undefined
                     }}
                     className="py-1.5 px-2 font-bold text-slate-800 text-[11px]"
@@ -1694,10 +1735,10 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
                   </th>
                 ))}
               </tr>
-            </thead>
-          )}
+            )}
+          </thead>
           <tbody>
-            {b.rows.map((row) => {
+            {b.rows.map((row, rIdx) => {
               if (row.type === 'section_title') {
                 return (
                   <tr key={row.id} className="border-t border-slate-100 font-bold text-slate-900 bg-slate-50/30">
@@ -1727,18 +1768,24 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
                       : 'border-b border-slate-100'
                   }`}
                 >
-                  {row.cells.map((cell, cIdx) => (
-                    <td
-                      key={cIdx}
-                      style={{
-                        textAlign: b.columnAlignments?.[cIdx] || (cIdx === 0 ? 'left' : 'right'),
-                        paddingLeft: cIdx === 0 && row.indent ? `${row.indent * 14 + 8}px` : '8px'
-                      }}
-                      className="py-1 px-2 text-slate-800 text-[11px] font-mono whitespace-nowrap"
-                    >
-                      {cell}
-                    </td>
-                  ))}
+                  {row.cells.map((cell, cIdx) => {
+                    const isDateHeader = isComparativeDateHeaderCell(cell, rIdx, cIdx);
+                    const align = isDateHeader ? 'center' : (b.columnAlignments?.[cIdx] || (cIdx === 0 ? 'left' : 'right'));
+                    return (
+                      <td
+                        key={cIdx}
+                        style={{
+                          textAlign: align,
+                          paddingLeft: cIdx === 0 && row.indent ? `${row.indent * 14 + 8}px` : '8px'
+                        }}
+                        className={`py-1 px-2 text-[11px] font-mono whitespace-nowrap ${
+                          isDateHeader ? 'font-bold text-[#0E2841]' : 'text-slate-800'
+                        }`}
+                      >
+                        {cell}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}

@@ -19,6 +19,28 @@ import {
 import type { SecFilingDocument } from '../types/secFiling';
 import { ZENATECH_LOGO_DATA_URL } from '../data/zenatechLogoAsset';
 
+const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  if (/^As of$/i.test(trimmed)) return true;
+  if (/^Notes?(\s*Ref)?$/i.test(trimmed)) return true;
+  if (/^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test(trimmed)) return true;
+  if (/^Six\s+months\s+20\d\d/i.test(trimmed)) return true;
+  if (/^(Q[1-4]|FY)\s*20\d\d/i.test(trimmed)) return true;
+  if (
+    rowIndex <= 3 &&
+    /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?(\s+\d{4})?(\s+in\s+[$a-zA-Z]+)?$/i.test(
+      trimmed
+    )
+  ) {
+    return true;
+  }
+  if (rowIndex <= 3 && /^(19|20)\d{2}(\s+in\s+[$a-zA-Z]+)?$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+};
+
 type DocxImageType = 'jpg' | 'png' | 'gif' | 'bmp';
 
 const getDocxImageType = (mimeType: string, url: string): DocxImageType => {
@@ -294,20 +316,25 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
           new TableRow({
             children: cleanedHeaders.map((_, i) => {
               const periodHeader = block.periodHeaders?.find((header) => header.columnIndex === i);
+              const lines = periodHeader?.lines || [];
+              const align = block.columnAlignments[i] || 'center';
+              const alignment = align === 'right' ? AlignmentType.RIGHT : align === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
               return new TableCell({
-                children: [
-                  new Paragraph({
-                    alignment: AlignmentType.CENTER as any,
-                    children: (periodHeader?.lines || []).map((line, lineIndex) => new TextRun({
-                      text: line,
-                      break: lineIndex > 0 ? 1 : undefined,
-                      bold: true,
-                      size: 18,
-                      color: '0E2841',
-                      font: 'Calibri'
+                children: lines.length > 0
+                  ? lines.map((line) => new Paragraph({
+                      alignment: alignment as any,
+                      spacing: { before: 0, after: 0, line: 240 },
+                      children: [
+                        new TextRun({
+                          text: line,
+                          bold: true,
+                          size: 18,
+                          color: '0E2841',
+                          font: 'Calibri'
+                        })
+                      ]
                     }))
-                  })
-                ],
+                  : [new Paragraph({ children: [] })],
                 margins: { top: 40, bottom: 40, left: 80, right: 80 },
                 borders: { top: noBorder, left: noBorder, right: noBorder, bottom: noBorder }
               });
@@ -322,28 +349,24 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
           new TableRow({
             tableHeader: true,
             children: cleanedHeaders.map((h, i) => {
-              const align = block.columnAlignments[i] || (i === 0 ? 'left' : 'right');
+              const align = block.columnAlignments[i] || (i === 0 ? 'left' : 'center');
+              const alignment = align === 'right' ? AlignmentType.RIGHT : align === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
+              const lines = (h || '').split('\n');
               return new TableCell({
                 shading: { fill: headerFill },
-                children: [
-                  new Paragraph({
-                    alignment:
-                      align === 'center'
-                        ? (AlignmentType.CENTER as any)
-                        : align === 'right'
-                        ? (AlignmentType.RIGHT as any)
-                        : (AlignmentType.LEFT as any),
-                    children: [
-                      new TextRun({
-                        text: h || '',
-                        bold: true,
-                        size: 18,
-                        color: '0E2841',
-                        font: 'Calibri'
-                      })
-                    ]
-                  })
-                ],
+                children: lines.map((line) => new Paragraph({
+                  alignment: alignment as any,
+                  spacing: { before: 0, after: 0, line: 240 },
+                  children: [
+                    new TextRun({
+                      text: line,
+                      bold: true,
+                      size: 18,
+                      color: '0E2841',
+                      font: 'Calibri'
+                    })
+                  ]
+                })),
                 margins: { top: 60, bottom: 60, left: 80, right: 80 },
                 borders: {
                   top: noBorder,
@@ -358,7 +381,8 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       }
 
       // Dynamic Data Rows
-      for (const row of block.rows) {
+      for (let rowIndex = 0; rowIndex < block.rows.length; rowIndex++) {
+        const row = block.rows[rowIndex];
         const fillHex = row.shading
           ? row.shading.replace('#', '')
           : row.type === 'section_title'
@@ -368,9 +392,12 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
         tableRows.push(
           new TableRow({
             children: row.cells.map((cellText, colIndex) => {
-              const align = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
+              const isDateHeader = isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
+              const defaultAlign = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
+              const align = isDateHeader ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
               const indent = isFirstCol && row.indent ? row.indent * 200 : 0;
+              const lines = (cellText || '').split('\n');
 
               let topBorder: any = noBorder;
               let bottomBorder: any = noBorder;
@@ -383,28 +410,28 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                 bottomBorder = doubleLine;
               }
 
+              const alignment = align === 'center'
+                ? (AlignmentType.CENTER as any)
+                : align === 'right'
+                ? (AlignmentType.RIGHT as any)
+                : (AlignmentType.LEFT as any);
+
               return new TableCell({
                 shading: fillHex ? { fill: fillHex } : undefined,
-                children: [
-                  new Paragraph({
-                    alignment:
-                      align === 'center'
-                        ? (AlignmentType.CENTER as any)
-                        : align === 'right'
-                        ? (AlignmentType.RIGHT as any)
-                        : (AlignmentType.LEFT as any),
-                    indent: indent > 0 ? { left: indent } : undefined,
-                    children: [
-                      new TextRun({
-                        text: cellText,
-                        bold: row.bold || row.type === 'total' || row.type === 'section_title',
-                        italics: row.italic,
-                        size: 18,
-                        font: 'Calibri'
-                      })
-                    ]
-                  })
-                ],
+                children: lines.map((line) => new Paragraph({
+                  alignment,
+                  indent: indent > 0 ? { left: indent } : undefined,
+                  spacing: { before: 0, after: 0, line: 240 },
+                  children: [
+                    new TextRun({
+                      text: line,
+                      bold: isDateHeader || row.bold || row.type === 'total' || row.type === 'section_title' || row.type === 'header',
+                      italics: row.italic,
+                      size: 18,
+                      font: 'Calibri'
+                    })
+                  ]
+                })),
                 margins: { top: 40, bottom: 40, left: 80, right: 80 },
                 borders: {
                   top: topBorder,
@@ -795,7 +822,8 @@ export function printSecFiling(doc: SecFilingDocument) {
                         <tr>
                           ${b.headers.map((_, i) => {
                             const periodHeader = b.periodHeaders?.find((header) => header.columnIndex === i);
-                            return `<th class="align-center" style="background-color: transparent;">${periodHeader?.lines.map((line) => line || '&nbsp;').join('<br/>') || ''}</th>`;
+                            const align = b.columnAlignments?.[i] || 'center';
+                            return `<th class="align-${align}" style="background-color: transparent; text-align: ${align};">${periodHeader?.lines.map((line) => line || '&nbsp;').join('<br/>') || ''}</th>`;
                           }).join('')}
                         </tr>
                       ` : ''}
@@ -810,18 +838,20 @@ export function printSecFiling(doc: SecFilingDocument) {
                     </thead>
                     <tbody>
                       ${b.rows
-                        .map((r) => {
+                        .map((r, rIdx) => {
                           const rowClass = r.type === 'total' ? 'total' : r.type === 'subtotal' ? 'subtotal' : r.type === 'section_title' ? 'section_title' : '';
                           const rowBg = r.shading ? `background-color: ${r.shading};` : (r.type === 'section_title' ? 'background-color: #DAE9F7;' : '');
                           return `
                             <tr class="${rowClass}" style="${rowBg}">
                               ${r.cells
                                 .map((c, i) => {
-                                  const align = `align-${b.columnAlignments[i] || 'left'}`;
+                                  const isDateHeader = isComparativeDateHeaderCell(c, rIdx, i);
+                                  const alignVal = isDateHeader ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
+                                  const align = `align-${alignVal}`;
                                   const indent = i === 0 && r.indent ? `indent-${r.indent}` : '';
-                                  const bold = r.bold || r.type === 'section_title' ? 'font-weight: bold;' : '';
+                                  const bold = isDateHeader || r.bold || r.type === 'section_title' ? 'font-weight: bold;' : '';
                                   const italic = r.italic ? 'font-style: italic;' : '';
-                                  return `<td class="${align} ${indent}" style="${bold} ${italic}">${c || '&nbsp;'}</td>`;
+                                  return `<td class="${align} ${indent}" style="text-align: ${alignVal}; ${bold} ${italic}">${c || '&nbsp;'}</td>`;
                                 })
                                 .join('')}
                             </tr>

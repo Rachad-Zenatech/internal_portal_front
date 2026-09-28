@@ -51,6 +51,28 @@ import {
   DropdownMenuSeparator
 } from '../../../components/ui/dropdown-menu';
 
+const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  if (/^As of$/i.test(trimmed)) return true;
+  if (/^Notes?(\s*Ref)?$/i.test(trimmed)) return true;
+  if (/^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test(trimmed)) return true;
+  if (/^Six\s+months\s+20\d\d/i.test(trimmed)) return true;
+  if (/^(Q[1-4]|FY)\s*20\d\d/i.test(trimmed)) return true;
+  if (
+    rowIndex <= 3 &&
+    /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?(\s+\d{4})?(\s+in\s+[$a-zA-Z]+)?$/i.test(
+      trimmed
+    )
+  ) {
+    return true;
+  }
+  if (rowIndex <= 3 && /^(19|20)\d{2}(\s+in\s+[$a-zA-Z]+)?$/.test(trimmed)) {
+    return true;
+  }
+  return false;
+};
+
 interface BlockItemProps {
   block: SecBlock;
   index: number;
@@ -1766,7 +1788,8 @@ const FinancialTableBlockEditor: React.FC<{
                   </td>
 
                   {row.cells.map((cellValue, colIdx) => {
-                    const align = block.columnAlignments[colIdx] || 'left';
+                    const isDateHeader = isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
+                    const align = isDateHeader ? 'center' : (block.columnAlignments[colIdx] || 'left');
                     const isFirst = colIdx === 0;
                     const indentPadding =
                       isFirst && row.indent ? (row.indent === 1 ? 'pl-6' : 'pl-10') : 'pl-1.5';
