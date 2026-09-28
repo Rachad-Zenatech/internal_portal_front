@@ -84,6 +84,27 @@ function formatRelativeTime(dateString?: string): string {
   return `${diffDay}d ago`;
 }
 
+const sanitizeTableCells = (cells: string[]): string[] => {
+  const result = [...cells];
+  for (let i = 0; i < result.length - 1; i++) {
+    const c = (result[i] || '').trim();
+    const nextC = (result[i + 1] || '').trim();
+    if (c.startsWith('(') && !c.endsWith(')') && nextC === ')') {
+      result[i] = `${c})`;
+      result[i + 1] = '';
+    } else if (c.startsWith('(') && !c.endsWith(')') && !result.slice(i).some((x) => x.includes(')'))) {
+      result[i] = `${c})`;
+    }
+  }
+  if (result.length > 0) {
+    const last = (result[result.length - 1] || '').trim();
+    if (last.startsWith('(') && !last.endsWith(')')) {
+      result[result.length - 1] = `${last})`;
+    }
+  }
+  return result;
+};
+
 const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
   const trimmed = (text || '').trim();
   if (!trimmed) return false;
@@ -1768,7 +1789,7 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
                       : 'border-b border-slate-100'
                   }`}
                 >
-                  {row.cells.map((cell, cIdx) => {
+                  {sanitizeTableCells(row.cells).map((cell, cIdx) => {
                     const isDateHeader = isComparativeDateHeaderCell(cell, rIdx, cIdx);
                     const align = isDateHeader ? 'center' : (b.columnAlignments?.[cIdx] || (cIdx === 0 ? 'left' : 'right'));
                     return (

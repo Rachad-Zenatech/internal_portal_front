@@ -19,6 +19,27 @@ import {
 import type { SecFilingDocument } from '../types/secFiling';
 import { ZENATECH_LOGO_DATA_URL } from '../data/zenatechLogoAsset';
 
+export const sanitizeTableCells = (cells: string[]): string[] => {
+  const result = [...cells];
+  for (let i = 0; i < result.length - 1; i++) {
+    const c = (result[i] || '').trim();
+    const nextC = (result[i + 1] || '').trim();
+    if (c.startsWith('(') && !c.endsWith(')') && nextC === ')') {
+      result[i] = `${c})`;
+      result[i + 1] = '';
+    } else if (c.startsWith('(') && !c.endsWith(')') && !result.slice(i).some((x) => x.includes(')'))) {
+      result[i] = `${c})`;
+    }
+  }
+  if (result.length > 0) {
+    const last = (result[result.length - 1] || '').trim();
+    if (last.startsWith('(') && !last.endsWith(')')) {
+      result[result.length - 1] = `${last})`;
+    }
+  }
+  return result;
+};
+
 const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
   const trimmed = (text || '').trim();
   if (!trimmed) return false;
@@ -408,7 +429,9 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
               const align = isDateHeader ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
               const indent = isFirstCol && row.indent ? row.indent * 200 : 0;
-              const lines = (cellText || '').split('\n');
+              const sanitizedCells = sanitizeTableCells(row.cells);
+              const cellVal = sanitizedCells[colIndex] ?? cellText;
+              const lines = (cellVal || '').split('\n');
 
               let topBorder: any = noBorder;
               let bottomBorder: any = noBorder;
@@ -861,7 +884,7 @@ export function printSecFiling(doc: SecFilingDocument) {
                           const rowBg = r.shading ? `background-color: ${r.shading};` : (r.type === 'section_title' ? 'background-color: #DAE9F7;' : '');
                           return `
                             <tr class="${rowClass}" style="${rowBg}">
-                              ${r.cells
+                              ${sanitizeTableCells(r.cells)
                                 .map((c, i) => {
                                   const isDateHeader = isComparativeDateHeaderCell(c, rIdx, i);
                                   const alignVal = isDateHeader ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));

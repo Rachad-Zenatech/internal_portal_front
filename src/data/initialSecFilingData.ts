@@ -143,6 +143,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "italic": false
     },
     {
+
       "id": "blk-0012",
       "type": "financial_table",
       "section": "Statements of Financial Position",
@@ -409,7 +410,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-13",
           "type": "section_title",
           "cells": [
-            "Long–term assets",
+            "Long\u2013term assets",
             "",
             "",
             "",
@@ -624,7 +625,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-24",
           "type": "total",
           "cells": [
-            "Total long–term assets",
+            "Total long\u2013term assets",
             "",
             "",
             "",
@@ -663,7 +664,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-26",
           "type": "section_title",
           "cells": [
-            "Liabilities and shareholders’ equity",
+            "Liabilities and shareholders\u2019 equity",
             "",
             "",
             "",
@@ -820,7 +821,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-34",
           "type": "section_title",
           "cells": [
-            "Long–term liabilities",
+            "Long\u2013term liabilities",
             "",
             "",
             "",
@@ -879,7 +880,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-37",
           "type": "total",
           "cells": [
-            "Total long–term liabilities",
+            "Total long\u2013term liabilities",
             "",
             "",
             "",
@@ -918,7 +919,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-39",
           "type": "section_title",
           "cells": [
-            "Shareholders’ equity",
+            "Shareholders\u2019 equity",
             "",
             "",
             "",
@@ -1043,7 +1044,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(606,722"
+            "(606,722)"
           ],
           "bold": true,
           "italic": false,
@@ -1059,11 +1060,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(104,859,747",
-            ")",
+            "(104,859,747)",
             "",
             "",
-            "(53,742,186"
+            "",
+            "(53,742,186)"
           ],
           "bold": true,
           "italic": false,
@@ -1078,11 +1079,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(161,861,023",
-            ")",
+            "(161,861,023)",
             "",
             "",
-            "(56,738,233"
+            "",
+            "(56,738,233)"
           ],
           "bold": true,
           "italic": false,
@@ -1094,7 +1095,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-48",
           "type": "total",
           "cells": [
-            "Total shareholders’ equity",
+            "Total shareholders\u2019 equity",
             "",
             "",
             "",
@@ -1113,7 +1114,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-11-49",
           "type": "total",
           "cells": [
-            "Total liabilities and shareholders’ equity",
+            "Total liabilities and shareholders\u2019 equity",
             "",
             "",
             "$",
@@ -1335,6 +1336,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "italic": false
     },
     {
+
       "id": "blk-0020",
       "type": "financial_table",
       "section": "Statements of Comprehensive Loss",
@@ -1677,7 +1679,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "Stock issued for services",
             "",
             "",
-            "–",
+            "\u2013",
             "",
             "",
             "",
@@ -1685,7 +1687,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             "",
             "",
             "",
@@ -1836,19 +1838,19 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "Loss before other income (expenses)",
             "",
             "",
-            "(21,903,152",
-            ")",
+            "(21,903,152)",
             "",
             "",
-            "(3,909,810",
-            ")",
+            "",
+            "(3,909,810)",
             "",
             "",
-            "(43,472,313",
-            ")",
+            "",
+            "(43,472,313)",
             "",
             "",
-            "(6,901,821"
+            "",
+            "(6,901,821)"
           ],
           "bold": true,
           "italic": false,
@@ -1889,8 +1891,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "Finance expenses",
             "",
             "",
-            "(1,573,428",
-            ")",
+            "(1,573,428)",
+            "",
             "",
             "",
             "2,563,359",
@@ -1972,7 +1974,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             "",
             "",
             "",
@@ -1980,7 +1982,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–"
+            "\u2013"
           ],
           "bold": false,
           "italic": false,
@@ -2003,8 +2005,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(51,117,560",
-            ")",
+            "(51,117,560)",
+            "",
             "",
             "",
             "(10,731,830)"
@@ -3241,6 +3243,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "italic": false
     },
     {
+
       "id": "blk-0036",
       "type": "financial_table",
       "section": "Statements of Cash Flows",
@@ -3347,8 +3350,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Net loss for the period",
             "",
-            "(51,117,560",
-            ")",
+            "(51,117,560)",
+            "",
             "",
             "$",
             "(10,731,830)",
@@ -3477,7 +3480,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Stock issued for services",
             "",
-            "–",
+            "\u2013",
             "",
             "",
             "",
@@ -3499,7 +3502,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3514,11 +3517,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Lease obligation",
             "",
-            "(591,343",
-            ")",
+            "(591,343)",
             "",
             "",
-            "(28,616",
+            "",
+            "(28,616)",
             ""
           ],
           "bold": true,
@@ -3536,7 +3539,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3549,7 +3552,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "id": "r-35-16",
           "type": "data",
           "cells": [
-            "Changes in non–cash working capital:",
+            "Changes in non\u2013cash working capital:",
             "",
             "",
             "",
@@ -3569,11 +3572,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Accounts receivable",
             "",
-            "(978,937",
-            ")",
+            "(978,937)",
             "",
             "",
-            "(1,349,350",
+            "",
+            "(1,349,350)",
             ""
           ],
           "bold": true,
@@ -3588,11 +3591,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Inventory of drone components",
             "",
-            "(1,557,175",
-            ")",
+            "(1,557,175)",
             "",
             "",
-            "–",
+            "",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3606,11 +3609,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Other current assets",
             "",
-            "(7,157,053",
-            ")",
+            "(7,157,053)",
             "",
             "",
-            "(946,968",
+            "",
+            "(946,968)",
             ""
           ],
           "bold": true,
@@ -3647,7 +3650,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(501,420",
+            "(501,420)",
             ""
           ],
           "bold": true,
@@ -3666,7 +3669,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(2,362,582",
+            "(2,362,582)",
             ""
           ],
           "bold": true,
@@ -3680,11 +3683,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Cash Used in Operating Activities",
             "",
-            "(26,956,802",
-            ")",
+            "(26,956,802)",
             "",
             "",
-            "(10,842,797",
+            "",
+            "(10,842,797)",
             ""
           ],
           "bold": true,
@@ -3718,11 +3721,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Purchase of PP&amp;E",
             "",
-            "(3,712,754",
-            ")",
+            "(3,712,754)",
             "",
             "",
-            "(1,465,045",
+            "",
+            "(1,465,045)",
             ""
           ],
           "bold": true,
@@ -3741,7 +3744,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3759,7 +3762,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3774,11 +3777,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Acquisition costs",
             "",
-            "(5,593,182",
-            ")",
+            "(5,593,182)",
             "",
             "",
-            "(2,677,023",
+            "",
+            "(2,677,023)",
             ""
           ],
           "bold": true,
@@ -3792,11 +3795,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Product development costs",
             "",
-            "(1,449,102",
-            ")",
+            "(1,449,102)",
             "",
             "",
-            "(809,609",
+            "",
+            "(809,609)",
             ""
           ],
           "bold": true,
@@ -3811,8 +3814,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Long-term assets (capital advances)",
             "",
-            "(951,657",
-            ")",
+            "(951,657)",
+            "",
             "",
             "",
             "6,639",
@@ -3833,7 +3836,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3848,11 +3851,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Cash Used in Investing Activities",
             "",
-            "(9,888,603",
-            ")",
+            "(9,888,603)",
             "",
             "",
-            "(4,945,038",
+            "",
+            "(4,945,038)",
             ""
           ],
           "bold": true,
@@ -3903,7 +3906,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Warrants exercised",
             "",
-            "–",
+            "\u2013",
             "",
             "",
             "",
@@ -3926,7 +3929,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "–",
+            "\u2013",
             ""
           ],
           "bold": true,
@@ -3940,11 +3943,11 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Repayment of loans",
             "",
-            "(2,406,393",
-            ")",
+            "(2,406,393)",
             "",
             "",
-            "(632,568",
+            "",
+            "(632,568)",
             ""
           ],
           "bold": true,
@@ -3981,7 +3984,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
             "",
             "",
             "",
-            "(1,296,590",
+            "(1,296,590)",
             ""
           ],
           "bold": true,
@@ -9647,6 +9650,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "italic": false
     },
     {
+
       "id": "blk-0320",
       "type": "financial_table",
       "section": "Note Receivable Affiliate",
@@ -9817,8 +9821,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Accumulated depreciation",
             "",
-            "(113,169",
-            ")",
+            "(113,169)",
+            "",
             "",
             "",
             "(30,870)"
@@ -9869,8 +9873,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Accumulated depreciation",
             "",
-            "(841,288",
-            ")",
+            "(841,288)",
+            "",
             "",
             "",
             "(401,793)"
@@ -9974,8 +9978,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           "cells": [
             "Accumulated depreciation",
             "",
-            "(965,072",
-            ")",
+            "(965,072)",
+            "",
             "",
             "",
             "(316,311)"
