@@ -134,17 +134,67 @@ export const secFilingService = {
       params.assignedSection
     );
 
-    const baseUrl = window.location.origin + window.location.pathname;
+    const baseUrl = `${window.location.origin}/sec-filings/contribute`;
     const queryParams = new URLSearchParams({
       contributor: 'true',
       proposalId: proposal.id,
       name: params.contributorName,
       role: params.contributorRole,
-      section: params.assignedSection || 'ALL'
+      section: params.assignedSection || 'ALL',
+      title: params.title || '',
+      ...(params.description ? { desc: params.description } : {})
     });
     const inviteUrl = `${baseUrl}?${queryParams.toString()}`;
 
     return { proposal, inviteUrl };
+  },
+
+  getOrCreateContributorProposal(params: {
+    id: string;
+    title?: string;
+    name?: string;
+    role?: string;
+    email?: string;
+    section?: string;
+    description?: string;
+  }): SecChangeProposal {
+    const proposals = this.getProposals();
+    const existing = proposals.find((p) => p.id === params.id);
+    if (existing) {
+      return existing;
+    }
+
+    const mainDoc = this.getMainDocument();
+    const author = {
+      id: `contrib-${Date.now()}`,
+      name: params.name || 'External Contributor',
+      email: params.email || `${(params.name || 'contributor').toLowerCase().replace(/\s+/g, '.')}@zenatech.com`,
+      role: params.role || 'Contributor'
+    };
+
+    const newProposal: SecChangeProposal = {
+      id: params.id,
+      title: params.title || `Contributor Draft - ${author.name}`,
+      author,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'draft',
+      baseVersion: mainDoc.version,
+      baseVersionNumber: mainDoc.versionNumber,
+      blocks: JSON.parse(JSON.stringify(mainDoc.blocks)),
+      assignedSection: params.section && params.section !== 'ALL' ? params.section : undefined,
+      inviteToken: `inv-${Date.now().toString(36)}`,
+      changeSummary: {
+        addedCount: 0,
+        modifiedCount: 0,
+        deletedCount: 0,
+        description: params.description || `Draft contributor session for ${author.name}`
+      }
+    };
+
+    proposals.unshift(newProposal);
+    this.saveProposals(proposals);
+    return newProposal;
   },
 
   updateProposal(proposal: SecChangeProposal): void {

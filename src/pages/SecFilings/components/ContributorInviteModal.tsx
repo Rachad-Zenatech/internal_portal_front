@@ -82,8 +82,7 @@ export const ContributorInviteModal: React.FC<ContributorInviteModalProps> = ({
   const handleSwitchToContributorSession = () => {
     if (!generatedInvite) return;
     onOpenProposal(generatedInvite.proposal.id);
-    onOpenChange(false);
-    toast.info(`Switched to "${generatedInvite.proposal.title}" workspace`);
+    window.open(generatedInvite.inviteUrl, '_blank');
   };
 
   const applyPreset = (preset: {

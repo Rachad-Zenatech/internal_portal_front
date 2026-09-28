@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import { AuthProvider } from "./lib/AuthContext";
 import { GlobalProgressProvider } from "./lib/GlobalProgressContext";
@@ -31,6 +31,25 @@ const GeneralLedgerUpload = lazy(() => import("./pages/GeneralLedgerUpload"));
 const CompanyGeneralLedger = lazy(() => import("./pages/CompanyGeneralLedger"));
 const AuditLog = lazy(() => import("./pages/Log/AuditLog"));
 const SecFilings = lazy(() => import("./pages/SecFilings/SecFilingsPage"));
+const SecFilingContributorPage = lazy(() => import("./pages/SecFilings/SecFilingContributorPage"));
+
+function SecFilingsRoute() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isContributor = searchParams.get('contributor') === 'true';
+
+  if (isContributor) {
+    return <SecFilingContributorPage />;
+  }
+
+  return (
+    <ProtectedRoute>
+      <AppShell>
+        <SecFilings />
+      </AppShell>
+    </ProtectedRoute>
+  );
+}
 const Login = lazy(() => import("./pages/Login"));
 const PendingAccess = lazy(() => import("./pages/PendingAccess"));
 
@@ -43,6 +62,10 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/pending-access" element={<PendingAccess />} />
+
+          {/* Standalone Contributor Routes: Pure SEC Document Sheet, No AppShell, No Portal Sidebar/Nav */}
+          <Route path="/sec-filings/contribute" element={<SecFilingContributorPage />} />
+          <Route path="/sec-filings" element={<SecFilingsRoute />} />
 
           {/* Main app layout routes */}
           <Route element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}>
@@ -57,7 +80,7 @@ function App() {
             <Route path="/bank-statements/:bankStatementId/preview" element={<ProtectedRoute navigationCode="BANK_STATEMENT_PREVIEW"><BankStatementPreview /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE_MATRIX"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
-            <Route path="/sec-filings" element={<ProtectedRoute><SecFilings /></ProtectedRoute>} />
+            {/* /sec-filings managed above by SecFilingsRoute */}
 
             {/* Configuration Routes */}
             <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />

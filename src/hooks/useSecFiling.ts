@@ -47,14 +47,29 @@ export function useSecFiling() {
   // Detect contributor link on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const isContributor = params.get('contributor') === 'true';
+    const isContributor =
+      params.get('contributor') === 'true' || window.location.pathname.includes('/contribute');
     const propId = params.get('proposalId');
     const name = params.get('name');
     const role = params.get('role');
     const section = params.get('section');
+    const title = params.get('title') || undefined;
+    const desc = params.get('desc') || undefined;
 
     if (isContributor) {
       setActiveRole('CONTRIBUTOR');
+      if (propId) {
+        const ensuredProp = secFilingService.getOrCreateContributorProposal({
+          id: propId,
+          title,
+          name: name || undefined,
+          role: role || undefined,
+          section: section || undefined,
+          description: desc
+        });
+        setProposals(secFilingService.getProposals());
+        setActiveProposalId(ensuredProp.id);
+      }
       setContributorSession({
         isContributor: true,
         name: name || undefined,
@@ -62,9 +77,6 @@ export function useSecFiling() {
         assignedSection: section && section !== 'ALL' ? section : undefined
       });
 
-      if (propId) {
-        setActiveProposalId(propId);
-      }
       if (section && section !== 'ALL') {
         setSectionFilter(section);
       }
