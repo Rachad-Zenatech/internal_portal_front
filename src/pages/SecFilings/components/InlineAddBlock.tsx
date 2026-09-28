@@ -91,70 +91,136 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
 
-  return (
-    <div
-      className={`group relative flex items-center justify-center select-none h-6 my-1 transition-opacity ${
-        isAlwaysVisible || open
-          ? 'opacity-100'
-          : 'opacity-0 hover:opacity-100'
-      } ${className}`}
-    >
-      <div className="absolute inset-x-0 h-px border-t border-dashed border-slate-200 dark:border-zinc-800 group-hover:border-blue-400 dark:group-hover:border-blue-600 transition-colors" />
-
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="relative z-10 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-[11px] font-medium text-slate-600 dark:text-zinc-300 shadow-sm hover:border-blue-500 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-400 hover:scale-105 active:scale-95 transition-transform"
+  // When empty or explicitly always visible (like the top inserter when 0 blocks)
+  if (isAlwaysVisible) {
+    return (
+      <div className={`group relative flex items-center justify-center select-none py-3 my-2 ${className}`}>
+        <div className="absolute inset-x-0 h-px border-t border-dashed border-slate-300 dark:border-zinc-700" />
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="relative z-10 flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 text-xs font-semibold text-slate-700 dark:text-zinc-200 shadow-sm hover:border-blue-500 hover:text-blue-600 transition-all cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add First Block</span>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="center"
+            className="w-80 p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
           >
-            <Plus className="w-3 h-3" />
-            <span>Add Block</span>
-          </button>
-        </PopoverTrigger>
-
-        <PopoverContent
-          align="center"
-          className="w-80 p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
-        >
-          <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
-            <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-              Insert SEC Filing Block
-            </p>
-            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-              Select a block type to add to the document
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto pr-1">
-            {BLOCK_OPTIONS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.type}
-                  type="button"
-                  onClick={() => {
-                    onAdd(item.type);
-                    setOpen(false);
-                  }}
-                  className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn"
-                >
-                  <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
-                      {item.label}
+            <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
+              <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                Insert SEC Filing Block
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                Select a block type to add to the document
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto pr-1">
+              {BLOCK_OPTIONS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onClick={() => {
+                      onAdd(item.type);
+                      setOpen(false);
+                    }}
+                    className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
+                  >
+                    <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
+                      <Icon className="w-4 h-4" />
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
-                      {item.desc}
+                    <div>
+                      <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
+                        {item.label}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                        {item.desc}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </PopoverContent>
-      </Popover>
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
+  // Zero-height floating seam between blocks: takes 0px of vertical document space
+  return (
+    <div className={`group/inserter relative h-0 w-full select-none z-20 ${className}`}>
+      {/* Invisible hover hotspot zone centered on the seam line (-top-3 to bottom-3) */}
+      <div
+        className={`absolute inset-x-0 -top-3 h-6 flex items-center justify-center transition-opacity ${
+          open
+            ? 'opacity-100 pointer-events-auto'
+            : 'opacity-0 hover:opacity-100 pointer-events-auto'
+        }`}
+      >
+        {/* Subtle dashed line connecting across the seam */}
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px border-t border-dashed border-blue-400/80 dark:border-blue-500/80" />
+
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="relative z-10 flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white dark:bg-zinc-900 border border-blue-300 dark:border-blue-700 text-[10px] font-semibold text-blue-600 dark:text-blue-400 shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+            >
+              <Plus className="w-3 h-3" />
+              <span>Add Block</span>
+            </button>
+          </PopoverTrigger>
+
+          <PopoverContent
+            align="center"
+            className="w-80 p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
+          >
+            <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
+              <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+                Insert SEC Filing Block
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                Select a block type to add to the document
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto pr-1">
+              {BLOCK_OPTIONS.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.type}
+                    type="button"
+                    onClick={() => {
+                      onAdd(item.type);
+                      setOpen(false);
+                    }}
+                    className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
+                  >
+                    <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
+                        {item.label}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                        {item.desc}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
     </div>
   );
 };
