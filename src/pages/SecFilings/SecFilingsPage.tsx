@@ -371,7 +371,14 @@ export default function SecFilingsPage() {
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between text-[10px] text-slate-400">
-                          <span>By {prop.author.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span>By {prop.author.name}</span>
+                            {prop.submittedAt && (
+                              <span className="text-purple-600 dark:text-purple-400 font-mono">
+                                • {new Date(prop.submittedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
                           <Button
                             type="button"
                             size="sm"
@@ -709,6 +716,7 @@ export default function SecFilingsPage() {
         open={isInviteModalOpen}
         onOpenChange={setIsInviteModalOpen}
         mainDoc={mainDoc}
+        proposals={proposals}
         documentSections={documentSections}
         onCreateInvite={handleCreateContributorInvite}
         onOpenProposal={(id) => {

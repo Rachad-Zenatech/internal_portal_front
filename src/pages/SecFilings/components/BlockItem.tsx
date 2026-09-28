@@ -89,7 +89,33 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 }) => {
   const isWordMode = viewMode === 'word';
   const effectiveSpacing = block.spacing || globalSpacing;
-  const currentSpacingTop = typeof block.spacingTop === 'number' ? block.spacingTop : 0;
+  
+  // Default natural distance from the above block if not explicitly set
+  const defaultSpacingTop =
+    block.type === 'heading'
+      ? (block as SecHeadingBlock).level === 1
+        ? 12
+        : (block as SecHeadingBlock).level === 2
+        ? 8
+        : 6
+      : block.type === 'financial_table'
+      ? 10
+      : block.type === 'image'
+      ? 8
+      : block.type === 'signature'
+      ? 14
+      : block.type === 'divider'
+      ? 12
+      : effectiveSpacing === 'compact'
+      ? 2
+      : effectiveSpacing === 'relaxed'
+      ? 8
+      : effectiveSpacing === 'loose'
+      ? 12
+      : 4; // Default paragraph distance from above block
+
+  const currentSpacingTop =
+    typeof block.spacingTop === 'number' ? block.spacingTop : defaultSpacingTop;
 
   const isTextType = block.type === 'heading' || block.type === 'paragraph';
   const currentAlign = (block as any).alignment || 'left';
@@ -109,31 +135,22 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 
   const currentFontFamily = (block as any).fontFamily || 'Calibri, "Segoe UI", Arial, sans-serif';
 
-  const spacingMarginClass =
-    effectiveSpacing === 'compact'
-      ? 'my-0.5 py-0'
-      : effectiveSpacing === 'relaxed'
-      ? 'my-2.5 py-0.5'
-      : effectiveSpacing === 'loose'
-      ? 'my-4 py-1'
-      : 'my-1.5 py-0';
-
   const isHighlighted = isSelected || isMultiSelected;
 
   let wrapperClass = isWordMode
-    ? `relative ${spacingMarginClass} rounded-sm transition-colors hover:bg-slate-50/70 dark:hover:bg-zinc-800/30`
-    : `relative rounded-xl border border-slate-200 dark:border-zinc-800 p-4 bg-white dark:bg-zinc-900/90 shadow-xs ${spacingMarginClass}`;
+    ? 'relative py-0 rounded-sm transition-colors hover:bg-slate-50/70 dark:hover:bg-zinc-800/30'
+    : 'relative rounded-xl border border-slate-200 dark:border-zinc-800 p-4 bg-white dark:bg-zinc-900/90 shadow-xs';
 
   if (isHighlighted) {
     wrapperClass = isWordMode
-      ? `relative z-20 ${spacingMarginClass} rounded-sm ring-2 ring-blue-500/70 bg-blue-50/25 dark:bg-blue-950/30`
-      : `relative z-20 rounded-xl border border-blue-500 ring-2 ring-blue-500/30 shadow-md bg-blue-50/10 dark:bg-zinc-900 ${spacingMarginClass}`;
+      ? 'relative z-20 py-0 rounded-sm ring-2 ring-blue-500/70 bg-blue-50/25 dark:bg-blue-950/30'
+      : 'relative z-20 rounded-xl border border-blue-500 ring-2 ring-blue-500/30 shadow-md bg-blue-50/10 dark:bg-zinc-900';
   } else if (diffType === 'added') {
-    wrapperClass = `relative ${spacingMarginClass} border-l-4 border-emerald-500 bg-emerald-50/20 pl-2 rounded`;
+    wrapperClass = 'relative py-0 border-l-4 border-emerald-500 bg-emerald-50/20 pl-2 rounded';
   } else if (diffType === 'modified') {
-    wrapperClass = `relative ${spacingMarginClass} border-l-4 border-amber-500 bg-amber-50/20 pl-2 rounded`;
+    wrapperClass = 'relative py-0 border-l-4 border-amber-500 bg-amber-50/20 pl-2 rounded';
   } else if (diffType === 'deleted') {
-    wrapperClass = `relative ${spacingMarginClass} border-l-4 border-red-500 bg-red-50/20 pl-2 rounded opacity-60`;
+    wrapperClass = 'relative py-0 border-l-4 border-red-500 bg-red-50/20 pl-2 rounded opacity-60';
   }
 
   const updateSpacingTop = (delta: number) => {
@@ -186,7 +203,8 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
         }
       }}
       style={{
-        transform: currentSpacingTop !== 0 ? `translateY(${currentSpacingTop}px)` : undefined
+        marginTop: `${currentSpacingTop}px`,
+        marginBottom: '0px'
       }}
       className={`group ${wrapperClass}`}
     >
@@ -197,7 +215,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
         >
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px border-t border-dashed border-blue-400/50" />
           <div className="relative z-10 flex items-center gap-1 bg-white dark:bg-zinc-900 border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 px-1.5 py-0.2 rounded-full text-[9px] font-mono shadow-xs">
-            <span className="font-semibold">Top Spacing Gap: {currentSpacingTop}px</span>
+            <span className="font-semibold">Distance from above: {currentSpacingTop}px</span>
             <button
               type="button"
               onClick={(e) => {
@@ -750,16 +768,16 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
                   Top Spacing Gap Presets
                 </div>
                 {[
-                  { px: -4, label: '-4px', desc: 'Ultra Close' },
-                  { px: -2, label: '-2px', desc: 'Very Close (Subtitle)' },
-                  { px: 0, label: '0px', desc: 'Flush (Connected)' },
-                  { px: 2, label: '2px', desc: 'Hairline Gap' },
-                  { px: 4, label: '4px', desc: 'Tight Gap' },
-                  { px: 8, label: '8px', desc: 'Normal Gap' },
-                  { px: 12, label: '12px', desc: 'Moderate Gap' },
-                  { px: 16, label: '16px', desc: 'Section Gap' },
-                  { px: 24, label: '24px', desc: 'Large Gap' },
-                  { px: 32, label: '32px', desc: 'Major Break' }
+                  { px: -4, label: '-4px', desc: 'Tuck under above' },
+                  { px: -2, label: '-2px', desc: 'Very close (Subtitle)' },
+                  { px: 0, label: '0px', desc: 'Flush (0 distance)' },
+                  { px: 2, label: '2px', desc: 'Hairline distance' },
+                  { px: 4, label: '4px', desc: 'Tight text distance' },
+                  { px: 6, label: '6px', desc: 'Close distance' },
+                  { px: 8, label: '8px', desc: 'Normal distance' },
+                  { px: 12, label: '12px', desc: 'Moderate gap' },
+                  { px: 16, label: '16px', desc: 'Section gap' },
+                  { px: 24, label: '24px', desc: 'Large gap' }
                 ].map((opt) => (
                   <DropdownMenuItem
                     key={opt.px}

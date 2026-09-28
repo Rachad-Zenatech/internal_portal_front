@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   GitMerge,
+  Clock,
   GitPullRequest,
   X,
   MessageSquare,
@@ -19,6 +20,36 @@ import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialo
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Textarea } from '../../../components/ui/textarea';
+
+function formatSubmissionTime(dateString?: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+}
+
+function formatRelativeTime(dateString?: string): string {
+  if (!dateString) return '';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '';
+  const now = new Date();
+  const diffSec = Math.max(0, Math.floor((now.getTime() - date.getTime()) / 1000));
+  if (diffSec < 45) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDay = Math.floor(diffHour / 24);
+  return `${diffDay}d ago`;
+}
 
 interface MergeReviewModalProps {
   open: boolean;
@@ -123,10 +154,33 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                   {proposal.status.replace('_', ' ')}
                 </Badge>
               </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Submitted by <strong className="text-slate-700 dark:text-zinc-300">{proposal.author.name}</strong> (
-                {proposal.author.role}) • Targeting <span className="font-mono font-bold text-blue-600">{mainDoc.version}</span>
-              </p>
+              <div className="text-xs text-slate-500 dark:text-zinc-400 mt-1 flex items-center gap-2 flex-wrap">
+                <span>
+                  Submitted by <strong className="text-slate-700 dark:text-zinc-200">{proposal.author.name}</strong> ({proposal.author.role})
+                </span>
+                <span>•</span>
+                <span>
+                  Targeting Base: <strong className="font-mono text-blue-600 dark:text-blue-400">{mainDoc.version}</strong>
+                </span>
+                {proposal.submittedAt && (
+                  <>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/60 px-2.5 py-0.5 rounded-full border border-purple-200 dark:border-purple-800 text-[11px]">
+                      <Clock className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Submitted: {formatSubmissionTime(proposal.submittedAt)} ({formatRelativeTime(proposal.submittedAt)})</span>
+                    </span>
+                  </>
+                )}
+                {!proposal.submittedAt && proposal.updatedAt && (
+                  <>
+                    <span>•</span>
+                    <span className="inline-flex items-center gap-1.5 text-slate-500 text-[11px]">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Last Modified: {formatSubmissionTime(proposal.updatedAt)} ({formatRelativeTime(proposal.updatedAt)})</span>
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -302,8 +356,14 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
 
                       {/* Proposed */}
                       <div className="p-3 rounded-lg bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/60 bg-blue-50/20 dark:bg-blue-950/20 space-y-1">
-                        <div className="font-semibold text-blue-600 dark:text-blue-400 text-[10px] uppercase">
-                          Proposed by Contributor
+                        <div className="flex items-center justify-between font-semibold text-blue-600 dark:text-blue-400 text-[10px] uppercase pb-1 border-b border-blue-100 dark:border-blue-900/40">
+                          <span>Proposed by Contributor ({proposal.author.name})</span>
+                          {proposal.submittedAt && (
+                            <span className="font-mono text-[10px] text-purple-600 dark:text-purple-400 flex items-center gap-1 font-normal lowercase">
+                              <Clock className="w-3 h-3" />
+                              {formatSubmissionTime(proposal.submittedAt)}
+                            </span>
+                          )}
                         </div>
                         {diff.proposedBlock ? (
                           <RenderDiffBlockContent block={diff.proposedBlock} isNew />
