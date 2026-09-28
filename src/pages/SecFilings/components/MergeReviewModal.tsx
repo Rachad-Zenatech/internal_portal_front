@@ -23,7 +23,8 @@ import {
   FolderTree,
   Edit3,
   Plus,
-  Trash2
+  Trash2,
+  Eye
 } from 'lucide-react';
 import type {
   SecChangeProposal,
@@ -193,12 +194,12 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
   const [reviewNotes, setReviewNotes] = useState('');
   const [viewMode, setViewMode] = useState<'doc-track-changes' | 'side-by-side-sheets' | 'summary-cards'>('doc-track-changes');
   const [docWidth, setDocWidth] = useState<'wide' | 'full' | 'standard'>('wide');
+  const [wordDisplayMode, setWordDisplayMode] = useState<'markup' | 'merged-preview' | 'live-original'>('markup');
   const [acceptedBlockIds, setAcceptedBlockIds] = useState<string[]>([]);
   const [selectedSectionFilter, setSelectedSectionFilter] = useState<string>('ALL');
   const [activeDiffIndex, setActiveDiffIndex] = useState<number>(0);
 
     const changedDiffs = useMemo(() => diffs.filter((d) => d.status !== 'unchanged'), [diffs]);
-  const diffMap = useMemo(() => new Map<string, SecBlockDiff>(diffs.map((d) => [d.blockId, d])), [diffs]);
 
   const spacingChangeCount = useMemo(
     () => changedDiffs.filter((d) => d.changeCategories?.includes('spacing')).length,
@@ -361,6 +362,86 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
       items: p.blocks.map((b) => itemMap.get(b.id)).filter(Boolean) as typeof filteredUnifiedBlocks
     }));
   }, [filteredUnifiedBlocks]);
+
+  // Clean Merged Live Document Preview Blocks (with accepted changes applied, 0 diff clutter)
+  const mergedLiveBlocks = useMemo(() => {
+    if (!proposal) return mainDoc.blocks;
+    const blocks: SecBlock[] = [];
+    for (const item of filteredUnifiedBlocks) {
+      const isAccepted = acceptedBlockIds.includes(item.blockId);
+      if (item.diff.status === 'unchanged') {
+        blocks.push(item.block);
+      } else if (item.diff.status === 'added') {
+        if (isAccepted && item.diff.proposedBlock) {
+          blocks.push(item.diff.proposedBlock);
+        }
+      } else if (item.diff.status === 'modified') {
+        if (isAccepted && item.diff.proposedBlock) {
+          blocks.push(item.diff.proposedBlock);
+        } else if (item.diff.originalBlock) {
+          blocks.push(item.diff.originalBlock);
+        }
+      } else if (item.diff.status === 'deleted') {
+        if (!isAccepted && item.diff.originalBlock) {
+          blocks.push(item.diff.originalBlock);
+        }
+      }
+    }
+    return blocks;
+  }, [filteredUnifiedBlocks, acceptedBlockIds, proposal, mainDoc.blocks]);
+
+  const mergedLivePages = useMemo(() => {
+    return paginateBlocks(mergedLiveBlocks);
+  }, [mergedLiveBlocks]);
+
+  // Current Live Main Document Pages
+  const originalLivePages = useMemo(() => {
+    const origBlocks = selectedSectionFilter === 'ALL'
+      ? mainDoc.blocks
+      : mainDoc.blocks.filter((b) => b.section === selectedSectionFilter);
+    return paginateBlocks(origBlocks);
+  }, [mainDoc.blocks, selectedSectionFilter]);
+
+  // Synchronized Side-by-Side Aligned Rows (so Right document spaces out to match Left document row-for-row)
+  const sideBySideAlignedRows = useMemo(() => {
+    if (!proposal) return [];
+    const proposalBlockIds = new Set(proposal.blocks.map((b) => b.id));
+
+    return filteredUnifiedBlocks.map((item) => {
+      const { blockId, diff } = item;
+
+      let leftBlock: SecBlock | null = null;
+      let rightBlock: SecBlock | null = null;
+
+      if (diff.status === 'unchanged') {
+        leftBlock = diff.originalBlock || item.block;
+        // If block exists in proposal blocks, render on right; otherwise right gets blank spacer
+        if (diff.proposedBlock) {
+          rightBlock = diff.proposedBlock;
+        } else if (diff.originalBlock && proposalBlockIds.has(diff.originalBlock.id)) {
+          rightBlock = diff.originalBlock;
+        } else {
+          rightBlock = null; // Preserved in Live Main, right side gets spacer!
+        }
+      } else if (diff.status === 'modified') {
+        leftBlock = diff.originalBlock || null;
+        rightBlock = diff.proposedBlock || null;
+      } else if (diff.status === 'added') {
+        leftBlock = null;
+        rightBlock = diff.proposedBlock || null;
+      } else if (diff.status === 'deleted') {
+        leftBlock = diff.originalBlock || null;
+        rightBlock = null;
+      }
+
+      return {
+        blockId,
+        diff,
+        leftBlock,
+        rightBlock
+      };
+    });
+  }, [filteredUnifiedBlocks, proposal]);
 
   // Selected section stat object
   const currentSectionStat = useMemo(() => {
@@ -582,6 +663,52 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
 
           {/* Right: Rich Colorized Section Filter, Width Switcher, View Mode Switcher */}
           <div className="flex items-center gap-2">
+            {/* Word Document Live Mode vs Track Changes Sub-Mode Switcher */}
+            {viewMode === 'doc-track-changes' && (
+              <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded-lg p-0.5 border border-slate-200 dark:border-zinc-700 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setWordDisplayMode('markup')}
+                  className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    wordDisplayMode === 'markup'
+                      ? 'bg-blue-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                  }`}
+                  title="View inline track changes markup and accept toggles"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>Track Changes</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setWordDisplayMode('merged-preview')}
+                  className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    wordDisplayMode === 'merged-preview'
+                      ? 'bg-emerald-600 text-white shadow-2xs font-bold'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                  }`}
+                  title="Preview clean Live Document with accepted changes applied"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Preview Live Document</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setWordDisplayMode('live-original')}
+                  className={`px-2 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer ${
+                    wordDisplayMode === 'live-original'
+                      ? 'bg-slate-700 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
+                  }`}
+                  title="View current Live Main document before merge"
+                >
+                  <FileText className="w-3 h-3" />
+                  <span>Current Live</span>
+                </button>
+              </div>
+            )}
             {/* Document Canvas Width Switcher */}
             {viewMode === 'doc-track-changes' && (
               <DropdownMenu>
@@ -828,7 +955,140 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
             /* 1. PAGINATED WORD DOCUMENT VIEW (EACH PAGE IS A FULL WHITE WORD SHEET)   */
             /* ========================================================================= */
             <div className="w-full flex flex-col items-center space-y-8">
-              {paginatedPages.map((page) => (
+              {/* Preview Live Banner if in Merged Preview or Original Mode */}
+              {wordDisplayMode === 'merged-preview' && (
+                <div className={`${sheetWidthClass} bg-emerald-50 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200 px-4 py-2.5 rounded-lg flex items-center justify-between text-xs shadow-xs`}>
+                  <div className="flex items-center gap-2 font-medium">
+                    <Eye className="w-4 h-4 text-emerald-600" />
+                    <span>
+                      <strong>Resulting Live Document Preview:</strong> Showing how the finalized document will appear with <strong>{acceptedBlockIds.length}</strong> accepted change(s) applied.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWordDisplayMode('markup')}
+                    className="px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-emerald-800 dark:text-emerald-300 font-bold border border-emerald-300 hover:bg-emerald-100 cursor-pointer shadow-2xs"
+                  >
+                    Return to Track Changes
+                  </button>
+                </div>
+              )}
+
+              {wordDisplayMode === 'live-original' && (
+                <div className={`${sheetWidthClass} bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 text-slate-800 dark:text-zinc-200 px-4 py-2.5 rounded-lg flex items-center justify-between text-xs shadow-xs`}>
+                  <div className="flex items-center gap-2 font-medium">
+                    <FileText className="w-4 h-4 text-slate-600" />
+                    <span>
+                      <strong>Current Live Main Document (v{mainDoc.versionNumber}):</strong> Showing active base document prior to proposal merge.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setWordDisplayMode('markup')}
+                    className="px-2.5 py-1 rounded bg-white dark:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-bold border border-slate-300 hover:bg-slate-200 cursor-pointer shadow-2xs"
+                  >
+                    Return to Track Changes
+                  </button>
+                </div>
+              )}
+
+              {wordDisplayMode === 'merged-preview' ? (
+                /* Pure Clean Post-Merge Live Preview Pages */
+                mergedLivePages.map((page) => (
+                  <div
+                    key={page.pageNumber}
+                    id={`doc-page-${page.pageNumber}`}
+                    className={`${sheetWidthClass} bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300/80 px-8 sm:px-12 md:px-16 lg:px-20 py-10 md:py-14 relative transition-all duration-150 flex flex-col justify-between`}
+                    style={{
+                      minHeight: '1056px',
+                      fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif'
+                    }}
+                  >
+                    <div className="absolute right-4 top-3 text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full select-none z-10 border border-slate-200">
+                      Page {page.pageNumber} of {mergedLivePages.length}
+                    </div>
+
+                    <div>
+                      {/* Document Header */}
+                      <div className="pb-3 mb-6 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                        <span className="font-semibold tracking-tight text-[#0E2841]">
+                          ZenaTech, Inc. — Form 6-K Interim Report
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider font-mono bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded border border-emerald-200 mr-24">
+                          Live Document Preview • v{mainDoc.versionNumber + 1} Draft
+                        </span>
+                      </div>
+
+                      {/* Clean Blocks Flow */}
+                      <div className="space-y-1">
+                        {page.blocks.map((block, idx) => (
+                          <div key={block.id || idx} className="relative py-0 hover:bg-slate-50/40 rounded transition-colors">
+                            <SecDocBlockRenderer block={block} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Document Footer */}
+                    <div className="pt-6 mt-8 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                      <span className="italic">Confidential — Post-Merge Final Preview Copy</span>
+                      <span className="font-bold text-[#0E2841]">
+                        ZenaTech, Inc. • Six Months Ended June 30, 2026
+                      </span>
+                      <span>Page {page.pageNumber}</span>
+                    </div>
+                  </div>
+                ))
+              ) : wordDisplayMode === 'live-original' ? (
+                /* Pure Current Live Document Pages */
+                originalLivePages.map((page) => (
+                  <div
+                    key={page.pageNumber}
+                    id={`doc-page-${page.pageNumber}`}
+                    className={`${sheetWidthClass} bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300/80 px-8 sm:px-12 md:px-16 lg:px-20 py-10 md:py-14 relative transition-all duration-150 flex flex-col justify-between`}
+                    style={{
+                      minHeight: '1056px',
+                      fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif'
+                    }}
+                  >
+                    <div className="absolute right-4 top-3 text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full select-none z-10 border border-slate-200">
+                      Page {page.pageNumber} of {originalLivePages.length}
+                    </div>
+
+                    <div>
+                      {/* Document Header */}
+                      <div className="pb-3 mb-6 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                        <span className="font-semibold tracking-tight text-[#0E2841]">
+                          ZenaTech, Inc. — Form 6-K Interim Report
+                        </span>
+                        <span className="text-[10px] uppercase tracking-wider font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 mr-24">
+                          Current Live Main Version (v{mainDoc.versionNumber})
+                        </span>
+                      </div>
+
+                      {/* Clean Blocks Flow */}
+                      <div className="space-y-1">
+                        {page.blocks.map((block, idx) => (
+                          <div key={block.id || idx} className="relative py-0 hover:bg-slate-50/40 rounded transition-colors">
+                            <SecDocBlockRenderer block={block} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Document Footer */}
+                    <div className="pt-6 mt-8 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                      <span className="italic">Confidential — Live Main Document Copy</span>
+                      <span className="font-bold text-[#0E2841]">
+                        ZenaTech, Inc. • Six Months Ended June 30, 2026
+                      </span>
+                      <span>Page {page.pageNumber}</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                /* Standard Track Changes Mode with Inline Review Highlights */
+                paginatedPages.map((page) => (
                 <div
                   key={page.pageNumber}
                   id={`doc-page-${page.pageNumber}`}
@@ -994,167 +1254,174 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                     <span>Page {page.pageNumber}</span>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
           ) : viewMode === 'side-by-side-sheets' ? (
             /* ========================================================================= */
-            /* 2. DUAL FULL SHEETS SIDE-BY-SIDE VIEW                                      */
+            /* 2. SYNCHRONIZED ROW-ALIGNED SIDE-BY-SIDE VIEW (MATCHING HORIZONTAL ROWS)   */
             /* ========================================================================= */
-            <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-full">
-              {/* Left Sheet: Live Main Document */}
-              <div className="flex flex-col items-center">
-                <div className="w-full text-center pb-2 text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
+            <div className="w-full max-w-full space-y-2">
+              {/* Column Headers */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-2">
+                <div className="text-center text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider">
                   Live Main Version (v{mainDoc.versionNumber})
                 </div>
-                <div
-                  className="w-full bg-white text-slate-900 shadow-xl rounded-sm border border-slate-300/80 px-6 sm:px-10 py-8 min-h-[900px]"
-                  style={{ fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif' }}
-                >
-                  <div className="pb-2 mb-4 border-b border-slate-200 flex items-center justify-between text-[10px] text-slate-400 font-sans">
-                    <span className="font-semibold">Current Main Document</span>
-                    <span>v{mainDoc.versionNumber}</span>
-                  </div>
-                  <div className="space-y-3">
-                    {mainDoc.blocks.map((block) => {
-                      const diff = diffMap.get(block.id);
-                      const isDeleted = diff?.status === 'deleted';
-                      const isModified = diff?.status === 'modified';
-                      
-                      if (!isDeleted && !isModified) {
-                        return (
-                          <div key={block.id} className="relative py-0.5">
-                            <SecDocBlockRenderer block={block} />
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div
-                          key={block.id}
-                          className={`relative transition-all p-3 rounded-lg border ${
-                            isDeleted
-                              ? 'bg-red-50/50 border-red-300 text-red-950'
-                              : 'bg-amber-50/25 border-amber-300'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200 text-xs font-sans">
-                            <div className="flex items-center gap-1.5">
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] font-bold px-2 py-0.5 ${
-                                  isDeleted
-                                    ? 'bg-red-100 text-red-800 border-red-300'
-                                    : 'bg-amber-100 text-amber-900 border-amber-300'
-                                }`}
-                              >
-                                {isDeleted ? '- Deleted in Proposal' : 'Current Main Version'}
-                              </Badge>
-                              {isModified && diff && <ChangeTypeBadges diff={diff} />}
-                            </div>
-                            <span className="text-[10px] text-slate-400 font-mono">{block.section}</span>
-                          </div>
-                          <div className={isDeleted ? 'line-through opacity-70' : ''}>
-                            <SecDocBlockRenderer block={block} />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                <div className="text-center text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
+                  Contributor Proposal ({proposal.author.name})
                 </div>
               </div>
 
-              {/* Right Sheet: Contributor Proposed Document */}
-              <div className="flex flex-col items-center">
-                <div className="w-full text-center pb-2 text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
-                  Contributor Proposal ({proposal.author.name})
-                </div>
-                <div
-                  className="w-full bg-white text-slate-900 shadow-xl rounded-sm border border-blue-200 px-6 sm:px-10 py-8 min-h-[900px]"
-                  style={{ fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif' }}
-                >
-                  <div className="pb-2 mb-4 border-b border-blue-100 flex items-center justify-between text-[10px] text-blue-600 font-sans">
+              {/* Synchronized Side-by-Side Document Sheet */}
+              <div
+                className="w-full bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-2xl rounded-sm border border-slate-300/80 dark:border-zinc-800 px-6 sm:px-10 py-8 min-h-[1056px]"
+                style={{ fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif' }}
+              >
+                {/* Header Strip */}
+                <div className="pb-3 mb-6 border-b border-slate-200 dark:border-zinc-800 grid grid-cols-1 lg:grid-cols-2 gap-6 text-[11px] font-sans select-none">
+                  <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400">
+                    <span className="font-semibold text-[#0E2841] dark:text-blue-400">Current Main Document</span>
+                    <span className="font-mono text-[10px] bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded">v{mainDoc.versionNumber}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-blue-600 dark:text-blue-400">
                     <span className="font-semibold">Proposed Revision Draft</span>
-                    <span>{formatSubmissionTime(proposal.submittedAt)}</span>
+                    <span className="font-mono text-[10px] bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
+                      {formatSubmissionTime(proposal.submittedAt)}
+                    </span>
                   </div>
-                  <div className="space-y-3">
-                    {proposal.blocks.map((block) => {
-                      const diff = diffMap.get(block.id);
-                      const isAdded = diff?.status === 'added';
-                      const isModified = diff?.status === 'modified';
-                      const isAccepted = diff ? acceptedBlockIds.includes(diff.blockId) : false;
+                </div>
 
-                      if (!isAdded && !isModified) {
-                        return (
-                          <div key={block.id} className="relative py-0.5">
-                            <SecDocBlockRenderer block={block} />
-                          </div>
-                        );
-                      }
+                {/* Synchronized Block-by-Block Rows */}
+                <div className="space-y-4">
+                  {sideBySideAlignedRows.map((row) => {
+                    const { blockId, diff, leftBlock, rightBlock } = row;
+                    const isAccepted = acceptedBlockIds.includes(blockId);
 
-                      return (
-                        <div
-                          key={block.id}
-                          id={`side-diff-${block.id}`}
-                          className={`relative transition-all p-3 rounded-lg border ${
-                            isAdded
-                              ? isAccepted
-                                ? 'border-emerald-400 bg-emerald-50/25 shadow-xs'
-                                : 'border-slate-300 bg-slate-50/50 opacity-60'
-                              : isAccepted
-                              ? 'border-amber-400 bg-amber-50/20 shadow-xs'
-                              : 'border-slate-300 bg-slate-50/50 opacity-60'
-                          }`}
-                        >
-                          {/* Header with Accept Button & What Got Changed Badges */}
-                          <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 mb-2 border-b border-slate-200/80 font-sans text-xs select-none">
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleDiffAcceptance(block.id)}
-                                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
-                                  isAccepted
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-bold'
-                                    : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700'
-                                }`}
-                                title={isAccepted ? 'Accepted for merge' : 'Click to accept change'}
-                              >
-                                {isAccepted ? (
-                                  <>
-                                    <Check className="w-3.5 h-3.5 text-white" />
-                                    <span>✓ Accepted</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Plus className="w-3.5 h-3.5 text-slate-500" />
-                                    <span>+ Accept</span>
-                                  </>
-                                )}
-                              </button>
-
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] font-bold px-2 py-0.5 ${
-                                  isAdded
-                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                    : 'bg-amber-100 text-amber-900 border-amber-300'
-                                }`}
-                              >
-                                {isAdded ? '+ Added' : '~ Modified'}
-                              </Badge>
-
-                              {diff && <ChangeTypeBadges diff={diff} />}
+                    return (
+                      <div key={blockId} className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                        {/* Left Side (Live Main Version) */}
+                        <div className="flex flex-col justify-start">
+                          {leftBlock ? (
+                            <div
+                              className={`relative transition-all p-3 rounded-lg border h-full flex flex-col justify-between ${
+                                diff.status === 'deleted'
+                                  ? 'bg-red-50/50 dark:bg-red-950/40 border-red-300 dark:border-red-800 text-red-950 dark:text-red-200'
+                                  : diff.status === 'modified'
+                                  ? 'bg-amber-50/25 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800'
+                                  : 'border-transparent py-0.5'
+                              }`}
+                            >
+                              {(diff.status === 'deleted' || diff.status === 'modified') && (
+                                <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-200 dark:border-zinc-800 text-xs font-sans select-none">
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] font-bold px-2 py-0.5 ${
+                                        diff.status === 'deleted'
+                                          ? 'bg-red-100 text-red-800 border-red-300'
+                                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                                      }`}
+                                    >
+                                      {diff.status === 'deleted' ? '- Deleted in Proposal' : 'Current Main Version'}
+                                    </Badge>
+                                    {diff.status === 'modified' && <ChangeTypeBadges diff={diff} />}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-mono">{leftBlock.section}</span>
+                                </div>
+                              )}
+                              <div className={diff.status === 'deleted' ? 'line-through opacity-70' : ''}>
+                                <SecDocBlockRenderer block={leftBlock} />
+                              </div>
                             </div>
-
-                            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
-                              <span>{block.section}</span>
+                          ) : (
+                            /* Blank space on Left side when block was added in Proposal */
+                            <div className="h-full min-h-[60px] rounded-lg border border-dashed border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-zinc-950/40 flex items-center justify-center text-slate-400 text-[10px] italic select-none">
+                              <span>(Not present in Live Main Document)</span>
                             </div>
-                          </div>
-
-                          <SecDocBlockRenderer block={block} />
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        {/* Right Side (Contributor Proposal) */}
+                        <div className="flex flex-col justify-start">
+                          {rightBlock ? (
+                            <div
+                              id={`side-diff-${blockId}`}
+                              className={`relative transition-all p-3 rounded-lg border h-full flex flex-col justify-between ${
+                                diff.status === 'added'
+                                  ? isAccepted
+                                    ? 'border-emerald-400 bg-emerald-50/25 dark:bg-emerald-950/30 shadow-xs'
+                                    : 'border-slate-300 bg-slate-50/50 opacity-60'
+                                  : diff.status === 'modified'
+                                  ? isAccepted
+                                    ? 'border-amber-400 bg-amber-50/20 dark:bg-amber-950/30 shadow-xs'
+                                    : 'border-slate-300 bg-slate-50/50 opacity-60'
+                                  : 'border-transparent py-0.5'
+                              }`}
+                            >
+                              {(diff.status === 'added' || diff.status === 'modified') && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 mb-2 border-b border-slate-200/80 dark:border-zinc-800 font-sans text-xs select-none">
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleDiffAcceptance(blockId)}
+                                      className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
+                                        isAccepted
+                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-bold'
+                                          : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700'
+                                      }`}
+                                      title={isAccepted ? 'Accepted for merge' : 'Click to accept change'}
+                                    >
+                                      {isAccepted ? (
+                                        <>
+                                          <Check className="w-3.5 h-3.5 text-white" />
+                                          <span>✓ Accepted</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Plus className="w-3.5 h-3.5 text-slate-500" />
+                                          <span>+ Accept</span>
+                                        </>
+                                      )}
+                                    </button>
+
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[10px] font-bold px-2 py-0.5 ${
+                                        diff.status === 'added'
+                                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                                      }`}
+                                    >
+                                      {diff.status === 'added' ? '+ Added' : '~ Modified'}
+                                    </Badge>
+
+                                    <ChangeTypeBadges diff={diff} />
+                                  </div>
+
+                                  <span className="text-[10px] text-slate-400 font-mono">{rightBlock.section}</span>
+                                </div>
+                              )}
+                              <SecDocBlockRenderer block={rightBlock} />
+                            </div>
+                          ) : (
+                            /* Blank space on Right side to perfectly match up with Left document! */
+                            <div className="h-full min-h-[60px] rounded-lg border border-dashed border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-zinc-950/40 flex items-center justify-center text-slate-400 text-[10px] italic select-none">
+                              <span>{diff.status === 'deleted' ? '(Block Deleted in Proposal)' : '(Preserved in Live Main Document)'}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Side-by-Side Footer */}
+                <div className="pt-6 mt-8 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                  <span className="italic">Confidential — SEC Filing Side-by-Side Synchronized Comparison</span>
+                  <span className="font-bold text-[#0E2841]">
+                    ZenaTech, Inc. • Six Months Ended June 30, 2026
+                  </span>
+                  <span>Unaudited</span>
                 </div>
               </div>
             </div>
