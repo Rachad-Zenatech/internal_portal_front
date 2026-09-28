@@ -6,6 +6,7 @@ import {
   History,
   GitBranch,
   GitMerge,
+  GitPullRequest,
   Send,
   RotateCcw,
   Search,
@@ -465,6 +466,45 @@ export default function SecFilingsPage() {
           </div>
         </div>
       </header>
+
+      {/* Pending Contributor Submissions Notification Banner for Lead Controller */}
+      {pendingProposalsCount > 0 && activeRole === 'LEAD_CONTROLLER' && !activeProposal && (
+        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 md:px-8 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs shadow-md border-b border-emerald-500/50 sticky top-[57px] z-36 animate-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-white/20 text-white shadow-xs">
+              <GitPullRequest className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold tracking-wide">
+                {pendingProposalsCount} Contributor Submission{pendingProposalsCount > 1 ? 's' : ''} Awaiting Review
+              </span>
+              <span className="text-emerald-100 ml-2 hidden md:inline">
+                {proposals
+                  .filter((p) => p.status === 'pending_review')
+                  .map((p) => `"${p.title}" by ${p.author.name}`)
+                  .join(', ')}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                const firstPending = proposals.find((p) => p.status === 'pending_review');
+                if (firstPending) {
+                  setSelectedProposalForReview(firstPending);
+                  setIsMergeModalOpen(true);
+                }
+              }}
+              className="h-7 text-xs bg-white text-emerald-900 hover:bg-emerald-50 font-bold shadow-sm gap-1.5"
+            >
+              <GitMerge className="w-3.5 h-3.5 text-emerald-700" />
+              <span>Review & Merge Changes</span>
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Contributor Draft Banner (Active when in Contributor role or editing a proposal) */}
       {(activeRole === 'CONTRIBUTOR' || activeProposal || contributorSession.isContributor) && (

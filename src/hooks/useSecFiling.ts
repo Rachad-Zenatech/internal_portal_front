@@ -60,18 +60,18 @@ export function useSecFiling() {
 
     if (isContributor) {
       setActiveRole('CONTRIBUTOR');
-      if (propId) {
-        const ensuredProp = secFilingService.getOrCreateContributorProposal({
-          id: propId,
-          title,
-          name: name || undefined,
-          role: role || undefined,
-          section: section || undefined,
-          description: desc
-        });
-        setProposals(secFilingService.getProposals());
-        setActiveProposalId(ensuredProp.id);
-      }
+      const effectivePropId = propId || 'prop-contrib-session-active';
+      const ensuredProp = secFilingService.getOrCreateContributorProposal({
+        id: effectivePropId,
+        title: title || (name ? `${name}'s Section Revisions` : 'Contributor Draft Revisions'),
+        name: name || undefined,
+        role: role || undefined,
+        section: section || undefined,
+        description: desc
+      });
+      setProposals(secFilingService.getProposals());
+      setActiveProposalId(ensuredProp.id);
+
       setContributorSession({
         isContributor: true,
         name: name || undefined,
@@ -152,6 +152,48 @@ export function useSecFiling() {
     setProposals(secFilingService.getProposals());
     setVersionHistory(secFilingService.getVersionHistory());
   }, []);
+
+  // Real-time cross-tab synchronization (BroadcastChannel + StorageEvent)
+  useEffect(() => {
+    const handleStorage = (e: StorageEvent) => {
+      if (
+        e.key === 'sec_filing_proposals_v2_full' ||
+        e.key === 'sec_filing_main_doc_v2_full' ||
+        e.key === 'sec_filing_versions_v2_full'
+      ) {
+        refreshAll();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      try {
+        bc = new BroadcastChannel('sec_filing_sync_channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'PROPOSAL_SUBMITTED') {
+            refreshAll();
+            toast.success(`New draft submitted by ${event.data?.author || 'Contributor'}!`, {
+              description: `"${event.data?.title || 'Filing Updates'}" is ready for Lead Controller review in Merge Control.`
+            });
+          } else if (event.data?.type === 'DOC_MERGED') {
+            refreshAll();
+            toast.info('Main document updated with newly approved changes.');
+          } else {
+            refreshAll();
+          }
+        };
+      } catch (err) {
+        console.warn('BroadcastChannel error', err);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      if (bc) bc.close();
+    };
+  }, [refreshAll]);
 
   // Underlying state updater (either in active proposal or main doc)
   const applyWorkingBlocks = useCallback(

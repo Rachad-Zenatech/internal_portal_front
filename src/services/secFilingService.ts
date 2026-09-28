@@ -11,6 +11,18 @@ import {
   INITIAL_VERSION_HISTORY
 } from '../data/initialSecFilingData';
 
+function broadcastSync(type: string, payload?: Record<string, any>) {
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const bc = new BroadcastChannel('sec_filing_sync_channel');
+      bc.postMessage({ type, ...payload });
+      bc.close();
+    } catch (e) {
+      console.warn('Broadcast error', e);
+    }
+  }
+}
+
 const STORAGE_KEYS = {
   MAIN_DOC: 'sec_filing_main_doc_v2_full',
   PROPOSALS: 'sec_filing_proposals_v2_full',
@@ -107,6 +119,7 @@ export const secFilingService = {
 
     proposals.unshift(newProposal);
     this.saveProposals(proposals);
+    broadcastSync("PROPOSAL_UPDATED", { proposalId: newProposal.id });
     return newProposal;
   },
 
@@ -206,6 +219,7 @@ export const secFilingService = {
         updatedAt: new Date().toISOString()
       };
       this.saveProposals(proposals);
+      broadcastSync("PROPOSAL_UPDATED", { proposalId: proposal.id });
     }
   },
 
@@ -218,6 +232,7 @@ export const secFilingService = {
       p.submittedAt = new Date().toISOString();
       p.updatedAt = new Date().toISOString();
       this.saveProposals(proposals);
+      broadcastSync("PROPOSAL_SUBMITTED", { author: p.author.name, proposalId: p.id, title: p.title });
     }
   },
 
@@ -305,6 +320,7 @@ export const secFilingService = {
     proposal.reviewedAt = new Date().toISOString();
     proposal.reviewNotes = reviewNotes;
     this.saveProposals(proposals);
+    broadcastSync("DOC_MERGED", { reviewer: reviewerName, proposalId: proposal.id });
 
     return { updatedDoc: updatedMain, newSnapshot };
   },
