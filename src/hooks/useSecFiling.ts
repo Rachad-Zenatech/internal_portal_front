@@ -476,6 +476,96 @@ export function useSecFiling() {
     [workingBlocks, setWorkingBlocks]
   );
 
+  // Move an entire section (all blocks belonging to it) up or down relative to adjacent sections
+  const moveSection = useCallback(
+    (sectionName: string, direction: 'up' | 'down') => {
+      if (!sectionName) return;
+
+      const currentSections: string[] = [];
+      workingBlocks.forEach((b) => {
+        if (b.section && !currentSections.includes(b.section)) {
+          currentSections.push(b.section);
+        }
+      });
+
+      const secIndex = currentSections.indexOf(sectionName);
+      if (secIndex === -1) return;
+      if (direction === 'up' && secIndex === 0) return;
+      if (direction === 'down' && secIndex === currentSections.length - 1) return;
+
+      const targetSection = direction === 'up'
+        ? currentSections[secIndex - 1]
+        : currentSections[secIndex + 1];
+
+      const sectionBlocks = workingBlocks.filter((b) => b.section === sectionName);
+      const otherBlocks = workingBlocks.filter((b) => b.section !== sectionName);
+
+      if (direction === 'up') {
+        const insertIdx = otherBlocks.findIndex((b) => b.section === targetSection);
+        const nextBlocks = [...otherBlocks];
+        nextBlocks.splice(insertIdx !== -1 ? insertIdx : 0, 0, ...sectionBlocks);
+        setWorkingBlocks(nextBlocks);
+        toast.success(`Moved section "${sectionName}" before "${targetSection}"`);
+      } else {
+        let lastIdx = -1;
+        for (let i = otherBlocks.length - 1; i >= 0; i--) {
+          if (otherBlocks[i].section === targetSection) {
+            lastIdx = i;
+            break;
+          }
+        }
+        const nextBlocks = [...otherBlocks];
+        nextBlocks.splice(lastIdx !== -1 ? lastIdx + 1 : otherBlocks.length, 0, ...sectionBlocks);
+        setWorkingBlocks(nextBlocks);
+        toast.success(`Moved section "${sectionName}" after "${targetSection}"`);
+      }
+    },
+    [workingBlocks, setWorkingBlocks]
+  );
+
+  // Move a whole section directly to top or bottom or specific index
+  const reorderSection = useCallback(
+    (sectionName: string, targetSecIndex: number) => {
+      if (!sectionName) return;
+
+      const currentSections: string[] = [];
+      workingBlocks.forEach((b) => {
+        if (b.section && !currentSections.includes(b.section)) {
+          currentSections.push(b.section);
+        }
+      });
+
+      const currentIdx = currentSections.indexOf(sectionName);
+      if (currentIdx === -1 || targetSecIndex < 0 || targetSecIndex >= currentSections.length || currentIdx === targetSecIndex) {
+        return;
+      }
+
+      const sectionBlocks = workingBlocks.filter((b) => b.section === sectionName);
+      const otherBlocks = workingBlocks.filter((b) => b.section !== sectionName);
+
+      const targetSection = currentSections[targetSecIndex];
+      const nextBlocks = [...otherBlocks];
+
+      if (targetSecIndex < currentIdx) {
+        const insertIdx = otherBlocks.findIndex((b) => b.section === targetSection);
+        nextBlocks.splice(insertIdx !== -1 ? insertIdx : 0, 0, ...sectionBlocks);
+      } else {
+        let lastIdx = -1;
+        for (let i = otherBlocks.length - 1; i >= 0; i--) {
+          if (otherBlocks[i].section === targetSection) {
+            lastIdx = i;
+            break;
+          }
+        }
+        nextBlocks.splice(lastIdx !== -1 ? lastIdx + 1 : otherBlocks.length, 0, ...sectionBlocks);
+      }
+
+      setWorkingBlocks(nextBlocks);
+      toast.success(`Moved section "${sectionName}"`);
+    },
+    [workingBlocks, setWorkingBlocks]
+  );
+
   const duplicateBlock = useCallback(
     (id: string) => {
       const idx = workingBlocks.findIndex((b) => b.id === id);
@@ -704,6 +794,8 @@ export function useSecFiling() {
     deleteMultipleBlocks,
     moveMultipleBlocksToSection,
     updateMultipleBlocksSpacing,
+    moveSection,
+    reorderSection,
     handleCreateProposal,
     handleCreateContributorInvite,
     handleSubmitForReview,
@@ -716,4 +808,3 @@ export function useSecFiling() {
     contributorSession
   };
 }
-

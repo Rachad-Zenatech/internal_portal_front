@@ -107,6 +107,8 @@ export default function SecFilingContributorPage() {
     deleteMultipleBlocks,
     moveMultipleBlocksToSection,
     updateMultipleBlocksSpacing,
+    moveSection,
+    reorderSection,
     handleSubmitForReview
   } = useSecFiling();
 
@@ -406,6 +408,9 @@ export default function SecFilingContributorPage() {
               activeSection={sectionFilter}
               onSelectSection={setSectionFilter}
               totalBlocks={workingBlocks.length}
+              blocks={workingBlocks}
+              onMoveSection={moveSection}
+              onReorderSection={reorderSection}
             />
 
             {/* Quick Contributor Scope Box */}

@@ -71,6 +71,8 @@ export default function SecFilingsPage() {
     deleteMultipleBlocks,
     moveMultipleBlocksToSection,
     updateMultipleBlocksSpacing,
+    moveSection,
+    reorderSection,
     handleCreateProposal,
     handleCreateContributorInvite,
     handleSubmitForReview,
@@ -547,6 +549,9 @@ export default function SecFilingsPage() {
               activeSection={sectionFilter}
               onSelectSection={setSectionFilter}
               totalBlocks={workingBlocks.length}
+              blocks={workingBlocks}
+              onMoveSection={moveSection}
+              onReorderSection={reorderSection}
             />
           </div>
         )}
