@@ -1054,6 +1054,16 @@ const FinancialTableBlockEditor: React.FC<{
   block: SecFinancialTableBlock;
   onUpdate: (u: Partial<SecFinancialTableBlock>) => void;
 }> = ({ block, onUpdate }) => {
+  const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
+  const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
+
+  const reorderRow = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= block.rows.length) return;
+    const nextRows = [...block.rows];
+    const [moved] = nextRows.splice(fromIndex, 1);
+    nextRows.splice(toIndex, 0, moved);
+    onUpdate({ rows: nextRows });
+  };
   const handleCellChange = (rowIndex: number, colIndex: number, value: string) => {
     const nextRows = [...block.rows];
     const targetRow = { ...nextRows[rowIndex] };
@@ -1458,21 +1468,55 @@ const FinancialTableBlockEditor: React.FC<{
                 rowClass = 'bg-[#DAE9F7] font-bold text-[#0E2841]';
               }
 
+              const isBeingDragged = draggedRowIdx === rowIdx;
+              const isOver = dragOverRowIdx === rowIdx && !isBeingDragged;
+
               return (
                 <tr
                   key={row.id || rowIdx}
                   style={row.shading ? { backgroundColor: row.shading } : undefined}
-                  className={`group/row transition-colors ${rowClass}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (dragOverRowIdx !== rowIdx) {
+                      setDragOverRowIdx(rowIdx);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    setDragOverRowIdx(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const fromIdx = Number(e.dataTransfer.getData('text/plain'));
+                    if (!isNaN(fromIdx) && fromIdx !== rowIdx) {
+                      reorderRow(fromIdx, rowIdx);
+                    }
+                    setDraggedRowIdx(null);
+                    setDragOverRowIdx(null);
+                  }}
+                  className={`group/row transition-all ${rowClass} ${
+                    isOver ? 'border-t-2 border-blue-500 bg-blue-50/40' : ''
+                  } ${isBeingDragged ? 'opacity-35 scale-[0.99] bg-blue-50/20' : ''}`}
                 >
-                  {/* Left Sandwich Bar Menu Handle */}
+                  {/* Left Sandwich Bar Menu Handle: Drag up/down or click for row actions */}
                   <td className="w-7 min-w-[28px] max-w-[28px] py-0.5 px-0.5 text-center align-middle select-none">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
                           type="button"
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', String(rowIdx));
+                            e.dataTransfer.effectAllowed = 'move';
+                            setDraggedRowIdx(rowIdx);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedRowIdx(null);
+                            setDragOverRowIdx(null);
+                          }}
                           onClick={(e) => e.stopPropagation()}
-                          title="Row Actions: Add Above/Below, Move Up/Down, Style, Delete"
-                          className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-zinc-800 transition-colors mx-auto group-hover/row:text-slate-600"
+                          title="Drag up or down to move row, or click for actions"
+                          className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-zinc-800 transition-colors mx-auto group-hover/row:text-slate-600 cursor-grab active:cursor-grabbing"
                         >
                           <Menu className="w-3.5 h-3.5" />
                         </button>

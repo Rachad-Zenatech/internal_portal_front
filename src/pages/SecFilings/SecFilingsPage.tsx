@@ -12,7 +12,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Share2,
-  FolderArchive
+  FolderArchive,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import { useSecFiling } from '../../hooks/useSecFiling';
 import { BlockBuilder } from './components/BlockBuilder';
@@ -74,6 +76,10 @@ export default function SecFilingsPage() {
     moveSection,
     reorderSection,
     createSection,
+    handleUndo,
+    handleRedo,
+    canUndo,
+    canRedo,
     handleCreateProposal,
     handleCreateContributorInvite,
     handleSubmitForReview,
@@ -181,6 +187,28 @@ export default function SecFilingsPage() {
                 <span>Invite Contributor</span>
               </Button>
             )}
+
+            {/* Undo / Redo Controls */}
+            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z / ⌘Z)"
+                className="p-1.5 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={!canRedo}
+                title="Redo (Ctrl+Y / ⌘⇧Z)"
+                className="p-1.5 rounded-lg text-slate-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-900 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             {/* Persona Role Switcher */}
             <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs">
@@ -542,9 +570,9 @@ export default function SecFilingsPage() {
 
       {/* Expansive Center Workspace */}
       <main className="w-full max-w-full mx-auto px-2 sm:px-4 md:px-6 py-4 flex gap-4 lg:gap-6 items-start justify-center">
-        {/* Left Column: Word Headings Outline Pane (Collapsible) */}
+        {/* Left Column: Word Headings Outline Pane (Collapsible, Full Height) */}
         {showOutline && (
-          <div className="w-64 shrink-0 sticky top-28 space-y-4">
+          <div className="w-64 shrink-0 sticky top-28 h-[calc(100vh-16rem)] max-h-[calc(100vh-16rem)] min-h-[340px] flex flex-col">
             <DocumentOutline
               sections={documentSections}
               activeSection={sectionFilter}
@@ -554,6 +582,7 @@ export default function SecFilingsPage() {
               onMoveSection={moveSection}
               onReorderSection={reorderSection}
               onCreateSection={createSection}
+              className="h-full flex-1"
             />
           </div>
         )}

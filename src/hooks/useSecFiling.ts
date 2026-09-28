@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type {
   SecFilingDocument,
   SecChangeProposal,
@@ -153,8 +153,8 @@ export function useSecFiling() {
     setVersionHistory(secFilingService.getVersionHistory());
   }, []);
 
-  // Update working blocks (either in active proposal or main doc)
-  const setWorkingBlocks = useCallback(
+  // Underlying state updater (either in active proposal or main doc)
+  const applyWorkingBlocks = useCallback(
     (newBlocks: SecBlock[]) => {
       if (activeProposal) {
         const updatedProposal: SecChangeProposal = {
@@ -186,6 +186,103 @@ export function useSecFiling() {
     },
     [activeProposal, mainDoc, user]
   );
+
+  // Undo / Redo Stacks (stores historical snapshots of workingBlocks)
+  const [undoStack, setUndoStack] = useState<SecBlock[][]>([]);
+  const [redoStack, setRedoStack] = useState<SecBlock[][]>([]);
+  const isUndoRedoActionRef = useRef<boolean>(false);
+
+  // Update working blocks (with undo snapshot tracking)
+  const setWorkingBlocks = useCallback(
+    (newBlocks: SecBlock[]) => {
+      if (!isUndoRedoActionRef.current) {
+        const currentStr = JSON.stringify(workingBlocks);
+        const newStr = JSON.stringify(newBlocks);
+        if (currentStr !== newStr) {
+          const snapshot = JSON.parse(currentStr);
+          setUndoStack((prev) => {
+            const next = [...prev, snapshot];
+            if (next.length > 60) return next.slice(next.length - 60);
+            return next;
+          });
+          setRedoStack([]);
+        }
+      }
+      applyWorkingBlocks(newBlocks);
+    },
+    [workingBlocks, applyWorkingBlocks]
+  );
+
+  // Undo handler (one change at a time)
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) {
+      toast.info('Nothing to undo');
+      return;
+    }
+
+    const previousSnapshot = undoStack[undoStack.length - 1];
+    const currentSnapshot = JSON.parse(JSON.stringify(workingBlocks));
+
+    isUndoRedoActionRef.current = true;
+    setUndoStack((prev) => prev.slice(0, prev.length - 1));
+    setRedoStack((prev) => [...prev, currentSnapshot]);
+    applyWorkingBlocks(previousSnapshot);
+    isUndoRedoActionRef.current = false;
+
+    toast.info('Undid last change (Ctrl+Z / ⌘Z)');
+  }, [undoStack, workingBlocks, applyWorkingBlocks]);
+
+  // Redo handler
+  const handleRedo = useCallback(() => {
+    if (redoStack.length === 0) {
+      toast.info('Nothing to redo');
+      return;
+    }
+
+    const nextSnapshot = redoStack[redoStack.length - 1];
+    const currentSnapshot = JSON.parse(JSON.stringify(workingBlocks));
+
+    isUndoRedoActionRef.current = true;
+    setRedoStack((prev) => prev.slice(0, prev.length - 1));
+    setUndoStack((prev) => [...prev, currentSnapshot]);
+    applyWorkingBlocks(nextSnapshot);
+    isUndoRedoActionRef.current = false;
+
+    toast.info('Redid change (Ctrl+Y / ⌘⇧Z)');
+  }, [redoStack, workingBlocks, applyWorkingBlocks]);
+
+  // Global Keyboard Listener for Ctrl+Z / Cmd+Z and Ctrl+Y / Cmd+Shift+Z
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+      const isCtrlOrCmd = isMac ? e.metaKey : e.ctrlKey;
+
+      if (!isCtrlOrCmd) return;
+
+      const key = e.key.toLowerCase();
+
+      // Undo: Ctrl+Z or Cmd+Z (without shift)
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleUndo();
+        return;
+      }
+
+      // Redo: Ctrl+Y, or Ctrl+Shift+Z / Cmd+Shift+Z
+      if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleRedo();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [handleUndo, handleRedo]);
 
   // Block Manipulation functions
   const addBlock = useCallback(
@@ -933,6 +1030,12 @@ export function useSecFiling() {
     moveSection,
     reorderSection,
     createSection,
+    handleUndo,
+    handleRedo,
+    canUndo: undoStack.length > 0,
+    canRedo: redoStack.length > 0,
+    undoCount: undoStack.length,
+    redoCount: redoStack.length,
     handleCreateProposal,
     handleCreateContributorInvite,
     handleSubmitForReview,

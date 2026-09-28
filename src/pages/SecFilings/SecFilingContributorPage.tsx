@@ -12,7 +12,9 @@ import {
   BookOpen,
   Clock,
   Lock,
-  Sliders
+  Sliders,
+  Undo2,
+  Redo2
 } from 'lucide-react';
 import type {
   SecFilingDocument
@@ -110,6 +112,10 @@ export default function SecFilingContributorPage() {
     moveSection,
     reorderSection,
     createSection,
+    handleUndo,
+    handleRedo,
+    canUndo,
+    canRedo,
     handleSubmitForReview
   } = useSecFiling();
 
@@ -249,6 +255,28 @@ export default function SecFilingContributorPage() {
               <Sliders className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Formatting</span>
             </Button>
+
+            {/* Undo / Redo Controls */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={handleUndo}
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z / ⌘Z)"
+                className="p-1.5 rounded-md text-slate-600 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={handleRedo}
+                disabled={!canRedo}
+                title="Redo (Ctrl+Y / ⌘⇧Z)"
+                className="p-1.5 rounded-md text-slate-600 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-all"
+              >
+                <Redo2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
@@ -401,9 +429,9 @@ export default function SecFilingContributorPage() {
       {/* 3. CENTER DOCUMENT WORKSPACE (Standard High-End Sheet Canvas) */}
       {/* ========================================================================= */}
       <main className="flex-1 w-full max-w-[1850px] mx-auto px-2 sm:px-4 md:px-6 py-5 flex gap-4 lg:gap-6 items-start justify-center">
-        {/* Left Column: Headings Outline Navigation */}
+        {/* Left Column: Headings Outline Navigation (Full Height) */}
         {showOutline && (
-          <aside className="w-64 shrink-0 sticky top-20 space-y-4 animate-in slide-in-from-left duration-200">
+          <aside className="w-64 shrink-0 sticky top-20 h-[calc(100vh-10rem)] max-h-[calc(100vh-10rem)] min-h-[340px] flex flex-col gap-2.5 animate-in slide-in-from-left duration-200">
             <DocumentOutline
               sections={documentSections}
               activeSection={sectionFilter}
@@ -413,10 +441,11 @@ export default function SecFilingContributorPage() {
               onMoveSection={moveSection}
               onReorderSection={reorderSection}
               onCreateSection={createSection}
+              className="flex-1 min-h-0"
             />
 
             {/* Quick Contributor Scope Box */}
-            <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs text-xs space-y-2">
+            <div className="shrink-0 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs text-xs space-y-1.5">
               <div className="font-bold text-slate-800 flex items-center justify-between">
                 <span>Assigned Scope</span>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
