@@ -3,6 +3,7 @@ import {
   Packer,
   Paragraph,
   TextRun,
+  ImageRun,
   Table,
   TableRow,
   TableCell,
@@ -16,6 +17,44 @@ import {
   PageNumber
 } from 'docx';
 import type { SecFilingDocument } from '../types/secFiling';
+
+type DocxImageType = 'jpg' | 'png' | 'gif' | 'bmp';
+
+const getDocxImageType = (mimeType: string, url: string): DocxImageType => {
+  const source = `${mimeType} ${url}`.toLowerCase();
+  if (source.includes('jpeg') || source.includes('.jpg') || source.includes('.jpeg')) return 'jpg';
+  if (source.includes('gif')) return 'gif';
+  if (source.includes('bmp')) return 'bmp';
+  return 'png';
+};
+
+const loadImageForDocx = async (url: string, requestedWidth?: number, requestedHeight?: number) => {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Unable to retrieve image (${response.status})`);
+
+  const imageBlob = await response.blob();
+  const objectUrl = URL.createObjectURL(imageBlob);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const candidate = new Image();
+      candidate.onload = () => resolve(candidate);
+      candidate.onerror = () => reject(new Error('Unsupported image format'));
+      candidate.src = objectUrl;
+    });
+    const naturalWidth = image.naturalWidth || 260;
+    const naturalHeight = image.naturalHeight || 160;
+    const width = Math.min(requestedWidth || naturalWidth, 600);
+    const height = requestedHeight || Math.round(width * (naturalHeight / naturalWidth));
+    return {
+      data: new Uint8Array(await imageBlob.arrayBuffer()),
+      type: getDocxImageType(imageBlob.type, url),
+      width,
+      height
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
 
 /**
  * Dynamically exports any SEC Filing Document (including added/removed/reordered blocks)
@@ -458,21 +497,41 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       if (block.alignment === 'left') alignment = AlignmentType.LEFT;
       if (block.alignment === 'right') alignment = AlignmentType.RIGHT;
 
-      if (block.caption) {
+      try {
+        const image = await loadImageForDocx(block.url, block.width, block.height);
+        children.push(
+          new Paragraph({
+            alignment,
+            children: [
+              new ImageRun({
+                data: image.data,
+                type: image.type,
+                transformation: { width: image.width, height: image.height }
+              })
+            ],
+            spacing: { before: 100, after: block.caption ? 40 : 120 }
+          })
+        );
+      } catch {
         children.push(
           new Paragraph({
             alignment,
             children: [
               new TextRun({
-                text: `[Image: ${block.alt || 'Corporate Logo / Graphic'}]`,
+                text: `[Image unavailable: ${block.alt || 'Corporate Logo / Graphic'}]`,
                 italics: true,
                 size: 18,
                 color: '666666',
                 font: 'Calibri'
               })
             ],
-            spacing: { before: 100, after: 40 }
-          }),
+            spacing: { before: 100, after: block.caption ? 40 : 120 }
+          })
+        );
+      }
+
+      if (block.caption) {
+        children.push(
           new Paragraph({
             alignment,
             children: [
