@@ -220,13 +220,45 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       const singleLine = { style: BorderStyle.SINGLE, size: 4, color: '000000' };
       const doubleLine = { style: BorderStyle.DOUBLE, size: 8, color: '000000' };
 
-      // Dynamic Table Headers
-      if (block.headers && block.headers.length > 0) {
+      // Dynamic Table Headers: Sanitize "Col X" and avoid redundant fake header rows
+      const rawHeaders = block.headers || [];
+      const cleanedHeaders = rawHeaders.map((h) => (/^Col\s*\d+$/i.test(h?.trim() || '') ? '' : h));
+      const hasMeaningfulHeader = cleanedHeaders.some((h) => h && h.trim().length > 0);
+      const firstRowIsHeader = block.rows && block.rows.length > 0 && block.rows[0].type === 'header';
+
+      if (block.periodHeaders?.length) {
+        tableRows.push(
+          new TableRow({
+            children: cleanedHeaders.map((_, i) => {
+              const periodHeader = block.periodHeaders?.find((header) => header.columnIndex === i);
+              return new TableCell({
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.CENTER as any,
+                    children: (periodHeader?.lines || []).map((line, lineIndex) => new TextRun({
+                      text: line,
+                      break: lineIndex > 0 ? 1 : undefined,
+                      bold: true,
+                      size: 18,
+                      color: '0E2841',
+                      font: 'Calibri'
+                    }))
+                  })
+                ],
+                margins: { top: 40, bottom: 40, left: 80, right: 80 },
+                borders: { top: noBorder, left: noBorder, right: noBorder, bottom: noBorder }
+              });
+            })
+          })
+        );
+      }
+
+      if (hasMeaningfulHeader && !firstRowIsHeader) {
         const headerFill = (block.headerShading || 'CCECFF').replace('#', '');
         tableRows.push(
           new TableRow({
             tableHeader: true,
-            children: block.headers.map((h, i) => {
+            children: cleanedHeaders.map((h, i) => {
               const align = block.columnAlignments[i] || (i === 0 ? 'left' : 'right');
               return new TableCell({
                 shading: { fill: headerFill },
@@ -240,7 +272,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                         : (AlignmentType.LEFT as any),
                     children: [
                       new TextRun({
-                        text: h,
+                        text: h || '',
                         bold: true,
                         size: 18,
                         color: '0E2841',
@@ -676,6 +708,14 @@ export function printSecFiling(doc: SecFilingDocument) {
                 return `
                   <table>
                     <thead>
+                      ${b.periodHeaders?.length ? `
+                        <tr>
+                          ${b.headers.map((_, i) => {
+                            const periodHeader = b.periodHeaders?.find((header) => header.columnIndex === i);
+                            return `<th class="align-center" style="background-color: transparent;">${periodHeader?.lines.map((line) => line || '&nbsp;').join('<br/>') || ''}</th>`;
+                          }).join('')}
+                        </tr>
+                      ` : ''}
                       <tr style="background-color: ${headerBg};">
                         ${b.headers
                           .map((h, i) => `<th class="align-${b.columnAlignments[i] || 'left'}">${h}</th>`)

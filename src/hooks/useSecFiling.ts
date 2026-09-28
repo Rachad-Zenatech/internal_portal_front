@@ -282,6 +282,10 @@ export function useSecFiling() {
             section,
             title: 'Schedule of Financial Details',
             headers: ['Description / Line Item', 'Note Ref', 'Q2 2026 ($)', 'Q2 2025 ($)'],
+            periodHeaders: [
+              { columnIndex: 2, lines: ['As of', 'June 30,', '2026'] },
+              { columnIndex: 3, lines: ['As of', 'December 31,', '2025'] }
+            ],
             columnAlignments: ['left', 'center', 'right', 'right'],
             columnWidths: ['50%', '10%', '20%', '20%'],
             rows: [

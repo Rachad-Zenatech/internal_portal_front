@@ -66,12 +66,20 @@ export interface SecTableRow {
   indent?: number; // 0, 1, 2 indentation level
 }
 
+/** Centered multi-line label shown above an individual comparative-value column. */
+export interface SecTablePeriodHeader {
+  columnIndex: number;
+  lines: string[];
+}
+
 export interface SecFinancialTableBlock {
   id: string;
   type: 'financial_table';
   section: string;
   title?: string;
   headers: string[];
+  /** Comparative reporting-period labels, such as "As of / June 30, / 2026". */
+  periodHeaders?: SecTablePeriodHeader[];
   headerShading?: string;
   columnAlignments: ('left' | 'center' | 'right')[];
   columnWidths?: string[];

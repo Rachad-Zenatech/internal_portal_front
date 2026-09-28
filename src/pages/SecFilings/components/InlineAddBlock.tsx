@@ -152,14 +152,18 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
     );
   }
 
-  // Zero-height floating seam between blocks: takes 0px of vertical document space
+  // Keep the insertion seam in normal flow. The previous zero-height, absolutely
+  // positioned hotspot sat on top of nearby short headings and intercepted their clicks.
   return (
-    <div className={`group/inserter relative h-0 w-full select-none z-20 ${className}`}>
-      {/* Invisible hover hotspot zone centered on the seam line (-top-3 to bottom-3) */}
+    <div
+      className={`group/inserter relative w-full select-none z-20 transition-[height] duration-100 ${
+        open ? 'h-6' : 'h-1 hover:h-6'
+      } ${className}`}
+    >
       <div
-        className={`absolute inset-x-0 -top-3 h-6 flex items-center justify-center transition-opacity ${open
+        className={`absolute inset-x-0 top-0 h-full flex items-center justify-center transition-opacity ${open
           ? 'opacity-100 pointer-events-auto'
-          : 'opacity-0 hover:opacity-100 pointer-events-auto'
+          : 'opacity-0 pointer-events-none group-hover/inserter:opacity-100 group-hover/inserter:pointer-events-auto'
           }`}
       >
         {/* Subtle dashed line connecting across the seam */}

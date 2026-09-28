@@ -383,6 +383,46 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
               </div>
             </div>
 
+            <div className="space-y-2 border-t border-slate-200 dark:border-zinc-700 pt-3">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[10px] text-slate-500">Comparative Period Headers</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() => onUpdate({
+                    periodHeaders: block.headers.slice(2).map((_, index) => ({
+                      columnIndex: index + 2,
+                      lines: ['As of', 'Enter date', 'Enter year']
+                    }))
+                  })}
+                >
+                  Add Comparative Header
+                </Button>
+              </div>
+              <p className="text-[10px] text-slate-400">Each line is centered above its value column in the editor and Word export.</p>
+              {(block.periodHeaders || []).map((periodHeader) => (
+                <div key={periodHeader.columnIndex}>
+                  <label className="text-[10px] text-slate-500 block mb-1">
+                    Column {periodHeader.columnIndex + 1}: {block.headers[periodHeader.columnIndex] || 'Untitled'}
+                  </label>
+                  <textarea
+                    value={periodHeader.lines.join('\n')}
+                    onChange={(e) => onUpdate({
+                      periodHeaders: (block.periodHeaders || []).map((header) =>
+                        header.columnIndex === periodHeader.columnIndex
+                          ? { ...header, lines: e.target.value.split('\n') }
+                          : header
+                      )
+                    })}
+                    rows={3}
+                    className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs leading-tight dark:border-zinc-700 dark:bg-zinc-900"
+                  />
+                </div>
+              ))}
+            </div>
+
             <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-200 dark:border-zinc-700">
               <span>Rows: <strong>{block.rows.length}</strong></span>
               <span>Columns: <strong>{block.headers.length}</strong></span>

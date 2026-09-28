@@ -149,14 +149,14 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Financial Position",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
-        "Col 3",
-        "Col 4",
+        "",
+        "",
+        "",
+        "",
         "As of",
-        "Col 6",
-        "Col 7",
-        "Col 8",
+        "",
+        "",
+        "",
         "As of"
       ],
       "columnAlignments": [
@@ -1147,13 +1147,13 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Financial Position",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
-        "Col 3",
-        "Col 4",
+        "",
+        "",
+        "",
+        "",
         "For ZenaTech, Inc.",
-        "Col 6",
-        "Col 7"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -1341,22 +1341,22 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Comprehensive Loss",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
-        "Col 3",
+        "",
+        "",
+        "",
         "Three Months Ended",
-        "Col 5",
-        "Col 6",
-        "Col 7",
+        "",
+        "",
+        "",
         "Six Months Ended",
-        "Col 9",
-        "Col 10",
-        "Col 11",
-        "Col 12",
-        "Col 13",
-        "Col 14",
-        "Col 15",
-        "Col 16"
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -2343,10 +2343,10 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Comprehensive Loss",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
-        "Col 3",
-        "Col 4",
+        "",
+        "",
+        "",
+        "",
         "For ZenaTech, Inc."
       ],
       "columnAlignments": [
@@ -2512,7 +2512,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Retained Earnings",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "PreferredStock",
         "SuperVoting Stock",
         "CommonStock",
@@ -3078,10 +3078,10 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Retained Earnings",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
-        "Col 3",
-        "Col 4",
+        "",
+        "",
+        "",
+        "",
         "For ZenaTech, Inc."
       ],
       "columnAlignments": [
@@ -3247,14 +3247,14 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Cash Flows",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
+        "",
+        "",
         "Six Months Ended",
-        "Col 4",
-        "Col 5",
-        "Col 6",
+        "",
+        "",
+        "",
         "Six Months Ended",
-        "Col 8"
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -4073,10 +4073,10 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Statements of Cash Flows",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
-        "Col 3",
-        "Col 4",
+        "",
+        "",
+        "",
+        "",
         "For ZenaTech, Inc."
       ],
       "columnAlignments": [
@@ -7883,9 +7883,9 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Amounts in CAD",
-        "Col 2",
+        "",
         "Six Months Ended",
-        "Col 4",
+        "",
         "Year Ended"
       ],
       "columnAlignments": [
@@ -8272,8 +8272,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Maturity analysis",
-        "Col 2",
-        "Col 3"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -8382,8 +8382,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Right of Use Asset, net",
-        "Col 2",
-        "Col 3"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -8456,8 +8456,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Lease Liability",
-        "Col 2",
-        "Col 3"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -8539,8 +8539,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Maturity analysis as of December  31, 2025",
-        "Col 2",
-        "Col 3"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -8649,8 +8649,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Right of Use Asset, net",
-        "Col 2",
-        "Col 3"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -8723,8 +8723,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "headerShading": "#CCECFF",
       "headers": [
         "Lease Liability",
-        "Col 2",
-        "Col 3"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -9653,12 +9653,12 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: Note Receivable Affiliate",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
+        "",
+        "",
         "As of",
-        "Col 4",
-        "Col 5",
-        "Col 6",
+        "",
+        "",
+        "",
         "As of"
       ],
       "columnAlignments": [
@@ -10138,7 +10138,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: INTANGIBLES",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Asset Source",
         "Life (in years)",
         "Total Costs",
@@ -10508,7 +10508,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: INTANGIBLES",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Asset Source",
         "Life (in years)",
         "Total Costs",
@@ -10897,7 +10897,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: LOANS PAYABLE",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "June 30, 2026",
         "December 31, 2025"
       ],
@@ -12021,7 +12021,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: SHARE CAPITAL",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Number of Preferred Shares"
       ],
       "columnAlignments": [
@@ -12141,7 +12141,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: SHARE CAPITAL",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Number of Preferred Shares"
       ],
       "columnAlignments": [
@@ -12304,7 +12304,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: SHARE CAPITAL",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Number of Super Voting Shares"
       ],
       "columnAlignments": [
@@ -12415,7 +12415,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: SHARE CAPITAL",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Number of Super Voting Shares"
       ],
       "columnAlignments": [
@@ -12592,7 +12592,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: SHARE CAPITAL",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Number of warrants"
       ],
       "columnAlignments": [
@@ -13608,7 +13608,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: FINANCIAL INSTRUMENTS",
       "headerShading": "#A6A6A6",
       "headers": [
-        "Col 1",
+        "",
         "Level 1",
         "Level 2",
         "Level 3"
@@ -13778,7 +13778,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: FINANCIAL INSTRUMENTS",
       "headerShading": "#A6A6A6",
       "headers": [
-        "Col 1",
+        "",
         "Level 1",
         "Level 2",
         "Level 3"
@@ -15618,17 +15618,17 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: RELATED PARTY TRANSACTIONS",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
+        "",
+        "",
         "Activity",
-        "Col 4",
+        "",
         "Short-term",
-        "Col 6",
+        "",
         "Long-term",
-        "Col 8",
+        "",
         "Note Receivable",
-        "Col 10",
-        "Col 11"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -15999,17 +15999,17 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: RELATED PARTY TRANSACTIONS",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
-        "Col 2",
+        "",
+        "",
         "Activity",
-        "Col 4",
+        "",
         "Short-term",
-        "Col 6",
+        "",
         "Long-term",
-        "Col 8",
+        "",
         "Note Receivable",
-        "Col 10",
-        "Col 11"
+        "",
+        ""
       ],
       "columnAlignments": [
         "left",
@@ -16387,7 +16387,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "title": "Table: BASIC AND DILUTED EPS",
       "headerShading": "#CCECFF",
       "headers": [
-        "Col 1",
+        "",
         "Six Months Ended June 30, 2026",
         "Six Months Ended June 30, 2025"
       ],

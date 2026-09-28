@@ -1663,6 +1663,12 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
 
   if (block.type === 'financial_table') {
     const b = block as SecFinancialTableBlock;
+    const rawHeaders = b.headers || [];
+    const cleanedHeaders = rawHeaders.map((h) => (/^Col\s*\d+$/i.test(h?.trim() || '') ? '' : h));
+    const hasMeaningfulHeader = cleanedHeaders.some((h) => h && h.trim().length > 0);
+    const firstRowIsHeader = b.rows && b.rows.length > 0 && b.rows[0].type === 'header';
+    const showHeaderRow = hasMeaningfulHeader && !firstRowIsHeader;
+
     return (
       <div
         style={{ marginTop: `${b.spacingTop ?? 10}px` }}
@@ -1672,22 +1678,24 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
           <div className="font-bold text-sm text-[#0E2841]">{b.title}</div>
         )}
         <table className="w-full border-collapse text-xs font-sans">
-          <thead>
-            <tr className="border-t-2 border-b border-slate-900 bg-slate-50/50">
-              {b.headers.map((h, i) => (
-                <th
-                  key={i}
-                  style={{
-                    textAlign: b.columnAlignments?.[i] || (i === 0 ? 'left' : 'right'),
-                    width: b.columnWidths?.[i] || undefined
-                  }}
-                  className="py-1.5 px-2 font-bold text-slate-800 text-[11px]"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          {showHeaderRow && (
+            <thead>
+              <tr className="border-t-2 border-b border-slate-900 bg-slate-50/50">
+                {cleanedHeaders.map((h, i) => (
+                  <th
+                    key={i}
+                    style={{
+                      textAlign: b.columnAlignments?.[i] || (i === 0 ? 'left' : 'right'),
+                      width: b.columnWidths?.[i] || undefined
+                    }}
+                    className="py-1.5 px-2 font-bold text-slate-800 text-[11px]"
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          )}
           <tbody>
             {b.rows.map((row) => {
               if (row.type === 'section_title') {

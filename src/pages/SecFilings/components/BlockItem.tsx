@@ -1099,6 +1099,18 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({ headers: nextHeaders });
   };
 
+  const handlePeriodHeaderChange = (colIndex: number, value: string) => {
+    const nextPeriodHeaders = [...(block.periodHeaders || [])];
+    const headerIndex = nextPeriodHeaders.findIndex((header) => header.columnIndex === colIndex);
+    const lines = value.split('\n');
+    if (headerIndex >= 0) {
+      nextPeriodHeaders[headerIndex] = { ...nextPeriodHeaders[headerIndex], lines };
+    } else {
+      nextPeriodHeaders.push({ columnIndex: colIndex, lines });
+    }
+    onUpdate({ periodHeaders: nextPeriodHeaders });
+  };
+
   const addRow = (type: SecTableRow['type'] = 'data') => {
     addRowAt(block.rows.length, type);
   };
@@ -1171,6 +1183,10 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({
       headers: nextHeaders,
       columnAlignments: nextAligns,
+      periodHeaders: (block.periodHeaders || []).map((header) => ({
+        ...header,
+        columnIndex: header.columnIndex >= safeIdx ? header.columnIndex + 1 : header.columnIndex
+      })),
       rows: nextRows
     });
   };
@@ -1198,6 +1214,11 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({
       headers: nextHeaders,
       columnAlignments: nextAligns,
+      periodHeaders: (block.periodHeaders || []).map((header) => {
+        if (header.columnIndex === colIndex) return { ...header, columnIndex: targetIdx };
+        if (header.columnIndex === targetIdx) return { ...header, columnIndex: colIndex };
+        return header;
+      }),
       rows: nextRows
     });
   };
@@ -1220,6 +1241,10 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({
       headers: nextHeaders,
       columnAlignments: nextAligns,
+      periodHeaders: (block.periodHeaders || []).map((header) => ({
+        ...header,
+        columnIndex: header.columnIndex > colIndex ? header.columnIndex + 1 : header.columnIndex
+      })),
       rows: nextRows
     });
   };
@@ -1237,6 +1262,12 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({
       headers: nextHeaders,
       columnAlignments: nextAligns,
+      periodHeaders: (block.periodHeaders || [])
+        .filter((header) => header.columnIndex !== colIndex)
+        .map((header) => ({
+          ...header,
+          columnIndex: header.columnIndex > colIndex ? header.columnIndex - 1 : header.columnIndex
+        })),
       rows: nextRows
     });
   };
@@ -1312,6 +1343,27 @@ const FinancialTableBlockEditor: React.FC<{
       <div className="overflow-x-auto w-full my-1">
         <table className="w-full text-[13px] border-collapse">
           <thead>
+            {(block.periodHeaders?.length || 0) > 0 && (
+              <tr className="border-b border-slate-900 text-[#0E2841]">
+                <th className="w-7 min-w-[28px] max-w-[28px] p-1" />
+                {block.headers.map((_, colIdx) => {
+                  const periodHeader = block.periodHeaders?.find((header) => header.columnIndex === colIdx);
+                  return (
+                    <th key={colIdx} className="p-1 text-center align-bottom">
+                      {periodHeader && (
+                        <textarea
+                          value={periodHeader.lines.join('\n')}
+                          onChange={(e) => handlePeriodHeaderChange(colIdx, e.target.value)}
+                          rows={Math.max(2, periodHeader.lines.length)}
+                          aria-label={`Comparative period header for column ${colIdx + 1}`}
+                          className="w-full resize-none overflow-hidden bg-transparent px-1 text-center text-[12px] font-bold leading-tight focus:outline-none focus:ring-1 focus:ring-blue-500 rounded"
+                        />
+                      )}
+                    </th>
+                  );
+                })}
+              </tr>
+            )}
             <tr
               style={{ backgroundColor: block.headerShading || '#CCECFF' }}
               className="border-t border-b-2 border-slate-900 text-[#0E2841]"
@@ -2068,5 +2120,4 @@ const ImageBlockEditor: React.FC<{
     </div>
   );
 };
-
 

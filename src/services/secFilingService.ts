@@ -9,6 +9,18 @@ import type {
 } from '../types/secFiling';
 import { INITIAL_SEC_FILING_DOC, INITIAL_PROPOSALS, INITIAL_VERSION_HISTORY } from '../data/initialSecFilingData';
 
+function sanitizeBlockHeaders(blocks: SecBlock[]): SecBlock[] {
+  return blocks.map((b) => {
+    if (b.type === 'financial_table' && b.headers) {
+      return {
+        ...b,
+        headers: b.headers.map((h) => (/^Col\s*\d+$/i.test(h?.trim() || '') ? '' : h))
+      };
+    }
+    return b;
+  });
+}
+
 const STORAGE_KEYS = {
   MAIN_DOC: 'sec_filing_main_doc_v2_full',
   PROPOSALS: 'sec_filing_proposals_v2_full',
@@ -35,6 +47,7 @@ export const secFilingService = {
       try {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.blocks)) {
+          parsed.blocks = sanitizeBlockHeaders(parsed.blocks);
           return parsed;
         }
       } catch (e) {
@@ -56,7 +69,10 @@ export const secFilingService = {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((p: SecChangeProposal) => ({
+            ...p,
+            blocks: sanitizeBlockHeaders(p.blocks || [])
+          }));
         }
       } catch (e) {
         console.error('Failed to parse proposals from storage', e);
