@@ -6,7 +6,9 @@ import type {
   SecBlock,
   SecBlockType,
   SecBlockDiff,
-  SecBlockSpacing
+  SecBlockSpacing,
+  SecHeadingBlock,
+  SecParagraphBlock
 } from '../types/secFiling';
 import { secFilingService } from '../services/secFilingService';
 import { useAuth } from '../lib/AuthContext';
@@ -188,25 +190,41 @@ export function useSecFiling() {
   // Block Manipulation functions
   const addBlock = useCallback(
     (index: number, type: SecBlockType, defaultSection?: string) => {
-      const section = defaultSection || workingBlocks[index]?.section || 'General Disclosures';
+      let section = defaultSection && defaultSection !== 'ALL' ? defaultSection : '';
+      if (!section && type === 'heading') {
+        let sName = 'New Section';
+        let c = 1;
+        const existingSections = new Set(workingBlocks.map((b) => b.section).filter(Boolean));
+        while (existingSections.has(sName)) {
+          c++;
+          sName = `New Section ${c}`;
+        }
+        section = sName;
+      } else if (!section) {
+        section = workingBlocks[index]?.section || 'General Disclosures';
+      }
+
       const blockId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
       let newBlock: SecBlock;
 
       switch (type) {
-        case 'heading':
+        case 'heading': {
+          const isNewNamedSection = !defaultSection || defaultSection === 'ALL';
+          const headingText = isNewNamedSection ? section : 'New Section Heading';
           newBlock = {
             id: blockId,
             type: 'heading',
             section,
             level: 2,
-            text: 'New Section Heading',
+            text: headingText,
             alignment: 'left',
             bold: true,
-            spacingTop: 8,
+            spacingTop: 12,
             spacing: 'normal'
           };
           break;
+        }
         case 'paragraph':
           newBlock = {
             id: blockId,
@@ -326,20 +344,79 @@ export function useSecFiling() {
 
   const updateBlock = useCallback(
     (id: string, updates: Partial<SecBlock>) => {
+      const currentBlock = workingBlocks.find((b) => b.id === id);
+      if (!currentBlock) return;
+
+      const oldSection = currentBlock.section;
+      let newSection: string | undefined;
+
+      // Case 1: Explicit section update (e.g. from BlockInspector or bulk move)
+      if (typeof updates.section === 'string' && updates.section.trim() !== '') {
+        const trimmedSec = updates.section.trim();
+        if (trimmedSec !== oldSection) {
+          newSection = trimmedSec;
+        }
+      }
+
+      // Case 2: Heading text updated on the page
+      const headingTextUpdate = (updates as any).text;
+      if (currentBlock.type === 'heading' && typeof headingTextUpdate === 'string') {
+        const trimmedText = headingTextUpdate.trim();
+        const isFirstInSection =
+          workingBlocks.findIndex((b) => b.section === oldSection) ===
+          workingBlocks.findIndex((b) => b.id === id);
+        const matchesOldSection =
+          currentBlock.text.trim().toLowerCase() === oldSection.trim().toLowerCase();
+        const isGenericSection =
+          oldSection === 'General Disclosures' || oldSection.startsWith('New Section');
+
+        if (trimmedText && (matchesOldSection || isFirstInSection || isGenericSection)) {
+          newSection = trimmedText;
+          updates.section = trimmedText;
+        }
+      }
+
       const nextBlocks = workingBlocks.map((b) => {
         if (b.id === id) {
-          return {
+          const updated = {
             ...b,
             ...updates,
             updatedAt: new Date().toISOString(),
             modifiedBy: user?.full_name || 'User'
           } as SecBlock;
+
+          if (newSection) {
+            updated.section = newSection;
+          }
+          return updated;
         }
+
+        // Cascade section rename to sibling blocks in the same section
+        if (newSection && b.section === oldSection) {
+          const updatedSibling: SecBlock = {
+            ...b,
+            section: newSection,
+            updatedAt: new Date().toISOString()
+          };
+          if (
+            updatedSibling.type === 'heading' &&
+            updatedSibling.text.trim() === oldSection.trim()
+          ) {
+            (updatedSibling as SecHeadingBlock).text = newSection;
+          }
+          return updatedSibling;
+        }
+
         return b;
       });
+
       setWorkingBlocks(nextBlocks);
+
+      if (newSection && sectionFilter === oldSection) {
+        setSectionFilter(newSection);
+      }
     },
-    [workingBlocks, setWorkingBlocks, user]
+    [workingBlocks, setWorkingBlocks, user, sectionFilter, setSectionFilter]
   );
 
   const moveBlock = useCallback(
@@ -564,6 +641,65 @@ export function useSecFiling() {
       toast.success(`Moved section "${sectionName}"`);
     },
     [workingBlocks, setWorkingBlocks]
+  );
+
+  // Create a brand new document section with a heading and paragraph
+  const createSection = useCallback(
+    (name = 'New Section') => {
+      let sectionName = name;
+      let counter = 1;
+      const existingSections = new Set(workingBlocks.map((b) => b.section).filter(Boolean));
+      while (existingSections.has(sectionName)) {
+        counter++;
+        sectionName = `${name} ${counter}`;
+      }
+
+      const headingId = `block-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      const paragraphId = `block-${Date.now() + 1}-${Math.random().toString(36).substring(2, 6)}`;
+
+      const newHeading: SecHeadingBlock = {
+        id: headingId,
+        type: 'heading',
+        section: sectionName,
+        level: 2,
+        text: sectionName,
+        alignment: 'left',
+        bold: true,
+        spacingTop: 14,
+        spacing: 'normal'
+      };
+
+      const newParagraph: SecParagraphBlock = {
+        id: paragraphId,
+        type: 'paragraph',
+        section: sectionName,
+        text: 'Enter paragraph disclosure text here...',
+        alignment: 'left',
+        spacingTop: 6,
+        spacing: 'normal'
+      };
+
+      const nextBlocks = [...workingBlocks, newHeading, newParagraph];
+      setWorkingBlocks(nextBlocks);
+      setSelectedBlockId(headingId);
+      setSectionFilter('ALL');
+      toast.success(`Created section "${sectionName}". Type a name on the page to rename it.`);
+
+      setTimeout(() => {
+        const el = document.getElementById(headingId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const textarea = el.querySelector('textarea');
+          if (textarea) {
+            textarea.focus();
+            textarea.select();
+          }
+        }
+      }, 100);
+
+      return sectionName;
+    },
+    [workingBlocks, setWorkingBlocks, setSelectedBlockId, setSectionFilter]
   );
 
   const duplicateBlock = useCallback(
@@ -796,6 +932,7 @@ export function useSecFiling() {
     updateMultipleBlocksSpacing,
     moveSection,
     reorderSection,
+    createSection,
     handleCreateProposal,
     handleCreateContributorInvite,
     handleSubmitForReview,

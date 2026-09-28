@@ -11,6 +11,7 @@ import {
   ChevronsUp,
   ChevronsDown,
   MoreVertical,
+  Plus,
 } from 'lucide-react';
 import type { SecBlock } from '../../../types/secFiling';
 import { Badge } from '../../../components/ui/badge';
@@ -30,6 +31,7 @@ interface DocumentOutlineProps {
   blocks?: SecBlock[];
   onMoveSection?: (sectionName: string, direction: 'up' | 'down') => void;
   onReorderSection?: (sectionName: string, targetIndex: number) => void;
+  onCreateSection?: () => void;
 }
 
 const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
@@ -39,7 +41,8 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
   totalBlocks,
   blocks = [],
   onMoveSection,
-  onReorderSection
+  onReorderSection,
+  onCreateSection
 }) => {
   const getSectionIcon = (section: string) => {
     if (
@@ -87,9 +90,22 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
           </div>
           <p className="text-[10px] text-slate-400">Reorder whole sections or filter view</p>
         </div>
-        <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-zinc-800 font-mono">
-          {totalBlocks} blocks
-        </Badge>
+        <div className="flex items-center gap-1.5">
+          <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-zinc-800 font-mono">
+            {totalBlocks} blocks
+          </Badge>
+          {onCreateSection && (
+            <button
+              type="button"
+              onClick={onCreateSection}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-600 dark:text-blue-400 text-[10px] font-medium transition-colors cursor-pointer border border-blue-200 dark:border-blue-800/60 shadow-2xs"
+              title="Add a new section to document"
+            >
+              <Plus className="w-3 h-3" />
+              <span>New</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-1 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">

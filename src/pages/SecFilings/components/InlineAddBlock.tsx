@@ -35,8 +35,8 @@ const BLOCK_OPTIONS: {
   },
   {
     type: 'heading',
-    label: 'Section Heading',
-    desc: 'H1–H4 Title or statement section header',
+    label: 'Section Heading / New Section',
+    desc: 'Starts a section; name on page sets document section name',
     icon: Heading,
     color: 'text-purple-500 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40'
   },

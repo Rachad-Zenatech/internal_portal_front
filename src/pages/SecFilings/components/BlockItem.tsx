@@ -176,6 +176,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 
   return (
     <div
+      id={block.id}
       onClick={(e) => {
         e.stopPropagation();
         if (e.shiftKey || e.ctrlKey || e.metaKey) {
