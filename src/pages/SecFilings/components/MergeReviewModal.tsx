@@ -1,17 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  RotateCcw,
   GitMerge,
   Clock,
   GitPullRequest,
   X,
   MessageSquare,
   ShieldCheck,
-  Square,
   Check,
   FileText,
   Columns,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -43,6 +40,7 @@ import type {
   SecImageBlock
 } from '../../../types/secFiling';
 import { ZENATECH_LOGO_DATA_URL } from '../../../data/zenatechLogoAsset';
+import { paginateBlocks } from '../../../utils/secFilingPagination';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -226,27 +224,75 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
       ? 'w-full max-w-[1380px] xl:max-w-[1440px]'
       : 'w-full max-w-[960px]';
 
-  // Construct the unified full document block list preserving natural order
+  // Construct the unified full document block list preserving Live Main Document backbone and order
   const unifiedDocBlocks = useMemo(() => {
     if (!proposal) return [];
 
     const result: { blockId: string; diff: SecBlockDiff; block: SecBlock }[] = [];
+    const diffMap = new Map<string, SecBlockDiff>(diffs.map((d) => [d.blockId, d]));
+    const handledBlockIds = new Set<string>();
 
+    // Map each proposed added block to the block that precedes it in proposal.blocks
+    const addedBlocksAfterMap = new Map<string, { blockId: string; diff: SecBlockDiff; block: SecBlock }[]>();
+    const leadingAddedBlocks: { blockId: string; diff: SecBlockDiff; block: SecBlock }[] = [];
+
+    let prevProposedBlockId: string | null = null;
+    for (const pBlock of proposal.blocks) {
+      const diff = diffMap.get(pBlock.id);
+      if (diff && diff.status === 'added') {
+        const item = { blockId: pBlock.id, diff, block: pBlock };
+        handledBlockIds.add(pBlock.id);
+        if (prevProposedBlockId) {
+          if (!addedBlocksAfterMap.has(prevProposedBlockId)) {
+            addedBlocksAfterMap.set(prevProposedBlockId, []);
+          }
+          addedBlocksAfterMap.get(prevProposedBlockId)!.push(item);
+        } else {
+          leadingAddedBlocks.push(item);
+        }
+      } else {
+        prevProposedBlockId = pBlock.id;
+      }
+    }
+
+    // 1. Insert any leading added blocks at the start
+    result.push(...leadingAddedBlocks);
+
+    // 2. Iterate through Live Main Document blocks to preserve Live order and all Live content
+    for (const mainBlock of mainDoc.blocks) {
+      const diff = diffMap.get(mainBlock.id) || {
+        blockId: mainBlock.id,
+        status: 'unchanged' as const,
+        originalBlock: mainBlock,
+        proposedBlock: mainBlock
+      };
+      handledBlockIds.add(mainBlock.id);
+
+      // Add the block (original live block or modified/deleted diff)
+      result.push({
+        blockId: mainBlock.id,
+        diff,
+        block: mainBlock
+      });
+
+      // If any proposed added blocks were placed after this block, insert them here
+      if (addedBlocksAfterMap.has(mainBlock.id)) {
+        result.push(...addedBlocksAfterMap.get(mainBlock.id)!);
+      }
+    }
+
+    // 3. Safety fallback: any remaining diffs not yet added
     for (const diff of diffs) {
-      if (diff.status === 'added' && diff.proposedBlock) {
-        result.push({ blockId: diff.blockId, diff, block: diff.proposedBlock });
-      } else if (diff.status === 'modified' && diff.proposedBlock) {
-        result.push({ blockId: diff.blockId, diff, block: diff.proposedBlock });
-      } else if (diff.status === 'unchanged' && (diff.proposedBlock || diff.originalBlock)) {
-        const b = (diff.proposedBlock || diff.originalBlock)!;
-        result.push({ blockId: diff.blockId, diff, block: b });
-      } else if (diff.status === 'deleted' && diff.originalBlock) {
-        result.push({ blockId: diff.blockId, diff, block: diff.originalBlock });
+      if (!handledBlockIds.has(diff.blockId)) {
+        const block = diff.proposedBlock || diff.originalBlock;
+        if (block) {
+          result.push({ blockId: diff.blockId, diff, block });
+        }
       }
     }
 
     return result;
-  }, [diffs, proposal]);
+  }, [diffs, proposal, mainDoc.blocks]);
 
   // Extract all sections and aggregate their change statistics
   const sectionStats = useMemo(() => {
@@ -302,6 +348,19 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
     }
     return unifiedDocBlocks.filter((item) => item.block.section === selectedSectionFilter);
   }, [unifiedDocBlocks, selectedSectionFilter, sectionStats]);
+
+  // Paginated Word Document Pages (so every page has a full white sheet background)
+  const paginatedPages = useMemo(() => {
+    if (!filteredUnifiedBlocks || filteredUnifiedBlocks.length === 0) return [];
+    const blockList = filteredUnifiedBlocks.map((item) => item.block);
+    const rawPages = paginateBlocks(blockList);
+    const itemMap = new Map(filteredUnifiedBlocks.map((item) => [item.blockId, item]));
+
+    return rawPages.map((p) => ({
+      pageNumber: p.pageNumber,
+      items: p.blocks.map((b) => itemMap.get(b.id)).filter(Boolean) as typeof filteredUnifiedBlocks
+    }));
+  }, [filteredUnifiedBlocks]);
 
   // Selected section stat object
   const currentSectionStat = useMemo(() => {
@@ -707,48 +766,48 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* View Mode Toggle Buttons */}
-            <div className="flex items-center gap-1 bg-white dark:bg-zinc-800 rounded-lg p-0.5 border border-slate-200 dark:border-zinc-700">
+            {/* View Mode Toggle (Word View vs Side-by-Side vs Block Mode) */}
+            <div className="flex items-center bg-slate-100 dark:bg-zinc-800 rounded-lg p-0.5 border border-slate-200 dark:border-zinc-700">
               <button
                 type="button"
                 onClick={() => setViewMode('doc-track-changes')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                   viewMode === 'doc-track-changes'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
                 }`}
-                title="Full Word Document with Track Changes Highlights (Image 2 style)"
+                title="Full Word Document Track Changes View"
               >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Whole Document</span>
+                <FileText className="w-3 h-3" />
+                <span>Word View</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setViewMode('side-by-side-sheets')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                   viewMode === 'side-by-side-sheets'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
                 }`}
-                title="Dual Full Sheets Side-by-Side Comparison"
+                title="Dual Sheets Side-by-Side Comparison"
               >
-                <Columns className="w-3.5 h-3.5" />
+                <Columns className="w-3 h-3" />
                 <span>Side-by-Side</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setViewMode('summary-cards')}
-                className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                   viewMode === 'summary-cards'
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-600 dark:text-zinc-400 hover:text-slate-900'
                 }`}
-                title="Compact Diff Cards List"
+                title="Block Mode Diff Cards"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Changes List ({changedDiffs.length})</span>
+                <Columns className="w-3 h-3" />
+                <span>Block Mode</span>
               </button>
             </div>
           </div>
@@ -766,270 +825,176 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
             </div>
           ) : viewMode === 'doc-track-changes' ? (
             /* ========================================================================= */
-            /* 1. WHOLE DOCUMENT VIEW (LIKE IMAGE 2) WITH INLINE TRACK CHANGES HIGHLIGHTS */
+            /* 1. PAGINATED WORD DOCUMENT VIEW (EACH PAGE IS A FULL WHITE WORD SHEET)   */
             /* ========================================================================= */
-            <div
-              className={`${sheetWidthClass} bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300/80 px-8 sm:px-12 md:px-16 lg:px-20 py-10 md:py-14 relative transition-all duration-150 flex flex-col justify-between`}
-              style={{
-                minHeight: '1056px',
-                fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif'
-              }}
-            >
-              {/* Document Header */}
-              <div className="pb-3 mb-6 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
-                <span className="font-semibold tracking-tight text-[#0E2841]">
-                  ZenaTech, Inc. — Form 6-K Interim Report
-                </span>
-                <span className="text-[10px] uppercase tracking-wider font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200">
-                  Track Changes Merge Review • {acceptedBlockIds.length} of {changedDiffs.length} Accepted
-                </span>
-              </div>
+            <div className="w-full flex flex-col items-center space-y-8">
+              {paginatedPages.map((page) => (
+                <div
+                  key={page.pageNumber}
+                  id={`doc-page-${page.pageNumber}`}
+                  className={`${sheetWidthClass} bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300/80 px-8 sm:px-12 md:px-16 lg:px-20 py-10 md:py-14 relative transition-all duration-150 flex flex-col justify-between`}
+                  style={{
+                    minHeight: '1056px',
+                    fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif'
+                  }}
+                >
+                  {/* Floating Page Badge */}
+                  <div className="absolute right-4 top-3 text-[10px] font-mono font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full select-none z-10 border border-slate-200">
+                    Page {page.pageNumber} of {paginatedPages.length}
+                  </div>
 
-              {/* All Document Blocks Flow */}
-              <div className="space-y-0.5">
-                {filteredUnifiedBlocks.map((item, idx) => {
-                  const { blockId, diff, block } = item;
-                  const isChanged = diff.status !== 'unchanged';
-                  const isAccepted = acceptedBlockIds.includes(blockId);
-
-                  if (!isChanged) {
-                    /* Unchanged Block: Rendered cleanly as standard Word document content */
-                    return (
-                      <div key={blockId || idx} className="relative py-0 hover:bg-slate-50/50 rounded transition-colors">
-                        <SecDocBlockRenderer block={block} />
-                      </div>
-                    );
-                  }
-
-                  /* Modified / Added / Deleted Block: Word Track Changes Highlight Box */
-                  return (
-                    <div
-                      key={blockId || idx}
-                      id={`diff-block-${blockId}`}
-                      className={`my-3 rounded-lg border-2 transition-all p-3.5 ${
-                        diff.status === 'added'
-                          ? isAccepted
-                            ? 'border-emerald-500 bg-emerald-50/35 shadow-sm'
-                            : 'border-slate-300 bg-slate-50/50 opacity-60'
-                          : diff.status === 'deleted'
-                          ? isAccepted
-                            ? 'border-red-500 bg-red-50/35 shadow-sm'
-                            : 'border-slate-300 bg-slate-50/50 opacity-60'
-                          : isAccepted
-                          ? 'border-amber-500 bg-amber-50/30 shadow-sm'
-                          : 'border-slate-300 bg-slate-50/50 opacity-60'
-                      }`}
-                    >
-                      {/* Change Header Bar with Acceptance Toggle */}
-                      <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/80 font-sans text-xs select-none">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleDiffAcceptance(blockId)}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer border ${
-                              isAccepted
-                                ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-                                : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
-                            }`}
-                            title={isAccepted ? 'Accepted for merge' : 'Click to accept for merge'}
-                          >
-                            {isAccepted ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Accepted</span>
-                              </>
-                            ) : (
-                              <>
-                                <Square className="w-3.5 h-3.5 text-slate-400" />
-                                <span>Accept</span>
-                              </>
-                            )}
-                          </button>
-
-                          <Badge
-                            variant="outline"
-                            className={`text-[11px] font-semibold px-2 py-0.5 ${
-                              diff.status === 'added'
-                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                                : diff.status === 'deleted'
-                                ? 'bg-red-100 text-red-800 border-red-300'
-                                : 'bg-amber-100 text-amber-900 border-amber-300'
-                            }`}
-                          >
-                            {diff.status === 'added'
-                              ? '+ Added Block'
-                              : diff.status === 'deleted'
-                              ? '- Deleted Block'
-                              : '~ Modified Block'}
-                          </Badge>
-
-                          <span className="text-slate-600 font-medium">
-                            {proposal.author.name}
-                          </span>
-
-                          {proposal.submittedAt && (
-                            <span className="text-[10px] text-slate-400 font-mono flex items-center gap-0.5">
-                              <Clock className="w-2.5 h-2.5" />
-                              {formatSubmissionTime(proposal.submittedAt)}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
-                          <span>Section: {block.section}</span>
-                          <span>•</span>
-                          <span>Type: {block.type}</span>
-                        </div>
-                      </div>
-
-                      {/* Granular Change Type Badges */}
-                      <div className="mb-2 pb-1.5 border-b border-slate-200/60 flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">
-                          Change Type:
-                        </span>
-                        <ChangeTypeBadges diff={diff} />
-                      </div>
-
-                      {/* Diff Content Body */}
-                      {diff.status === 'modified' ? (
-                        <div className="space-y-2">
-                          {isAccepted ? (
-                            <>
-                              {/* Accepted: Original marked as replaced, Proposed marked as active */}
-                              {diff.originalBlock && (
-                                <div className="p-2.5 rounded bg-red-50/60 border border-red-200/80 text-red-950">
-                                  <div className="text-[9px] font-bold uppercase tracking-wider text-red-700 mb-1 flex items-center justify-between font-sans">
-                                    <span>Original Main Version (Replaced)</span>
-                                    <span className="text-[9px] text-red-600 font-mono">Will be overwritten</span>
-                                  </div>
-                                  <div className="line-through opacity-75">
-                                    <SecDocBlockRenderer block={diff.originalBlock} />
-                                  </div>
-                                </div>
-                              )}
-
-                              {diff.proposedBlock && (
-                                <div className="p-2.5 rounded bg-emerald-50/70 border border-emerald-300 text-emerald-950 shadow-2xs">
-                                  <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 mb-1 flex items-center justify-between font-sans">
-                                    <span className="flex items-center gap-1 font-bold">
-                                      <Check className="w-3 h-3 text-emerald-600" />
-                                      <span>Proposed Revision to be Merged ({proposal.author.name})</span>
-                                    </span>
-                                    <span className="text-[9px] font-mono bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">
-                                      ✓ Active In Merge
-                                    </span>
-                                  </div>
-                                  <SecDocBlockRenderer block={diff.proposedBlock} />
-                                </div>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {/* Unaccepted / Removed from Accepted: Goes back to Original Main Version */}
-                              {diff.originalBlock && (
-                                <div className="p-2.5 rounded bg-blue-50/80 border-2 border-blue-400 text-slate-950 shadow-2xs">
-                                  <div className="text-[9px] font-bold uppercase tracking-wider text-blue-800 mb-1 flex items-center justify-between font-sans">
-                                    <span className="flex items-center gap-1 font-bold">
-                                      <RotateCcw className="w-3 h-3 text-blue-600" />
-                                      <span>Reverted: Original Main Version Kept</span>
-                                    </span>
-                                    <span className="text-[9px] font-mono bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-bold">
-                                      ↩ Reverted to Main
-                                    </span>
-                                  </div>
-                                  <div className="opacity-100 font-medium">
-                                    <SecDocBlockRenderer block={diff.originalBlock} />
-                                  </div>
-                                </div>
-                              )}
-
-                              {diff.proposedBlock && (
-                                <div className="p-2.5 rounded bg-slate-100/80 border border-dashed border-slate-300 text-slate-500 opacity-60">
-                                  <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between font-sans">
-                                    <span>Proposed Revision (Excluded / Discarded)</span>
-                                    <span className="text-[9px] font-mono text-slate-400">Will not be merged</span>
-                                  </div>
-                                  <div className="line-through opacity-70">
-                                    <SecDocBlockRenderer block={diff.proposedBlock} />
-                                  </div>
-                                </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      ) : diff.status === 'added' ? (
-                        isAccepted ? (
-                          <div className="p-2.5 rounded bg-emerald-50/70 border border-emerald-300 text-emerald-950 shadow-2xs">
-                            <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-700 mb-1 flex items-center justify-between font-sans">
-                              <span className="flex items-center gap-1 font-bold">
-                                <Check className="w-3 h-3 text-emerald-600" />
-                                <span>New Block Added by {proposal.author.name}</span>
-                              </span>
-                              <span className="text-[9px] font-mono bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">
-                                ✓ Included In Merge
-                              </span>
-                            </div>
-                            <SecDocBlockRenderer block={diff.proposedBlock!} />
-                          </div>
-                        ) : (
-                          <div className="p-2.5 rounded bg-slate-100 border border-dashed border-slate-300 text-slate-400 opacity-60">
-                            <div className="text-[9px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between font-sans">
-                              <span className="flex items-center gap-1 font-bold">
-                                <X className="w-3 h-3 text-slate-500" />
-                                <span>New Block Excluded (Will Not Be Added)</span>
-                              </span>
-                              <span className="text-[9px] font-mono bg-slate-200 text-slate-600 px-1.5 py-0.2 rounded font-bold">
-                                ↩ Excluded
-                              </span>
-                            </div>
-                            <div className="line-through opacity-60">
-                              <SecDocBlockRenderer block={diff.proposedBlock!} />
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        isAccepted ? (
-                          <div className="p-2.5 rounded bg-red-50/70 border border-red-300 text-red-950 shadow-2xs">
-                            <div className="text-[9px] font-bold uppercase tracking-wider text-red-700 mb-1 flex items-center justify-between font-sans">
-                              <span>Block Deleted by Contributor (Confirmed)</span>
-                              <span className="text-[9px] font-mono bg-red-100 text-red-800 px-1.5 py-0.2 rounded font-bold">
-                                ✓ Will Be Deleted
-                              </span>
-                            </div>
-                            <div className="line-through opacity-75">
-                              <SecDocBlockRenderer block={diff.originalBlock!} />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="p-2.5 rounded bg-blue-50/80 border-2 border-blue-400 text-slate-950 shadow-2xs">
-                            <div className="text-[9px] font-bold uppercase tracking-wider text-blue-800 mb-1 flex items-center justify-between font-sans">
-                              <span className="flex items-center gap-1 font-bold">
-                                <RotateCcw className="w-3 h-3 text-blue-600" />
-                                <span>Deletion Cancelled — Block Kept in Main Document</span>
-                              </span>
-                              <span className="text-[9px] font-mono bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-bold">
-                                ↩ Kept In Document
-                              </span>
-                            </div>
-                            <div className="opacity-100 font-medium">
-                              <SecDocBlockRenderer block={diff.originalBlock!} />
-                            </div>
-                          </div>
-                        )
-                      )}
+                  <div>
+                    {/* Document Header */}
+                    <div className="pb-3 mb-6 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                      <span className="font-semibold tracking-tight text-[#0E2841]">
+                        ZenaTech, Inc. — Form 6-K Interim Report
+                      </span>
+                      <span className="text-[10px] uppercase tracking-wider font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded border border-blue-200 mr-24">
+                        Track Changes Review • Page {page.pageNumber} of {paginatedPages.length}
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Document Footer */}
-              <div className="pt-6 mt-8 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
-                <span className="italic">Confidential — SEC Filing Merge Review Copy</span>
-                <span className="font-bold text-[#0E2841]">
-                  ZenaTech, Inc. • Six Months Ended June 30, 2026
-                </span>
-                <span>Unaudited</span>
-              </div>
+                    {/* Document Blocks Flow for this Page */}
+                    <div className="space-y-1">
+                      {page.items.map((item, idx) => {
+                        const { blockId, diff, block } = item;
+                        const isChanged = diff.status !== 'unchanged';
+                        const isAccepted = acceptedBlockIds.includes(blockId);
+
+                        if (!isChanged) {
+                          /* Unchanged Block: Rendered cleanly as standard Word document content */
+                          return (
+                            <div key={blockId || idx} className="relative py-0 hover:bg-slate-50/40 rounded transition-colors">
+                              <SecDocBlockRenderer block={block} />
+                            </div>
+                          );
+                        }
+
+                        /* Track-changes revision left bar color */
+                        let leftBorderClass = 'border-l-4 border-amber-500 pl-3.5 bg-amber-50/10 dark:bg-amber-950/10';
+                        if (diff.status === 'added') {
+                          leftBorderClass = isAccepted
+                            ? 'border-l-4 border-emerald-500 pl-3.5 bg-emerald-50/15 dark:bg-emerald-950/15'
+                            : 'border-l-4 border-slate-300 pl-3.5 opacity-60';
+                        } else if (diff.status === 'deleted') {
+                          leftBorderClass = isAccepted
+                            ? 'border-l-4 border-red-500 pl-3.5 bg-red-50/15 dark:bg-red-950/15'
+                            : 'border-l-4 border-blue-400 pl-3.5 bg-blue-50/10 dark:bg-blue-950/10';
+                        }
+
+                        return (
+                          <div
+                            key={blockId || idx}
+                            id={`diff-block-${blockId}`}
+                            className={`relative my-2 rounded-r-md transition-all py-1 ${leftBorderClass}`}
+                          >
+                            {/* Compact Inline Reviewer Action Bar */}
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 mb-1 font-sans text-xs select-none">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleDiffAcceptance(blockId)}
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold transition-all cursor-pointer border shadow-2xs ${
+                                    isAccepted
+                                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-bold'
+                                      : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700'
+                                  }`}
+                                  title={isAccepted ? 'Accepted for merge' : 'Click to accept change'}
+                                >
+                                  {isAccepted ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-white" />
+                                      <span>✓ Accepted</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Plus className="w-3 h-3 text-slate-500" />
+                                      <span>+ Accept</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <Badge
+                                  variant="outline"
+                                  className={`text-[9px] font-bold px-1.5 py-0 ${
+                                    diff.status === 'added'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                      : diff.status === 'deleted'
+                                      ? 'bg-red-100 text-red-800 border-red-300'
+                                      : 'bg-amber-100 text-amber-900 border-amber-300'
+                                  }`}
+                                >
+                                  {diff.status === 'added'
+                                    ? '+ Added'
+                                    : diff.status === 'deleted'
+                                    ? '- Deleted'
+                                    : '~ Modified'}
+                                </Badge>
+
+                                <ChangeTypeBadges diff={diff} />
+
+                                <span className="text-[10px] text-slate-500">
+                                  by {proposal.author.name}
+                                </span>
+                              </div>
+
+                              <span className="text-[10px] font-mono text-slate-400">
+                                {block.section}
+                              </span>
+                            </div>
+
+                            {/* Content Stream with Native Word Track Changes Highlighting */}
+                            {diff.status === 'added' ? (
+                              <div className={!isAccepted ? 'opacity-50 line-through' : ''}>
+                                <SecDocBlockRenderer block={diff.proposedBlock!} />
+                              </div>
+                            ) : diff.status === 'deleted' ? (
+                              <div className={isAccepted ? 'line-through text-red-700 opacity-70' : 'text-slate-800'}>
+                                <SecDocBlockRenderer block={diff.originalBlock!} />
+                              </div>
+                            ) : (
+                              <div>
+                                {diff.isSpacingOnly || diff.isTypographyOnly ? (
+                                  /* Pure formatting / spacing: show updated formatting seamlessly */
+                                  <SecDocBlockRenderer block={isAccepted ? diff.proposedBlock! : diff.originalBlock!} />
+                                ) : (
+                                  /* Content change: show red strikethrough original + green proposed revision */
+                                  <div className="space-y-1">
+                                    {diff.originalBlock && (
+                                      <div className={isAccepted ? 'line-through text-red-700/80 opacity-70' : 'text-slate-900'}>
+                                        <SecDocBlockRenderer block={diff.originalBlock} />
+                                      </div>
+                                    )}
+                                    {diff.proposedBlock && isAccepted && (
+                                      <div className="text-emerald-950 bg-emerald-50/40 p-1 rounded border border-emerald-200/60 mt-1">
+                                        <SecDocBlockRenderer block={diff.proposedBlock} />
+                                      </div>
+                                    )}
+                                    {diff.proposedBlock && !isAccepted && (
+                                      <div className="text-slate-400 line-through opacity-50 p-1 rounded border border-dashed border-slate-200 mt-1">
+                                        <SecDocBlockRenderer block={diff.proposedBlock} />
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Document Footer */}
+                  <div className="pt-6 mt-8 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans select-none">
+                    <span className="italic">Confidential — SEC Filing Merge Review Copy</span>
+                    <span className="font-bold text-[#0E2841]">
+                      ZenaTech, Inc. • Six Months Ended June 30, 2026
+                    </span>
+                    <span>Page {page.pageNumber}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : viewMode === 'side-by-side-sheets' ? (
             /* ========================================================================= */
@@ -1146,22 +1111,22 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => toggleDiffAcceptance(block.id)}
-                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer border ${
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
                                   isAccepted
-                                    ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-                                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-bold'
+                                    : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700'
                                 }`}
-                                title={isAccepted ? 'Accepted for merge' : 'Click to accept for merge'}
+                                title={isAccepted ? 'Accepted for merge' : 'Click to accept change'}
                               >
                                 {isAccepted ? (
                                   <>
-                                    <Check className="w-3.5 h-3.5" />
-                                    <span>Accepted</span>
+                                    <Check className="w-3.5 h-3.5 text-white" />
+                                    <span>✓ Accepted</span>
                                   </>
                                 ) : (
                                   <>
-                                    <Square className="w-3.5 h-3.5 text-slate-400" />
-                                    <span>Accept</span>
+                                    <Plus className="w-3.5 h-3.5 text-slate-500" />
+                                    <span>+ Accept</span>
                                   </>
                                 )}
                               </button>
@@ -1210,26 +1175,26 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 flex-wrap">
                         <button
                           type="button"
                           onClick={() => toggleDiffAcceptance(diff.blockId)}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-colors cursor-pointer border ${
+                          className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer border shadow-2xs ${
                             isAccepted
-                              ? 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-                              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600 font-bold'
+                              : 'bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 border-slate-300 dark:border-zinc-700'
                           }`}
-                          title={isAccepted ? 'Accepted for merge' : 'Click to accept for merge'}
+                          title={isAccepted ? 'Accepted for merge' : 'Click to accept change'}
                         >
                           {isAccepted ? (
                             <>
-                              <Check className="w-3.5 h-3.5" />
-                              <span>Accepted</span>
+                              <Check className="w-3.5 h-3.5 text-white" />
+                              <span>✓ Accepted</span>
                             </>
                           ) : (
                             <>
-                              <Square className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Accept</span>
+                              <Plus className="w-3.5 h-3.5 text-slate-500" />
+                              <span>+ Accept</span>
                             </>
                           )}
                         </button>
@@ -1246,6 +1211,9 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                         >
                           {diff.status.toUpperCase()}
                         </Badge>
+
+                        <ChangeTypeBadges diff={diff} />
+
                         <span className="font-semibold text-slate-700 dark:text-zinc-300">
                           {(diff.proposedBlock || diff.originalBlock)?.section}
                         </span>
@@ -1315,12 +1283,12 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pr-16 sm:pr-20 relative z-[70] hover:z-[99]">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
-                className="text-xs h-8"
+                className="text-xs h-8 cursor-pointer relative z-[70] hover:z-[99] hover:shadow-md transition-all"
               >
                 Cancel
               </Button>
@@ -1341,7 +1309,7 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                     type="button"
                     onClick={handleConfirmMergeSelected}
                     disabled={acceptedBlockIds.length === 0}
-                    className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm font-semibold"
+                    className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-sm font-semibold relative z-[70] hover:z-[99] cursor-pointer hover:shadow-md transition-all"
                   >
                     <GitMerge className="w-3.5 h-3.5" />
                     <span>Confirm & Merge Selected ({acceptedBlockIds.length})</span>
@@ -1352,7 +1320,7 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                       type="button"
                       variant="outline"
                       onClick={handleApproveAndMergeAll}
-                      className="text-xs h-8 text-emerald-700 dark:text-emerald-300 border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium"
+                      className="text-xs h-8 text-emerald-700 dark:text-emerald-300 border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium relative z-[70] hover:z-[99] cursor-pointer hover:shadow-md transition-all"
                     >
                       <span>Merge All ({changedDiffs.length})</span>
                     </Button>

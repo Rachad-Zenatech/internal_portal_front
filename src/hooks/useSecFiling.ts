@@ -132,7 +132,10 @@ export function useSecFiling() {
 
   const calculateDiffForProposal = useCallback(
     (proposal: SecChangeProposal): SecBlockDiff[] => {
-      return secFilingService.calculateDiffs(mainDoc.blocks, proposal.blocks);
+      // Find the base version snapshot if present in history
+      const versionHistory = secFilingService.getVersionHistory();
+      const baseSnap = versionHistory.find((v) => v.versionNumber === proposal.baseVersionNumber);
+      return secFilingService.calculateDiffs(mainDoc.blocks, proposal.blocks, baseSnap?.blocks);
     },
     [mainDoc.blocks]
   );

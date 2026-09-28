@@ -410,7 +410,7 @@ export const secFilingService = {
     return updatedMain;
   },
 
-  calculateDiffs(baseBlocks: SecBlock[], proposedBlocks: SecBlock[]): SecBlockDiff[] {
+  calculateDiffs(baseBlocks: SecBlock[], proposedBlocks: SecBlock[], originSnapshotBlocks?: SecBlock[]): SecBlockDiff[] {
     const diffs: SecBlockDiff[] = [];
     const baseMap = new Map<string, SecBlock>(baseBlocks.map((b) => [b.id, b]));
     const proposedMap = new Map<string, SecBlock>(proposedBlocks.map((b) => [b.id, b]));
@@ -668,15 +668,32 @@ export const secFilingService = {
 
     for (const bBlock of baseBlocks) {
       if (!proposedMap.has(bBlock.id)) {
-        diffs.push({
-          blockId: bBlock.id,
-          status: 'deleted',
-          originalBlock: bBlock,
-          changeCategories: ['structure', 'content'],
-          changeTags: [
-            { category: 'structure', label: `${bBlock.type.replace('_', ' ')} block deleted` }
-          ]
-        });
+        // Check if this block existed in the original base document when the proposal was branched
+        // If it was added to Live after the proposal was created, the contributor did NOT delete it!
+        const initialBlocks = originSnapshotBlocks || INITIAL_SEC_FILING_DOC.blocks;
+        const existedInInitial = initialBlocks.some((initB) => initB.id === bBlock.id);
+
+        if (existedInInitial) {
+          // Genuinely deleted by contributor in proposal
+          diffs.push({
+            blockId: bBlock.id,
+            status: 'deleted',
+            originalBlock: bBlock,
+            changeCategories: ['structure', 'content'],
+            changeTags: [
+              { category: 'structure', label: `${bBlock.type.replace('_', ' ')} block deleted by contributor` }
+            ]
+          });
+        } else {
+          // Block was added to Live directly; contributor proposal simply didn't have it.
+          // Preserve as unchanged live content so it is NOT marked as deleted.
+          diffs.push({
+            blockId: bBlock.id,
+            status: 'unchanged',
+            originalBlock: bBlock,
+            proposedBlock: bBlock
+          });
+        }
       }
     }
 
