@@ -1760,7 +1760,7 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
           </thead>
           <tbody>
             {b.rows.map((row, rIdx) => {
-              if (row.type === 'section_title') {
+              if (row.type === 'section_title' || row.type === 'category_header') {
                 return (
                   <tr key={row.id} className="border-t border-slate-100 font-bold text-slate-900 bg-slate-50/30">
                     <td colSpan={b.headers.length} className="py-1 px-2 text-[11px] italic">

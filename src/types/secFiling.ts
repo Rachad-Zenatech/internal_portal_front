@@ -56,14 +56,14 @@ export interface SecParagraphBlock {
 
 export interface SecTableRow {
   id: string;
-  type: 'header' | 'section_title' | 'data' | 'subtotal' | 'total' | 'blank';
+  type: 'header' | 'category_header' | 'section_title' | 'data' | 'subtotal' | 'total' | 'blank';
   cells: string[];
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
   doubleUnderline?: boolean;
   shading?: string;
-  indent?: number; // 0, 1, 2 indentation level
+  indent?: number; // 0, 1, 2, 3 indentation level
 }
 
 /** Centered multi-line label shown above an individual comparative-value column. */

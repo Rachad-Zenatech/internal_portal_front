@@ -7,6 +7,7 @@ import type {
   SecChangeCategory,
   SecChangeTag
 } from '../types/secFiling';
+import { isMajorStatementHeaderCell } from '../utils/secFilingExport';
 import { INITIAL_SEC_FILING_DOC, INITIAL_PROPOSALS, INITIAL_VERSION_HISTORY } from '../data/initialSecFilingData';
 
 export function compactFinancialTableBlock(table: SecBlock): SecBlock {
@@ -123,11 +124,24 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
     }));
   }
 
-  // 5. Clean shading from header rows and major statement headers (e.g. Assets)
+  // 5. Clean shading from header rows and major statement headers (e.g. Assets, Liabilities and shareholders' equity)
   for (const r of b.rows) {
-    const isMajorHeader = r.cells && r.cells.some((c: string) => /^(Assets|Liabilities(\s+and\s+(shareholders['’]?|stockholders['’]?)\s+equity)?):?$/i.test((c || '').trim()));
-    const isDateHeader = r.type === 'header' || (r.cells && r.cells.some((c: string) => /^As of$/i.test((c || '').trim()) || /^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test((c || '').trim())));
-    if ((r.type === 'header' || isMajorHeader || isDateHeader) && r.shading) {
+    const isCategoryHeader = r.type === 'category_header' || r.type === 'section_title';
+    const isMajorHeader = !isCategoryHeader && r.cells && r.cells.some((c: string) => isMajorStatementHeaderCell(c));
+    const isDateHeader = !isCategoryHeader && (r.type === 'header' || (r.cells && r.cells.some((c: string) => /^As of$/i.test((c || '').trim()) || /^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test((c || '').trim()))));
+    if (isCategoryHeader || /^Current\s+assets/i.test((r.cells?.[0] || '').trim())) {
+      r.type = 'category_header';
+      r.bold = true;
+      if (!r.shading) r.shading = '#DAE9F7';
+      r.cells = r.cells.map((c: string, idx: number) => idx === 0 ? c : (c && c.trim() === '-' ? '' : c));
+    } else if (isMajorHeader) {
+      r.type = 'header';
+      r.bold = true;
+      delete r.shading;
+      if (r.indent && r.indent > 1) {
+        r.indent = 1;
+      }
+    } else if ((r.type === 'header' || isDateHeader) && r.shading) {
       delete r.shading;
     }
   }

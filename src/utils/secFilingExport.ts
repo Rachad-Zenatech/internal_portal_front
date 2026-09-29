@@ -63,9 +63,20 @@ const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?:
 };
 
 export const isMajorStatementHeaderCell = (text: string): boolean => {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return false;
-  return /^(Assets|Liabilities(\s+and\s+(shareholders['’]?|stockholders['’]?)\s+equity)?):?$/i.test(trimmed);
+  if (!text) return false;
+  const normalized = text
+    .replace(/&rsquo;|&#8217;|&#39;|&lsquo;/gi, "'")
+    .replace(/[\u2018\u2019\u201A\u201B\u0060\u00B4\u00E2\u20AC\u2122]+/g, "'")
+    .replace(/&nbsp;|\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[:.,]+$/, '');
+
+  if (!normalized) return false;
+
+  return /^(Assets|Liabilities(\s*(and|&)\s*((shareholder|stockholder)['s]*|total)?\s*(equity|deficit))?|(shareholder|stockholder)['s]*\s*(equity|deficit)):?$/i.test(
+    normalized
+  );
 };
 
 const getTopSpacingTwips = (spacingTop: number | undefined, defaultTwips: number): number => {
@@ -421,26 +432,29 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       // Dynamic Data Rows
       for (let rowIndex = 0; rowIndex < block.rows.length; rowIndex++) {
         const row = block.rows[rowIndex];
-        const isDateHeaderRow = row.type === 'header' || row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIndex, cIdx));
-        const isMajorHeaderRow = row.cells.some(c => isMajorStatementHeaderCell(c));
-        const isHeaderLikeRow = row.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+        const isSection = row.type === 'section_title' || row.type === 'category_header';
+        const isDateHeaderRow = !isSection && row.cells.some((c, cIdx) => cIdx > 0 && isComparativeDateHeaderCell(c, rowIndex, cIdx));
+        const isMajorHeaderRow = !isSection && row.cells.some(c => isMajorStatementHeaderCell(c));
+        const isHeaderLikeRow = !isSection && (row.type === 'header' || isDateHeaderRow || isMajorHeaderRow);
         const fillHex = isHeaderLikeRow
           ? undefined
           : row.shading
           ? row.shading.replace('#', '')
-          : row.type === 'section_title'
+          : isSection
           ? 'DAE9F7'
           : undefined;
 
         tableRows.push(
           new TableRow({
             children: row.cells.map((cellText, colIndex) => {
-              const isDateHeader = isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
-              const isMajorHeader = isMajorStatementHeaderCell(cellText);
+              const isDateHeader = !isSection && isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
+              const isMajorHeader = !isSection && (isMajorStatementHeaderCell(cellText) || (isMajorHeaderRow && colIndex === 0));
               const defaultAlign = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
-              const align = (isDateHeader || isMajorHeader || (row.type === 'header' && colIndex === 0)) ? 'center' : defaultAlign;
+              const align = (isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && colIndex === 0)) ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
-              const indent = isFirstCol && !isMajorHeader && row.indent ? row.indent * 200 : 0;
+              const maxAllowedIndent = (row.type === 'header' || isMajorHeaderRow) ? 1 : 3;
+              const effectiveIndent = Math.min(row.indent || 0, maxAllowedIndent);
+              const indent = isFirstCol && effectiveIndent ? effectiveIndent * 200 : 0;
               const sanitizedCells = sanitizeTableCells(row.cells);
               const cellVal = sanitizedCells[colIndex] ?? cellText;
               const lines = (cellVal || '').split('\n');
@@ -471,7 +485,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                   children: [
                     new TextRun({
                       text: line,
-                      bold: isDateHeader || isMajorHeader || row.bold || row.type === 'total' || row.type === 'section_title' || row.type === 'header',
+                      bold: isDateHeader || isMajorHeader || row.bold || row.type === 'total' || row.type === 'section_title' || row.type === 'category_header' || row.type === 'header',
                       italics: row.italic,
                       size: 18,
                       font: 'Calibri'
@@ -802,7 +816,7 @@ export function printSecFiling(doc: SecFilingDocument) {
             border-bottom: 3pt double #000;
             font-weight: bold;
           }
-          .section_title td {
+          .section_title td, .category_header td {
             background-color: #DAE9F7;
             font-weight: bold;
             color: #0E2841;
@@ -812,6 +826,7 @@ export function printSecFiling(doc: SecFilingDocument) {
           .align-right { text-align: right; }
           .indent-1 { padding-left: 16px; }
           .indent-2 { padding-left: 32px; }
+          .indent-3 { padding-left: 48px; }
           .callout {
             border: 1pt solid #cbd5e1;
             border-left: 3pt solid #2563eb;
@@ -892,20 +907,23 @@ export function printSecFiling(doc: SecFilingDocument) {
                     <tbody>
                       ${b.rows
                         .map((r, rIdx) => {
-                          const isDateHeaderRow = r.type === 'header' || r.cells.some((c, i) => isComparativeDateHeaderCell(c, rIdx, i));
-                          const isMajorHeaderRow = r.cells.some(c => isMajorStatementHeaderCell(c));
-                          const isHeaderLikeRow = r.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
-                          const rowClass = r.type === 'total' ? 'total' : r.type === 'subtotal' ? 'subtotal' : isHeaderLikeRow ? 'date_header' : (r.type === 'section_title' ? 'section_title' : '');
-                          const rowBg = isHeaderLikeRow ? 'background-color: transparent;' : (r.shading ? `background-color: ${r.shading};` : (r.type === 'section_title' ? 'background-color: #DAE9F7;' : ''));
+                          const isSection = r.type === 'category_header' || r.type === 'section_title';
+                          const isDateHeaderRow = !isSection && r.cells.some((c, i) => i > 0 && isComparativeDateHeaderCell(c, rIdx, i));
+                          const isMajorHeaderRow = !isSection && r.cells.some(c => isMajorStatementHeaderCell(c));
+                          const isHeaderLikeRow = !isSection && (r.type === 'header' || isDateHeaderRow || isMajorHeaderRow);
+                          const rowClass = r.type === 'total' ? 'total' : r.type === 'subtotal' ? 'subtotal' : isHeaderLikeRow ? 'date_header' : isSection ? 'category_header section_title' : '';
+                          const rowBg = isHeaderLikeRow ? 'background-color: transparent;' : (r.shading ? `background-color: ${r.shading};` : isSection ? 'background-color: #DAE9F7;' : '');
                           return `
                             <tr class="${rowClass}" style="${rowBg}">
                               ${sanitizeTableCells(r.cells)
                                 .map((c, i) => {
-                                  const isDateHeader = isComparativeDateHeaderCell(c, rIdx, i);
-                                  const isMajorHeader = isMajorStatementHeaderCell(c);
-                                  const alignVal = (isDateHeader || isMajorHeader || (r.type === 'header' && i === 0)) ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
+                                  const isDateHeader = !isSection && isComparativeDateHeaderCell(c, rIdx, i);
+                                  const isMajorHeader = !isSection && (isMajorStatementHeaderCell(c) || (isMajorHeaderRow && i === 0));
+                                  const alignVal = (isDateHeader || isMajorHeader || ((r.type === 'header' || isMajorHeaderRow) && i === 0)) ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
                                   const align = `align-${alignVal}`;
-                                  const indent = i === 0 && !isMajorHeader && r.indent ? `indent-${r.indent}` : '';
+                                  const maxAllowedIndent = (r.type === 'header' || isMajorHeaderRow) ? 1 : 3;
+                                  const effectiveIndent = Math.min(r.indent || 0, maxAllowedIndent);
+                                  const indent = i === 0 && effectiveIndent ? `indent-${effectiveIndent}` : '';
                                   const bold = isDateHeader || isMajorHeader || r.bold || r.type === 'section_title' || r.type === 'header' ? 'font-weight: bold;' : '';
                                   const italic = r.italic ? 'font-style: italic;' : '';
                                   return `<td class="${align} ${indent}" style="text-align: ${alignVal}; ${bold} ${italic}">${c || '&nbsp;'}</td>`;

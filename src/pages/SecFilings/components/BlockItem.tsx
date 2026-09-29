@@ -80,9 +80,20 @@ const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?:
 };
 
 export const isMajorStatementHeaderCell = (text: string): boolean => {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return false;
-  return /^(Assets|Liabilities(\s+and\s+(shareholders['’]?|stockholders['’]?)\s+equity)?):?$/i.test(trimmed);
+  if (!text) return false;
+  const normalized = text
+    .replace(/&rsquo;|&#8217;|&#39;|&lsquo;/gi, "'")
+    .replace(/[\u2018\u2019\u201A\u201B\u0060\u00B4\u00E2\u20AC\u2122]+/g, "'")
+    .replace(/&nbsp;|\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[:.,]+$/, '');
+
+  if (!normalized) return false;
+
+  return /^(Assets|Liabilities(\s*(and|&)\s*((shareholder|stockholder)['s]*|total)?\s*(equity|deficit))?|(shareholder|stockholder)['s]*\s*(equity|deficit)):?$/i.test(
+    normalized
+  );
 };
 
 interface BlockItemProps {
@@ -1217,9 +1228,19 @@ const FinancialTableBlockEditor: React.FC<{
     }
 
     const nextRows = block.rows.map((r, rIdx) => {
-      const isDateHeaderRow = r.type === 'header' || r.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rIdx, cIdx));
-      const isMajorHeaderRow = r.cells.some(c => isMajorStatementHeaderCell(c));
-      const isHeaderLikeRow = r.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+      const isCategory = r.type === 'category_header' || r.type === 'section_title';
+      const isDateHeaderRow = !isCategory && (r.type === 'header' || r.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rIdx, cIdx)));
+      const isMajorHeaderRow = !isCategory && r.cells.some(c => isMajorStatementHeaderCell(c));
+      const isHeaderLikeRow = !isCategory && (r.type === 'header' || isDateHeaderRow || isMajorHeaderRow);
+      if (isMajorHeaderRow && (r.type !== 'header' || r.shading || (r.indent && r.indent > 1))) {
+        needsUpdate = true;
+        const copy = { ...r, type: 'header' as const, bold: true };
+        delete copy.shading;
+        if (copy.indent && copy.indent > 1) {
+          copy.indent = 1;
+        }
+        return copy;
+      }
       if (isHeaderLikeRow && r.shading) {
         needsUpdate = true;
         const copy = { ...r };
@@ -1290,10 +1311,10 @@ const FinancialTableBlockEditor: React.FC<{
       id: `r-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       type,
       cells: block.headers.map(() => ''),
-      bold: type === 'total' || type === 'section_title',
+      bold: type === 'total' || type === 'section_title' || type === 'category_header',
       doubleUnderline: type === 'total',
       underline: type === 'subtotal' || type === 'total',
-      shading: type === 'section_title' ? '#DAE9F7' : undefined
+      shading: (type === 'section_title' || type === 'category_header') ? '#DAE9F7' : undefined
     };
     const nextRows = [...block.rows];
     const safeIdx = Math.max(0, Math.min(targetIdx, nextRows.length));
@@ -1451,8 +1472,10 @@ const FinancialTableBlockEditor: React.FC<{
   const toggleRowIndent = (rowIndex: number) => {
     const nextRows = [...block.rows];
     const r = { ...nextRows[rowIndex] };
+    const isHeaderRow = r.type === 'header' || r.cells.some(c => isMajorStatementHeaderCell(c));
+    const maxIndent = isHeaderRow ? 1 : 3;
     const current = r.indent || 0;
-    r.indent = current >= 2 ? 0 : current + 1;
+    r.indent = current >= maxIndent ? 0 : current + 1;
     nextRows[rowIndex] = r;
     onUpdate({ rows: nextRows });
   };
@@ -1461,12 +1484,19 @@ const FinancialTableBlockEditor: React.FC<{
     const nextRows = [...block.rows];
     const r = { ...nextRows[rowIndex] };
     r.type = type;
-    r.bold = type === 'total' || type === 'section_title';
+    r.bold = type === 'total' || type === 'section_title' || type === 'category_header' || type === 'header';
     r.doubleUnderline = type === 'total';
     r.underline = type === 'subtotal' || type === 'total';
-    if (type === 'section_title' && !r.shading) {
+    if (type === 'header') {
+      if (r.indent && r.indent > 1) {
+        r.indent = 1;
+      }
+      delete r.shading;
+    } else if (type === 'section_title' || type === 'category_header') {
       r.shading = '#DAE9F7';
-    } else if (type !== 'section_title' && r.shading === '#DAE9F7') {
+      r.indent = 0;
+      r.cells = r.cells.map((c, i) => i === 0 ? c : (c.trim() === '-' ? '' : c));
+    } else if (r.shading === '#DAE9F7') {
       r.shading = undefined;
     }
     nextRows[rowIndex] = r;
@@ -1476,28 +1506,31 @@ const FinancialTableBlockEditor: React.FC<{
   // Memoize row-level classification to avoid running 1,200 regexes per render
   const rowMetadata = useMemo(() => {
     return block.rows.map((row, rowIdx) => {
+      const isSection = row.type === 'section_title' || row.type === 'category_header';
       const isDateHeaderRow =
-        row.type === 'header' ||
-        row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIdx, cIdx));
-      const isMajorHeaderRow = row.cells.some((c) => isMajorStatementHeaderCell(c));
-      const isHeaderLikeRow = row.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+        !isSection && row.cells.some((c, cIdx) => cIdx > 0 && isComparativeDateHeaderCell(c, rowIdx, cIdx));
+      const isMajorHeaderRow = !isSection && row.cells.some((c) => isMajorStatementHeaderCell(c));
+      const isHeaderLikeRow = !isSection && (row.type === 'header' || isDateHeaderRow || isMajorHeaderRow);
       const isTotal = row.type === 'total' || row.doubleUnderline;
       const isSubtotal = row.type === 'subtotal';
-      const isSection = row.type === 'section_title';
 
       const cellMeta = row.cells.map((cellValue, colIdx) => {
-        const isDateHeader = isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
-        const isMajorHeader = isMajorStatementHeaderCell(cellValue);
+        const isDateHeader = !isSection && isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
+        const isMajorHeader = !isSection && (isMajorStatementHeaderCell(cellValue) || (isMajorHeaderRow && colIdx === 0));
         const isFirst = colIdx === 0;
         const align =
-          isDateHeader || isMajorHeader || (row.type === 'header' && isFirst)
+          isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && isFirst)
             ? 'center'
             : block.columnAlignments[colIdx] || 'left';
+        const maxAllowedIndent = (row.type === 'header' || isMajorHeaderRow) ? 1 : 3;
+        const effectiveIndent = Math.min(row.indent || 0, maxAllowedIndent);
         const indentPadding =
-          isFirst && !isMajorHeader && row.indent
-            ? row.indent === 1
+          isFirst && effectiveIndent
+            ? effectiveIndent === 1
               ? 'pl-6'
-              : 'pl-10'
+              : effectiveIndent === 2
+              ? 'pl-10'
+              : 'pl-14'
             : 'pl-1.5';
         return { isDateHeader, isMajorHeader, isFirst, align, indentPadding };
       });
@@ -1765,7 +1798,7 @@ const FinancialTableBlockEditor: React.FC<{
               const meta = rowMetadata[rowIdx] || {
                 isTotal: row.type === 'total',
                 isSubtotal: row.type === 'subtotal',
-                isSection: row.type === 'section_title',
+                isSection: row.type === 'section_title' || row.type === 'category_header',
                 isHeaderLikeRow: row.type === 'header',
                 isDateHeaderRow: false,
                 isMajorHeaderRow: false,
@@ -1935,7 +1968,7 @@ const FinancialTableBlockEditor: React.FC<{
                         {[
                           { type: 'data' as const, label: 'Data Line Item' },
                           { type: 'header' as const, label: 'Table Header (White, Centered)' },
-                          { type: 'section_title' as const, label: 'Section Header (#DAE9F7)' },
+                          { type: 'category_header' as const, label: 'Category Header (Blue Shaded)' },
                           { type: 'subtotal' as const, label: 'Subtotal (Bordered)' },
                           { type: 'total' as const, label: 'Total Net (Double Underline)' },
                           { type: 'blank' as const, label: 'Blank Spacer' }
@@ -1944,7 +1977,7 @@ const FinancialTableBlockEditor: React.FC<{
                             key={styleOpt.type}
                             onClick={() => { setOpenRowMenuIdx(null); setRowType(rowIdx, styleOpt.type); }}
                             className={`flex items-center justify-between text-xs py-1 cursor-pointer ${
-                              row.type === styleOpt.type ? 'font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50' : ''
+                              (row.type === styleOpt.type || (styleOpt.type === 'category_header' && row.type === 'section_title')) ? 'font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50' : ''
                             }`}
                           >
                             <span>{styleOpt.label}</span>
@@ -1992,7 +2025,7 @@ const FinancialTableBlockEditor: React.FC<{
                         <TableCellInput
                           initialValue={cellValue}
                           onCommit={(val) => handleCellChange(rowIdx, colIdx, val)}
-                          placeholder={isFirst || isHeaderLikeRow ? '' : '-'}
+                          placeholder={isFirst || isHeaderLikeRow || isSection ? '' : '-'}
                           style={{ textAlign: align }}
                           className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
                             isTotal || row.bold || isHeaderLikeRow
