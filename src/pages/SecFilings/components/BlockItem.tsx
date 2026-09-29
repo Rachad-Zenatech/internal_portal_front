@@ -23,7 +23,8 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  CornerDownRight
+  CornerDownRight,
+  GripVertical
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
 import { mediaBucketService } from '../../../services/mediaBucketService';
@@ -1142,6 +1143,7 @@ const FinancialTableBlockEditor: React.FC<{
 }> = ({ block, onUpdate }) => {
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
+  const [openRowMenuIdx, setOpenRowMenuIdx] = useState<number | null>(null);
 
   useEffect(() => {
     let needsUpdate = false;
@@ -1475,7 +1477,7 @@ const FinancialTableBlockEditor: React.FC<{
           <thead>
             {(block.periodHeaders?.length || 0) > 0 && (
               <tr className="border-b border-slate-900 text-[#0E2841]">
-                <th className="w-7 min-w-[28px] max-w-[28px] p-1" />
+                <th className="w-9 min-w-[36px] max-w-[36px] p-1" />
                 {block.headers.map((_, colIdx) => {
                   const periodHeader = block.periodHeaders?.find((header) => header.columnIndex === colIdx);
                   return (
@@ -1499,7 +1501,7 @@ const FinancialTableBlockEditor: React.FC<{
               className="border-t border-b-2 border-slate-900 text-[#0E2841] bg-white dark:bg-zinc-900"
             >
               {/* Left Sandwich Bar Column Header */}
-              <th className="w-7 min-w-[28px] max-w-[28px] p-1 text-center font-normal text-[10px] text-slate-400">
+              <th className="w-9 min-w-[36px] max-w-[36px] p-1 text-center font-normal text-[10px] text-slate-400">
                 #
               </th>
 
@@ -1524,10 +1526,11 @@ const FinancialTableBlockEditor: React.FC<{
                       />
 
                       {/* Column Sandwich Menu Button */}
-                      <DropdownMenu>
+                      <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <button
                             type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
                             title="Column Actions: Add Left/Right, Move Left/Right, Align, Delete"
                             className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-blue-700 hover:bg-white/80 transition-colors opacity-0 group-hover/col:opacity-100 shrink-0"
@@ -1701,33 +1704,50 @@ const FinancialTableBlockEditor: React.FC<{
                     setDraggedRowIdx(null);
                     setDragOverRowIdx(null);
                   }}
-                  className={`group/row transition-all ${rowClass} ${
+                  className={`group/row transition-colors duration-75 ${rowClass} ${
                     isOver ? 'border-t-2 border-blue-500 bg-blue-50/40' : ''
                   } ${isBeingDragged ? 'opacity-35 scale-[0.99] bg-blue-50/20' : ''}`}
                 >
-                  {/* Left Sandwich Bar Menu Handle: Drag up/down or click for row actions */}
-                  <td className="w-7 min-w-[28px] max-w-[28px] py-0.5 px-0.5 text-center align-middle select-none">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          draggable={true}
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', String(rowIdx));
-                            e.dataTransfer.effectAllowed = 'move';
-                            setDraggedRowIdx(rowIdx);
-                          }}
-                          onDragEnd={() => {
-                            setDraggedRowIdx(null);
-                            setDragOverRowIdx(null);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          title="Drag up or down to move row, or click for actions"
-                          className="w-6 h-6 rounded flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-zinc-800 transition-colors mx-auto group-hover/row:text-slate-600 cursor-grab active:cursor-grabbing"
-                        >
-                          <Menu className="w-3.5 h-3.5" />
-                        </button>
-                      </DropdownMenuTrigger>
+                  {/* Left Action Handle: Dedicated drag grip for reordering + instant non-draggable button for actions */}
+                  <td className="w-9 min-w-[36px] max-w-[36px] py-0.5 px-0.5 text-center align-middle select-none">
+                    <div className="flex items-center justify-center gap-0.5">
+                      {/* Dedicated Drag Grip Handle: Has HTML5 draggable with zero click interference */}
+                      <div
+                        draggable={true}
+                        onDragStart={(e) => {
+                          setOpenRowMenuIdx(null);
+                          e.dataTransfer.setData('text/plain', String(rowIdx));
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedRowIdx(rowIdx);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedRowIdx(null);
+                          setDragOverRowIdx(null);
+                        }}
+                        title="Drag up or down to move row"
+                        className="w-2.5 h-6 flex items-center justify-center text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 cursor-grab active:cursor-grabbing transition-colors"
+                      >
+                        <GripVertical className="w-3 h-3" />
+                      </div>
+
+                      {/* Instant Actions Menu Button: Pure clickable button (NO draggable) for 0ms opening */}
+                      <DropdownMenu
+                        modal={false}
+                        open={openRowMenuIdx === rowIdx}
+                        onOpenChange={(isOpen) => setOpenRowMenuIdx(isOpen ? rowIdx : null)}
+                      >
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            title="Row Actions (Add, Move, Duplicate, Style, Delete)"
+                            className="w-5 h-6 rounded flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                          >
+                            <Menu className="w-3.5 h-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="w-56 p-1 text-xs">
                         <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                           Row {rowIdx + 1} Actions
@@ -1735,7 +1755,7 @@ const FinancialTableBlockEditor: React.FC<{
 
                         {/* Add Row Above */}
                         <DropdownMenuItem
-                          onClick={() => addRowAt(rowIdx, 'data')}
+                          onClick={() => { setOpenRowMenuIdx(null); addRowAt(rowIdx, 'data'); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer text-blue-600 dark:text-blue-400 font-medium"
                         >
                           <div className="flex items-center">
@@ -1747,7 +1767,7 @@ const FinancialTableBlockEditor: React.FC<{
 
                         {/* Add Row Below */}
                         <DropdownMenuItem
-                          onClick={() => addRowAt(rowIdx + 1, 'data')}
+                          onClick={() => { setOpenRowMenuIdx(null); addRowAt(rowIdx + 1, 'data'); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer text-blue-600 dark:text-blue-400 font-medium"
                         >
                           <div className="flex items-center">
@@ -1762,7 +1782,7 @@ const FinancialTableBlockEditor: React.FC<{
                         {/* Move Row Up */}
                         <DropdownMenuItem
                           disabled={rowIdx === 0}
-                          onClick={() => moveRow(rowIdx, 'up')}
+                          onClick={() => { setOpenRowMenuIdx(null); moveRow(rowIdx, 'up'); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer disabled:opacity-40"
                         >
                           <ArrowUp className="w-3.5 h-3.5 text-slate-500" />
@@ -1772,7 +1792,7 @@ const FinancialTableBlockEditor: React.FC<{
                         {/* Move Row Down */}
                         <DropdownMenuItem
                           disabled={rowIdx === block.rows.length - 1}
-                          onClick={() => moveRow(rowIdx, 'down')}
+                          onClick={() => { setOpenRowMenuIdx(null); moveRow(rowIdx, 'down'); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer disabled:opacity-40"
                         >
                           <ArrowDown className="w-3.5 h-3.5 text-slate-500" />
@@ -1783,7 +1803,7 @@ const FinancialTableBlockEditor: React.FC<{
 
                         {/* Duplicate Row */}
                         <DropdownMenuItem
-                          onClick={() => duplicateRow(rowIdx)}
+                          onClick={() => { setOpenRowMenuIdx(null); duplicateRow(rowIdx); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer"
                         >
                           <Copy className="w-3.5 h-3.5 text-slate-500" />
@@ -1792,7 +1812,7 @@ const FinancialTableBlockEditor: React.FC<{
 
                         {/* Indent Line Item */}
                         <DropdownMenuItem
-                          onClick={() => toggleRowIndent(rowIdx)}
+                          onClick={() => { setOpenRowMenuIdx(null); toggleRowIndent(rowIdx); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer"
                         >
                           <CornerDownRight className="w-3.5 h-3.5 text-slate-500" />
@@ -1815,7 +1835,7 @@ const FinancialTableBlockEditor: React.FC<{
                         ].map((styleOpt) => (
                           <DropdownMenuItem
                             key={styleOpt.type}
-                            onClick={() => setRowType(rowIdx, styleOpt.type)}
+                            onClick={() => { setOpenRowMenuIdx(null); setRowType(rowIdx, styleOpt.type); }}
                             className={`flex items-center justify-between text-xs py-1 cursor-pointer ${
                               row.type === styleOpt.type ? 'font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/50' : ''
                             }`}
@@ -1828,7 +1848,7 @@ const FinancialTableBlockEditor: React.FC<{
 
                         {/* Delete Row */}
                         <DropdownMenuItem
-                          onClick={() => deleteRow(rowIdx)}
+                          onClick={() => { setOpenRowMenuIdx(null); deleteRow(rowIdx); }}
                           className="flex items-center gap-2 py-1.5 cursor-pointer text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
                         >
                           <Trash2 className="w-3.5 h-3.5 text-red-600" />
@@ -1836,6 +1856,7 @@ const FinancialTableBlockEditor: React.FC<{
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                   </td>
 
                   {row.cells.map((cellValue, colIdx) => {
