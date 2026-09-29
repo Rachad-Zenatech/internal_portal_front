@@ -1,14 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Send,
   CheckCircle2,
   MessageSquare
 } from 'lucide-react';
 import type { SecChangeProposal, SecBlockDiff } from '../../../types/secFiling';
-import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
 import { Textarea } from '../../../components/ui/textarea';
+
+const DEFAULT_SUBMISSION_NOTES =
+  'Completed draft revisions. All figures reconciled and ready for final controller approval.';
 
 interface SubmitProposalModalProps {
   open: boolean;
@@ -25,11 +28,15 @@ export const SubmitProposalModal: React.FC<SubmitProposalModalProps> = ({
   diffs,
   onSubmit
 }) => {
-  const [submissionNotes, setSubmissionNotes] = useState(
-    'Completed draft revisions. All figures reconciled and ready for final controller approval.'
-  );
+  const [submissionNotes, setSubmissionNotes] = useState(DEFAULT_SUBMISSION_NOTES);
 
-  if (!proposal) return null;
+  // Re-seed the message each time the dialog is opened so re-submitting or editing
+  // notes shows what was actually sent last time.
+  useEffect(() => {
+    if (open) {
+      setSubmissionNotes(proposal?.submissionNotes || DEFAULT_SUBMISSION_NOTES);
+    }
+  }, [open, proposal?.id, proposal?.submissionNotes]);
 
   const addedDiffs = diffs.filter((d) => d.status === 'added');
   const modifiedDiffs = diffs.filter((d) => d.status === 'modified');
@@ -54,9 +61,9 @@ export const SubmitProposalModal: React.FC<SubmitProposalModalProps> = ({
               <DialogTitle className="text-base font-bold text-white">
                 Submit Final Changes for Review
               </DialogTitle>
-              <p className="text-xs text-purple-200/80 mt-0.5">
+              <DialogDescription className="text-xs text-purple-200/80 mt-0.5">
                 Send your proposed edits to the Lead Controller for confirmation & merging.
-              </p>
+              </DialogDescription>
             </div>
           </div>
         </div>
@@ -66,11 +73,13 @@ export const SubmitProposalModal: React.FC<SubmitProposalModalProps> = ({
           <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200 dark:border-zinc-700 space-y-2">
             <div className="flex items-center justify-between">
               <span className="font-bold text-slate-800 dark:text-zinc-200 text-sm">
-                {proposal.title}
+                {proposal?.title || 'Contributor Draft Revisions'}
               </span>
-              <Badge className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-none font-mono text-[10px]">
-                {proposal.author.name} ({proposal.author.role})
-              </Badge>
+              {proposal && (
+                <Badge className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-none font-mono text-[10px]">
+                  {proposal.author.name} ({proposal.author.role})
+                </Badge>
+              )}
             </div>
 
             {/* Diff Counters */}

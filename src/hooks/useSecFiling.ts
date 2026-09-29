@@ -8,9 +8,11 @@ import type {
   SecBlockDiff,
   SecBlockSpacing,
   SecHeadingBlock,
-  SecParagraphBlock
+  SecParagraphBlock,
+  SecFinancialTableBlock,
+  SecTableRow
 } from '../types/secFiling';
-import { secFilingService } from '../services/secFilingService';
+import { secFilingService, setStorageFailureListener } from '../services/secFilingService';
 import { useAuth } from '../lib/AuthContext';
 import { toast } from 'sonner';
 import { ZENATECH_LOGO_DATA_URL } from '../data/zenatechLogoAsset';
@@ -244,7 +246,7 @@ export function useSecFiling() {
   }, [redoStack, workingBlocks, applyWorkingBlocks]);
 
   const addBlock = useCallback(
-    (index: number, type: SecBlockType, defaultSection?: string) => {
+    (index: number, type: SecBlockType, defaultSection?: string, customBlock?: Partial<SecBlock>) => {
       let section = defaultSection && defaultSection !== 'ALL' ? defaultSection : '';
       if (!section && type === 'heading') {
         let sName = 'New Section';
@@ -290,28 +292,40 @@ export function useSecFiling() {
             spacing: 'normal'
           };
           break;
-        case 'financial_table':
+        case 'financial_table': {
+          const customFt = customBlock as Partial<SecFinancialTableBlock> | undefined;
+          // Copy cells as well as rows: templates are module-level constants, so a
+          // shared cells array would let edits on one inserted table leak into the next.
+          const freshRows: SecTableRow[] = customFt?.rows
+            ? customFt.rows.map((r, rIdx) => ({
+                ...r,
+                cells: [...r.cells],
+                id: `r-${Date.now()}-${rIdx}-${Math.random().toString(36).substring(2, 6)}`
+              }))
+            : [
+                { id: `r-${Date.now()}-1`, type: 'data', cells: ['Item Revenue or Asset', '', '1,250,000', '980,000'] },
+                { id: `r-${Date.now()}-2`, type: 'data', cells: ['Direct Operating Cost', '', '(450,000)', '(320,000)'] },
+                { id: `r-${Date.now()}-3`, type: 'total', cells: ['Total Net Amount', '', '800,000', '660,000'], bold: true, underline: true, doubleUnderline: true }
+              ];
           newBlock = {
             id: blockId,
             type: 'financial_table',
-            section,
-            title: 'Schedule of Financial Details',
-            headers: ['Description / Line Item', 'Note Ref', 'Q2 2026 ($)', 'Q2 2025 ($)'],
-            periodHeaders: [
+            section: customFt?.section || section,
+            title: customFt?.title || 'Schedule of Financial Details',
+            headers: customFt?.headers ? [...customFt.headers] : ['Description / Line Item', 'Note Ref', 'Q2 2026 ($)', 'Q2 2025 ($)'],
+            periodHeaders: customFt?.periodHeaders ? JSON.parse(JSON.stringify(customFt.periodHeaders)) : [
               { columnIndex: 2, lines: ['As of', 'June 30,', '2026'] },
               { columnIndex: 3, lines: ['As of', 'December 31,', '2025'] }
             ],
-            columnAlignments: ['left', 'center', 'right', 'right'],
-            columnWidths: ['50%', '10%', '20%', '20%'],
-            rows: [
-              { id: `r-${Date.now()}-1`, type: 'data', cells: ['Item Revenue or Asset', '', '1,250,000', '980,000'] },
-              { id: `r-${Date.now()}-2`, type: 'data', cells: ['Direct Operating Cost', '', '(450,000)', '(320,000)'] },
-              { id: `r-${Date.now()}-3`, type: 'total', cells: ['Total Net Amount', '', '800,000', '660,000'], bold: true, underline: true, doubleUnderline: true }
-            ],
-            spacingTop: 12,
-            spacing: 'normal'
+            columnAlignments: customFt?.columnAlignments ? [...customFt.columnAlignments] : ['left', 'center', 'right', 'right'],
+            columnWidths: customFt?.columnWidths ? [...customFt.columnWidths] : ['50%', '10%', '20%', '20%'],
+            rows: freshRows,
+            spacingTop: customFt?.spacingTop ?? 12,
+            spacing: customFt?.spacing ?? 'normal',
+            ...(customFt?.footnotes ? { footnotes: [...customFt.footnotes] } : {})
           };
           break;
+        }
         case 'callout':
           newBlock = {
             id: blockId,
@@ -818,12 +832,65 @@ export function useSecFiling() {
     [mainDoc]
   );
 
-  const handleSubmitForReview = useCallback((notes?: string) => {
-    if (!activeProposalId) return;
-    secFilingService.submitProposalForReview(activeProposalId, notes);
+  /**
+   * Resolves the change proposal that the current session is editing, creating the
+   * contributor draft on demand when the session came in through an invite link.
+   * Returns null only when there is genuinely nothing to submit (e.g. the Lead
+   * Controller is editing Main with no proposal checked out).
+   */
+  const ensureActiveProposalId = useCallback((): string | null => {
+    if (activeProposalId) return activeProposalId;
+
+    const params = new URLSearchParams(window.location.search);
+    const isContributorLink =
+      params.get('contributor') === 'true' || window.location.pathname.includes('/contribute');
+    if (!isContributorLink) return null;
+
+    const name = params.get('name');
+    const ensured = secFilingService.getOrCreateContributorProposal({
+      id: params.get('proposalId') || 'prop-contrib-session-active',
+      title:
+        params.get('title') ||
+        (name ? `${name}'s Section Revisions` : 'Contributor Draft Revisions'),
+      name: name || undefined,
+      role: params.get('role') || undefined,
+      section: params.get('section') || undefined,
+      description: params.get('desc') || undefined
+    });
     setProposals(secFilingService.getProposals());
-    toast.success('Proposed changes submitted to Lead Controller for review and merging!');
+    setActiveProposalId(ensured.id);
+    return ensured.id;
   }, [activeProposalId]);
+
+  const handleSubmitForReview = useCallback(
+    (notes?: string) => {
+      const targetProposalId = ensureActiveProposalId();
+      if (!targetProposalId) {
+        toast.error('No change proposal is checked out, so there is nothing to submit.', {
+          description: 'Create a change proposal first, then submit it for Lead Controller review.'
+        });
+        return;
+      }
+
+      const result = secFilingService.submitProposalForReview(targetProposalId, notes);
+      setProposals(secFilingService.getProposals());
+
+      if (!result.ok) {
+        if (result.reason === 'storage_full') {
+          toast.error('Submitted changes could not be saved: browser storage is full.', {
+            description:
+              'Clear older merged drafts or version history from this filing, then submit again. Your edits are still open in this tab.',
+            duration: 10000
+          });
+        } else {
+          toast.error('Submission failed: this change proposal could no longer be found.');
+        }
+        return;
+      }
+      toast.success('Proposed changes submitted to Lead Controller for review and merging!');
+    },
+    [ensureActiveProposalId]
+  );
 
   const handleMergeProposal = useCallback(
     (proposalId: string, notes?: string) => {
@@ -913,6 +980,24 @@ export function useSecFiling() {
   // --------------------------------------------------------------------------
   // 5. ALL EFFECTS (Strictly at the bottom)
   // --------------------------------------------------------------------------
+  // Surface storage-quota problems. Autosave failures used to be logged only, which
+  // made edits look saved while nothing reached disk.
+  useEffect(() => {
+    setStorageFailureListener((failure) => {
+      if (failure.recovered) {
+        toast.info('Freed up browser storage by trimming old filing version history.');
+        return;
+      }
+      toast.error('Browser storage is full — this filing could not be saved.', {
+        id: 'sec-filing-storage-full',
+        description:
+          'Keep this tab open, then clear older merged drafts or version history for this filing before continuing.',
+        duration: 10000
+      });
+    });
+    return () => setStorageFailureListener(null);
+  }, []);
+
   // Detect contributor link on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -936,6 +1021,9 @@ export function useSecFiling() {
         section: section || undefined,
         description: desc
       });
+      // Persist right away so a Lead Controller tab that is already open (or one opened
+      // a moment later) can see this contributor draft instead of a stale proposal list.
+      secFilingService.saveProposals(secFilingService.getProposals(), true);
       setProposals(secFilingService.getProposals());
       setActiveProposalId(ensuredProp.id);
 
@@ -956,11 +1044,9 @@ export function useSecFiling() {
   // Real-time cross-tab synchronization (BroadcastChannel + StorageEvent)
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (
-        e.key === 'sec_filing_proposals_v2_full' ||
-        e.key === 'sec_filing_main_doc_v2_full' ||
-        e.key === 'sec_filing_versions_v2_full'
-      ) {
+      // Key names must match secFilingService's STORAGE_KEYS, otherwise cross-tab
+      // writes are never picked up.
+      if (e.key && e.key.startsWith('sec_filing_')) {
         refreshAll();
       }
     };

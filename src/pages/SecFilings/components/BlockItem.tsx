@@ -24,11 +24,13 @@ import {
   ArrowLeft,
   ArrowRight,
   CornerDownRight,
-  GripVertical
+  GripVertical,
+  LayoutTemplate
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
 import { mediaBucketService } from '../../../services/mediaBucketService';
 import { compactFinancialTableBlock } from '../../../services/secFilingService';
+import { FINANCIAL_TABLE_TEMPLATES } from '../../../data/financialTableTemplates';
 import { ZENATECH_LOGO_DATA_URL } from '../../../data/zenatechLogoAsset';
 import type {
   SecBlock,
@@ -1267,6 +1269,34 @@ const FinancialTableBlockEditor: React.FC<{
     }
   }, [block.id]);
 
+  /**
+   * Rebuilds this table from one of the standard statement layouts. Row ids are
+   * regenerated so a template applied to several tables does not collide, and the
+   * block's own id/type/section are left untouched so the block stays in place.
+   */
+  const applyTableTemplate = (templateId: string) => {
+    const template = FINANCIAL_TABLE_TEMPLATES.find((t) => t.id === templateId);
+    if (!template) return;
+
+    const tpl = template.block;
+    const stamp = Date.now();
+    onUpdate({
+      title: tpl.title ?? block.title,
+      headers: [...(tpl.headers || block.headers)],
+      periodHeaders: tpl.periodHeaders
+        ? tpl.periodHeaders.map((ph) => ({ ...ph, lines: [...ph.lines] }))
+        : [],
+      columnAlignments: [...(tpl.columnAlignments || block.columnAlignments)],
+      columnWidths: tpl.columnWidths ? [...tpl.columnWidths] : undefined,
+      rows: (tpl.rows || []).map((r, rIdx) => ({
+        ...r,
+        cells: [...r.cells],
+        id: `r-${stamp}-${rIdx}-${Math.random().toString(36).substring(2, 6)}`
+      })),
+      footnotes: tpl.footnotes ? [...tpl.footnotes] : undefined
+    });
+  };
+
   const reorderRow = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex || toIndex < 0 || toIndex >= block.rows.length) return;
     const nextRows = [...block.rows];
@@ -1559,6 +1589,63 @@ const FinancialTableBlockEditor: React.FC<{
         </span>
 
         <div className="flex items-center gap-1">
+          {/* Build this table from one of the standard statement layouts. Explicitly
+              labelled as a replace, since it overwrites the current grid. Undo (Ctrl+Z)
+              restores the previous table. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 text-[10px] gap-1 px-1.5 text-emerald-700 hover:bg-emerald-50"
+                title="Replace this table with a standard financial statement template"
+              >
+                <LayoutTemplate className="w-3 h-3" />
+                <span>Table Templates</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[19rem] p-1 text-xs">
+              <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
+                <p className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200">
+                  Apply Table Template
+                </p>
+                <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                  Replaces this table's columns and rows. Undo with Ctrl+Z.
+                </p>
+              </div>
+              {FINANCIAL_TABLE_TEMPLATES.map((tpl) => {
+                const TplIcon = tpl.icon;
+                return (
+                  <DropdownMenuItem
+                    key={tpl.id}
+                    onClick={() => applyTableTemplate(tpl.id)}
+                    className="gap-2 cursor-pointer py-1.5 items-start"
+                  >
+                    <div className={`p-1 rounded ${tpl.color} shrink-0 mt-0.5`}>
+                      <TplIcon className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-slate-900 dark:text-zinc-100 truncate">
+                          {tpl.name}
+                        </span>
+                        {tpl.badge && (
+                          <span className="shrink-0 px-1 rounded bg-slate-100 dark:bg-zinc-800 text-[9px] font-mono text-slate-500 dark:text-zinc-400">
+                            {tpl.badge}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-2">
+                        {tpl.description}
+                      </div>
+                    </div>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button
             type="button"
             variant="ghost"

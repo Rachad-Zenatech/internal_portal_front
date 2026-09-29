@@ -8,15 +8,17 @@ import {
   FileSignature,
   Minus,
   Tag,
-  Image as ImageIcon
+  Image as ImageIcon,
+  ChevronRight
 } from 'lucide-react';
-import type { SecBlockType } from '../../../types/secFiling';
+import type { SecBlock, SecBlockType } from '../../../types/secFiling';
+import { FINANCIAL_TABLE_TEMPLATES } from '../../../data/financialTableTemplates';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 
 interface InlineAddBlockProps {
   index?: number;
-  onAddBlock?: (index: number, type: SecBlockType) => void;
-  onAdd?: (type: SecBlockType) => void;
+  onAddBlock?: (index: number, type: SecBlockType, customBlock?: Partial<SecBlock>) => void;
+  onAdd?: (type: SecBlockType, customBlock?: Partial<SecBlock>) => void;
   className?: string;
   isAlwaysVisible?: boolean;
 }
@@ -93,21 +95,156 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
   className = '',
   isAlwaysVisible = false
 }) => {
-  const handleAdd = (type: SecBlockType) => {
+  const [open, setOpen] = useState(false);
+  const [templatesExpanded, setTemplatesExpanded] = useState(false);
+
+  const handleAdd = (type: SecBlockType, customBlock?: Partial<SecBlock>) => {
     if (onAddBlock && typeof index === 'number') {
-      onAddBlock(index, type);
+      onAddBlock(index, type, customBlock);
     } else if (onAdd) {
-      onAdd(type);
+      onAdd(type, customBlock);
     }
   };
-  const [open, setOpen] = useState(false);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setTemplatesExpanded(false);
+  };
+
+  const closeMenu = () => {
+    setOpen(false);
+    setTemplatesExpanded(false);
+  };
+
+  const menuHeader = (
+    <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
+      <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
+        Insert SEC Filing Block
+      </p>
+      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+        Select a block type to add to the document
+      </p>
+    </div>
+  );
+
+  // Shared block-type list, used by the "Add First Block" and the inline seam menus.
+  const blockOptionList = (
+    <div className="grid grid-cols-1 gap-1 max-h-80 overflow-y-auto pr-1">
+      {BLOCK_OPTIONS.map((item) => {
+        const Icon = item.icon;
+
+        // Financial statement tables expand on click into the statement templates so a
+        // contributor can build a balance sheet, income statement, cash flows, etc.
+        if (item.type === 'financial_table') {
+          return (
+            <div key={item.type}>
+              <button
+                type="button"
+                onClick={() => setTemplatesExpanded((prev) => !prev)}
+                aria-expanded={templatesExpanded}
+                className={`w-full flex items-start gap-3 p-2 rounded-lg text-left transition-colors group/btn cursor-pointer ${
+                  templatesExpanded
+                    ? 'bg-slate-100 dark:bg-zinc-800/70'
+                    : 'hover:bg-slate-100 dark:hover:bg-zinc-800/70'
+                }`}
+              >
+                <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
+                    {item.label}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                    {templatesExpanded
+                      ? 'Pick a statement template below'
+                      : 'Click to build from a statement template'}
+                  </div>
+                </div>
+                <ChevronRight
+                  className={`w-3.5 h-3.5 shrink-0 mt-1 text-slate-400 transition-transform ${
+                    templatesExpanded ? 'rotate-90' : ''
+                  }`}
+                />
+              </button>
+
+              {templatesExpanded && (
+                <div className="mt-1 ml-3 pl-2 border-l-2 border-emerald-200 dark:border-emerald-900 space-y-0.5">
+                  <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
+                    Build table from template
+                  </div>
+                  {FINANCIAL_TABLE_TEMPLATES.map((tpl) => {
+                    const TplIcon = tpl.icon;
+                    return (
+                      <button
+                        key={tpl.id}
+                        type="button"
+                        onClick={() => {
+                          handleAdd('financial_table', tpl.block as Partial<SecBlock>);
+                          closeMenu();
+                        }}
+                        className="w-full flex items-start gap-2 p-1.5 rounded-md text-left hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors group/tpl cursor-pointer"
+                      >
+                        <div className={`p-1 rounded ${tpl.color} shrink-0 mt-0.5`}>
+                          <TplIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-medium text-slate-900 dark:text-zinc-100 truncate group-hover/tpl:text-emerald-700 dark:group-hover/tpl:text-emerald-400">
+                              {tpl.name}
+                            </span>
+                            {tpl.badge && (
+                              <span className="shrink-0 px-1 rounded bg-slate-100 dark:bg-zinc-800 text-[9px] font-mono text-slate-500 dark:text-zinc-400">
+                                {tpl.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                            {tpl.description}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <button
+            key={item.type}
+            type="button"
+            onClick={() => {
+              handleAdd(item.type);
+              closeMenu();
+            }}
+            className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
+          >
+            <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
+              <Icon className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
+                {item.label}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                {item.desc}
+              </div>
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   // When empty or explicitly always visible (like the top inserter when 0 blocks)
   if (isAlwaysVisible) {
     return (
       <div className={`group relative flex items-center justify-center select-none py-3 my-2 ${className}`}>
         <div className="absolute inset-x-0 h-px border-t border-dashed border-slate-300 dark:border-zinc-700" />
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -119,44 +256,10 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
           </PopoverTrigger>
           <PopoverContent
             align="center"
-            className="w-80 p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
+            className="w-[22rem] p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
           >
-            <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                Insert SEC Filing Block
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                Select a block type to add to the document
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto pr-1">
-              {BLOCK_OPTIONS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.type}
-                    type="button"
-                    onClick={() => {
-                      handleAdd(item.type);
-                      setOpen(false);
-                    }}
-                    className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
-                  >
-                    <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
-                        {item.label}
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
-                        {item.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            {menuHeader}
+            {blockOptionList}
           </PopoverContent>
         </Popover>
       </div>
@@ -180,7 +283,7 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
         {/* Subtle dashed line connecting across the seam */}
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px border-t border-dashed border-blue-400/80 dark:border-blue-500/80" />
 
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <button
               type="button"
@@ -193,45 +296,10 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
 
           <PopoverContent
             align="center"
-            className="w-80 p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
+            className="w-[22rem] p-2 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl rounded-xl z-50"
           >
-            <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-zinc-200">
-                Insert SEC Filing Block
-              </p>
-              <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                Select a block type to add to the document
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-1 max-h-72 overflow-y-auto pr-1">
-              {BLOCK_OPTIONS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.type}
-                    type="button"
-                    onClick={() => {
-                      handleAdd(item.type);
-                      setOpen(false);
-                    }}
-                    className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
-                  >
-                    <div className={`p-1.5 rounded-md ${item.color} shrink-0 mt-0.5`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <div className="text-xs font-medium text-slate-900 dark:text-zinc-100 group-hover/btn:text-blue-600 dark:group-hover/btn:text-blue-400">
-                        {item.label}
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400 line-clamp-1">
-                        {item.desc}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            {menuHeader}
+            {blockOptionList}
           </PopoverContent>
         </Popover>
       </div>

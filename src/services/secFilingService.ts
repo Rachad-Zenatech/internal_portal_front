@@ -104,14 +104,25 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
     }
   }
 
-  // Detect and remove completely empty columns across all rows (or ghost headers)
+  // Detect and remove ghost columns left behind by PDF/Word table parsing.
+  //
+  // A column is only a ghost if its header is meaningless. An empty column under a
+  // real header ("Notes", "Prior Period") belongs to a table the user has not filled
+  // in yet, and dropping it collapsed every new or blank-template table down to a
+  // single column on the next read from storage.
   const colsToRemove: number[] = [];
   for (let c = 1; c < numCols; c++) {
     const hVal = (b.headers[c] || '').trim();
     const isGhostHeader = hVal === '' || /^Col\s*\d+$/i.test(hVal) || hVal === '-';
-    if (colNonEmptyCounts[c] === 0 || (colNonEmptyCounts[c] <= 1 && numCols > 3 && isGhostHeader)) {
+    if (!isGhostHeader) continue;
+    if (colNonEmptyCounts[c] === 0 || (colNonEmptyCounts[c] <= 1 && numCols > 3)) {
       colsToRemove.push(c);
     }
+  }
+
+  // Never compact a table down to a single column; that reads as the table vanishing.
+  while (colsToRemove.length > 0 && numCols - colsToRemove.length < 2) {
+    colsToRemove.pop();
   }
 
   if (colsToRemove.length > 0) {
@@ -198,30 +209,155 @@ let pendingMainDocToSave: SecFilingDocument | null = null;
 let saveProposalsTimer: any = null;
 let pendingProposalsToSave: SecChangeProposal[] | null = null;
 
-export function flushPendingSaves(): void {
+// --------------------------------------------------------------------------
+// Storage quota handling
+//
+// Every merge pushes a full copy of the document into version history and every
+// contributor invite copies the whole block list into a proposal, so this filing
+// outgrows the ~5 MB localStorage budget quickly (uploaded logos are inlined as
+// base64 data URLs, which makes it worse). When that happened the write threw,
+// the error was only logged, and the pending in-memory buffer was cleared anyway
+// -- so a submitted draft silently reverted to whatever was last on disk.
+// --------------------------------------------------------------------------
+
+/** Version snapshots retained on disk; older ones are historical and reclaimable. */
+const MAX_RETAINED_SNAPSHOTS = 5;
+/** Snapshots kept when storage is already full and space must be reclaimed. */
+const MIN_RETAINED_SNAPSHOTS = 2;
+/** Closed (merged/rejected) proposals kept when reclaiming space. */
+const MAX_RETAINED_CLOSED_PROPOSALS = 5;
+
+export type StorageFailure = {
+  key: string;
+  /** True when space was reclaimed and the write eventually went through. */
+  recovered: boolean;
+};
+
+let storageFailureListener: ((failure: StorageFailure) => void) | null = null;
+
+/** Lets the UI surface storage-quota problems instead of only logging them. */
+export function setStorageFailureListener(
+  listener: ((failure: StorageFailure) => void) | null
+): void {
+  storageFailureListener = listener;
+}
+
+function isQuotaError(err: unknown): boolean {
+  if (typeof DOMException !== 'undefined' && err instanceof DOMException) {
+    return (
+      err.name === 'QuotaExceededError' ||
+      err.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+      err.code === 22
+    );
+  }
+  return !!err && typeof err === 'object' && (err as any).name === 'QuotaExceededError';
+}
+
+/**
+ * Frees room taken by purely historical filing data, one escalating round at a
+ * time. Returns false once there is nothing left that is safe to drop.
+ */
+function reclaimStorageSpace(round: number): boolean {
+  try {
+    if (round === 0) {
+      const raw = localStorage.getItem(STORAGE_KEYS.VERSION_HISTORY);
+      if (!raw) return false;
+      const history = JSON.parse(raw);
+      if (!Array.isArray(history) || history.length <= MAX_RETAINED_SNAPSHOTS) return false;
+      // Newest snapshots are appended, so keep the tail.
+      localStorage.setItem(
+        STORAGE_KEYS.VERSION_HISTORY,
+        JSON.stringify(history.slice(-MAX_RETAINED_SNAPSHOTS))
+      );
+      return true;
+    }
+
+    if (round === 1) {
+      const raw = localStorage.getItem(STORAGE_KEYS.VERSION_HISTORY);
+      if (!raw) return false;
+      const history = JSON.parse(raw);
+      if (!Array.isArray(history) || history.length <= MIN_RETAINED_SNAPSHOTS) return false;
+      localStorage.setItem(
+        STORAGE_KEYS.VERSION_HISTORY,
+        JSON.stringify(history.slice(-MIN_RETAINED_SNAPSHOTS))
+      );
+      return true;
+    }
+
+    if (round === 2) {
+      // Drop the oldest closed proposals. Drafts and anything pending review are
+      // live work and are never discarded here.
+      const source = pendingProposalsToSave || JSON.parse(localStorage.getItem(STORAGE_KEYS.PROPOSALS) || 'null');
+      if (!Array.isArray(source)) return false;
+      const isClosed = (p: any) => p?.status === 'merged' || p?.status === 'rejected';
+      const closed = source.filter(isClosed);
+      if (closed.length <= MAX_RETAINED_CLOSED_PROPOSALS) return false;
+      const keptClosed = new Set(closed.slice(0, MAX_RETAINED_CLOSED_PROPOSALS).map((p: any) => p.id));
+      const trimmed = source.filter((p: any) => !isClosed(p) || keptClosed.has(p.id));
+      if (pendingProposalsToSave) {
+        pendingProposalsToSave = trimmed;
+      }
+      localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(trimmed));
+      return true;
+    }
+  } catch (e) {
+    console.warn('Could not reclaim SEC filing storage space', e);
+  }
+  return false;
+}
+
+/**
+ * Writes to localStorage, reclaiming historical data and retrying if the browser
+ * reports the quota as exceeded. Returns false when the value could not be stored.
+ */
+function safeSetItem(key: string, value: string): boolean {
+  for (let round = 0; ; round++) {
+    try {
+      localStorage.setItem(key, value);
+      if (round > 0) {
+        storageFailureListener?.({ key, recovered: true });
+      }
+      return true;
+    } catch (err) {
+      if (!isQuotaError(err)) {
+        console.error(`Failed to write ${key} to storage`, err);
+        storageFailureListener?.({ key, recovered: false });
+        return false;
+      }
+      if (!reclaimStorageSpace(round)) {
+        console.error(`Browser storage is full; could not write ${key}`, err);
+        storageFailureListener?.({ key, recovered: false });
+        return false;
+      }
+    }
+  }
+}
+
+/** Returns true when nothing is left buffered, i.e. every pending write landed. */
+export function flushPendingSaves(): boolean {
   if (pendingMainDocToSave) {
     if (saveMainDocTimer) clearTimeout(saveMainDocTimer);
     saveMainDocTimer = null;
-    try {
-      localStorage.setItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(pendingMainDocToSave));
-      broadcastSync("MAIN_DOC_SAVED", { version: pendingMainDocToSave.version });
-    } catch (e) {
-      console.error('Failed to flush main document to storage', e);
+    const doc = pendingMainDocToSave;
+    if (safeSetItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(doc))) {
+      pendingMainDocToSave = null;
+      broadcastSync("MAIN_DOC_SAVED", { version: doc.version });
     }
-    pendingMainDocToSave = null;
+    // On failure the buffer is deliberately kept: reads go through it, so the
+    // session keeps serving the real document instead of stale on-disk content.
   }
 
   if (pendingProposalsToSave) {
     if (saveProposalsTimer) clearTimeout(saveProposalsTimer);
     saveProposalsTimer = null;
-    try {
-      localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(pendingProposalsToSave));
-      broadcastSync("PROPOSALS_SAVED", { count: pendingProposalsToSave.length });
-    } catch (e) {
-      console.error('Failed to flush proposals to storage', e);
+    const proposals = pendingProposalsToSave;
+    if (safeSetItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(proposals))) {
+      pendingProposalsToSave = null;
+      broadcastSync("PROPOSALS_SAVED", { count: proposals.length });
     }
-    pendingProposalsToSave = null;
   }
+
+  return pendingMainDocToSave === null && pendingProposalsToSave === null;
 }
 
 if (typeof window !== 'undefined') {
@@ -252,18 +388,19 @@ export const secFilingService = {
         console.error('Failed to parse main document from storage', e);
       }
     }
-    localStorage.setItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(INITIAL_SEC_FILING_DOC));
+    safeSetItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(INITIAL_SEC_FILING_DOC));
     return JSON.parse(JSON.stringify(INITIAL_SEC_FILING_DOC));
   },
 
-  saveMainDocument(doc: SecFilingDocument, immediate = false): void {
+  saveMainDocument(doc: SecFilingDocument, immediate = false): boolean {
     pendingMainDocToSave = doc;
     if (immediate) {
-      flushPendingSaves();
+      return flushPendingSaves();
     } else {
       if (saveMainDocTimer) clearTimeout(saveMainDocTimer);
       saveMainDocTimer = setTimeout(flushPendingSaves, 350);
     }
+    return true;
   },
 
   getProposals(): SecChangeProposal[] {
@@ -284,18 +421,18 @@ export const secFilingService = {
         console.error('Failed to parse proposals from storage', e);
       }
     }
-    localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(INITIAL_PROPOSALS));
+    safeSetItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(INITIAL_PROPOSALS));
     return JSON.parse(JSON.stringify(INITIAL_PROPOSALS));
   },
 
-  saveProposals(proposals: SecChangeProposal[], immediate = false): void {
+  saveProposals(proposals: SecChangeProposal[], immediate = false): boolean {
     pendingProposalsToSave = proposals;
     if (immediate) {
-      flushPendingSaves();
-    } else {
-      if (saveProposalsTimer) clearTimeout(saveProposalsTimer);
-      saveProposalsTimer = setTimeout(flushPendingSaves, 350);
+      return flushPendingSaves();
     }
+    if (saveProposalsTimer) clearTimeout(saveProposalsTimer);
+    saveProposalsTimer = setTimeout(flushPendingSaves, 350);
+    return true;
   },
 
   createProposal(
@@ -458,17 +595,30 @@ export const secFilingService = {
     }
   },
 
-  submitProposalForReview(proposalId: string, notes?: string): void {
+  submitProposalForReview(
+    proposalId: string,
+    notes?: string
+  ): { ok: boolean; reason?: 'not_found' | 'storage_full' } {
     const proposals = this.getProposals();
     const p = proposals.find((x) => x.id === proposalId);
-    if (p) {
-      p.status = 'pending_review';
-      p.submissionNotes = notes;
-      p.submittedAt = new Date().toISOString();
-      p.updatedAt = new Date().toISOString();
-      this.saveProposals(proposals);
-      broadcastSync("PROPOSAL_SUBMITTED", { author: p.author.name, proposalId: p.id, title: p.title });
+    if (!p) {
+      return { ok: false, reason: 'not_found' };
     }
+    p.status = 'pending_review';
+    p.submissionNotes = notes;
+    p.submittedAt = new Date().toISOString();
+    p.updatedAt = new Date().toISOString();
+    // Write through immediately. The broadcast below makes other tabs re-read storage
+    // at once, so a debounced write would have them reload a proposal list that does
+    // not contain the submission yet.
+    const persisted = this.saveProposals(proposals, true);
+    if (!persisted) {
+      // The submission is live in this session but did not reach storage, so the
+      // Lead Controller would never see it. Report it instead of claiming success.
+      return { ok: false, reason: 'storage_full' };
+    }
+    broadcastSync("PROPOSAL_SUBMITTED", { author: p.author.name, proposalId: p.id, title: p.title });
+    return { ok: true };
   },
 
   mergeSelectiveChanges(
@@ -530,7 +680,14 @@ export const secFilingService = {
       lastModifiedBy: reviewerName
     };
 
-    this.saveMainDocument(updatedMain);
+    // Write the merged document through immediately and abort the merge if it does not
+    // reach storage, so the proposal is never marked merged against a document that was
+    // silently rolled back.
+    if (!this.saveMainDocument(updatedMain, true)) {
+      throw new Error(
+        'Browser storage is full, so the merged document could not be saved. Clear older version history or merged drafts for this filing, then merge again.'
+      );
+    }
 
     const newSnapshot: SecVersionSnapshot = {
       id: `snap-v${nextVersionNumber}-${Date.now()}`,
@@ -549,7 +706,7 @@ export const secFilingService = {
     proposal.reviewedBy = reviewerName;
     proposal.reviewedAt = new Date().toISOString();
     proposal.reviewNotes = reviewNotes;
-    this.saveProposals(proposals);
+    this.saveProposals(proposals, true);
     broadcastSync("DOC_MERGED", { reviewer: reviewerName, proposalId: proposal.id });
 
     return { updatedDoc: updatedMain, newSnapshot };
@@ -594,12 +751,16 @@ export const secFilingService = {
         console.error('Failed to parse version history', e);
       }
     }
-    localStorage.setItem(STORAGE_KEYS.VERSION_HISTORY, JSON.stringify(INITIAL_VERSION_HISTORY));
+    safeSetItem(STORAGE_KEYS.VERSION_HISTORY, JSON.stringify(INITIAL_VERSION_HISTORY));
     return JSON.parse(JSON.stringify(INITIAL_VERSION_HISTORY));
   },
 
   saveVersionHistory(history: SecVersionSnapshot[]): void {
-    localStorage.setItem(STORAGE_KEYS.VERSION_HISTORY, JSON.stringify(history));
+    // Each snapshot carries a full copy of the document, so cap the history here
+    // rather than letting it grow until it exhausts the storage quota.
+    const capped =
+      history.length > MAX_RETAINED_SNAPSHOTS ? history.slice(-MAX_RETAINED_SNAPSHOTS) : history;
+    safeSetItem(STORAGE_KEYS.VERSION_HISTORY, JSON.stringify(capped));
   },
 
   restoreVersion(snapshotId: string, restoredBy: string): SecFilingDocument {
@@ -620,7 +781,11 @@ export const secFilingService = {
       lastModifiedBy: `${restoredBy} (Restored from ${snapshot.version})`
     };
 
-    this.saveMainDocument(updatedMain);
+    if (!this.saveMainDocument(updatedMain, true)) {
+      throw new Error(
+        'Browser storage is full, so the restored document could not be saved. Clear older version history for this filing, then restore again.'
+      );
+    }
 
     const newSnapshot: SecVersionSnapshot = {
       id: `snap-v${nextVersionNumber}-${Date.now()}`,
@@ -936,9 +1101,18 @@ export const secFilingService = {
   },
 
   resetToDefault(): void {
+    // Drop the debounced buffers too, otherwise reads keep serving the pre-reset
+    // document from memory.
+    if (saveMainDocTimer) clearTimeout(saveMainDocTimer);
+    if (saveProposalsTimer) clearTimeout(saveProposalsTimer);
+    saveMainDocTimer = null;
+    saveProposalsTimer = null;
+    pendingMainDocToSave = null;
+    pendingProposalsToSave = null;
+
     localStorage.removeItem(STORAGE_KEYS.MAIN_DOC);
     localStorage.removeItem(STORAGE_KEYS.PROPOSALS);
     localStorage.removeItem(STORAGE_KEYS.VERSION_HISTORY);
-    localStorage.setItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(INITIAL_SEC_FILING_DOC));
+    safeSetItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(INITIAL_SEC_FILING_DOC));
   }
 };

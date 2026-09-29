@@ -482,8 +482,8 @@ export default function SecFilingContributorPage() {
             onToggleBlockSelection={toggleBlockSelection}
             onSelectAllBlocks={selectAllBlocks}
             onClearSelection={clearBlockSelection}
-            onAddBlock={(index, type) =>
-              addBlock(index, type, sectionFilter !== 'ALL' ? sectionFilter : undefined)
+            onAddBlock={(index, type, customBlock) =>
+              addBlock(index, type, sectionFilter !== 'ALL' ? sectionFilter : undefined, customBlock)
             }
             onUpdateBlock={updateBlock}
             onMoveBlock={moveBlock}

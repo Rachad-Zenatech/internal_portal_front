@@ -38,7 +38,7 @@ interface BlockBuilderProps {
   onToggleBlockSelection?: (id: string, multiSelect?: boolean) => void;
   onSelectAllBlocks?: () => void;
   onClearSelection?: () => void;
-  onAddBlock: (index: number, type: SecBlockType) => void;
+  onAddBlock: (index: number, type: SecBlockType, customBlock?: Partial<SecBlock>) => void;
   onUpdateBlock: (id: string, updates: Partial<SecBlock>) => void;
   onMoveBlock: (id: string, direction: 'up' | 'down') => void;
   onMoveMultipleBlocks?: (ids: string[], direction: 'up' | 'down') => void;
@@ -542,7 +542,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                   {/* If page 1, show top add block bar */}
                   {pageIdx === 0 && (
                     <InlineAddBlock
-                      onAdd={(type) => onAddBlock(0, type)}
+                      onAdd={(type, customBlock) => onAddBlock(0, type, customBlock)}
                       className="mb-2"
                       isAlwaysVisible={blocks.length === 0}
                     />
@@ -629,7 +629,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
             {/* Top Add Block Bar */}
             <div className="relative z-10">
               <InlineAddBlock
-                onAdd={(type) => onAddBlock(0, type)}
+                onAdd={(type, customBlock) => onAddBlock(0, type, customBlock)}
                 className="mb-2"
                 isAlwaysVisible={blocks.length === 0}
               />
@@ -662,7 +662,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                     />
 
                     {/* Inline Add Bar below each block */}
-                    <InlineAddBlock onAdd={(type) => onAddBlock(actualIndex + 1, type)} />
+                    <InlineAddBlock onAdd={(type, customBlock) => onAddBlock(actualIndex + 1, type, customBlock)} />
                   </React.Fragment>
                 );
               })}
