@@ -204,7 +204,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
         },
         {
           "id": "r-11-4",
-          "type": "section_title",
+          "type": "header",
           "cells": [
             "Assets",
             "",
@@ -213,7 +213,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#DAE9F7",
           "doubleUnderline": false,
           "underline": false
         },
@@ -524,7 +523,7 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
         },
         {
           "id": "r-11-26",
-          "type": "section_title",
+          "type": "header",
           "cells": [
             "Liabilities and shareholders’ equity",
             "",
@@ -533,7 +532,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#DAE9F7",
           "doubleUnderline": false,
           "underline": false
         },

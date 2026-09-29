@@ -74,6 +74,12 @@ const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?:
   return false;
 };
 
+export const isMajorStatementHeaderCell = (text: string): boolean => {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  return /^(Assets|Liabilities(\s+and\s+(shareholders['’]?|stockholders['’]?)\s+equity)?):?$/i.test(trimmed);
+};
+
 interface BlockItemProps {
   block: SecBlock;
   index: number;
@@ -1147,7 +1153,9 @@ const FinancialTableBlockEditor: React.FC<{
 
     const nextRows = block.rows.map((r, rIdx) => {
       const isDateHeaderRow = r.type === 'header' || r.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rIdx, cIdx));
-      if (isDateHeaderRow && r.shading) {
+      const isMajorHeaderRow = r.cells.some(c => isMajorStatementHeaderCell(c));
+      const isHeaderLikeRow = r.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+      if (isHeaderLikeRow && r.shading) {
         needsUpdate = true;
         const copy = { ...r };
         delete copy.shading;
@@ -1652,9 +1660,11 @@ const FinancialTableBlockEditor: React.FC<{
               const isTotal = row.type === 'total';
 
               const isDateHeaderRow = row.type === 'header' || row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIdx, cIdx));
+              const isMajorHeaderRow = row.cells.some(c => isMajorStatementHeaderCell(c));
+              const isHeaderLikeRow = row.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
               let rowClass = 'hover:bg-blue-50/20 dark:hover:bg-zinc-800/40';
-              if (isDateHeaderRow) {
-                rowClass = 'font-bold bg-white dark:bg-zinc-900';
+              if (isHeaderLikeRow) {
+                rowClass = 'font-bold bg-white dark:bg-zinc-900 text-[#0E2841]';
               } else if (row.shading) {
                 // custom row shading
               } else if (isTotal) {
@@ -1671,7 +1681,7 @@ const FinancialTableBlockEditor: React.FC<{
               return (
                 <tr
                   key={row.id || rowIdx}
-                  style={(!isDateHeaderRow && row.shading) ? { backgroundColor: row.shading } : undefined}
+                  style={(!isHeaderLikeRow && row.shading) ? { backgroundColor: row.shading } : undefined}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
@@ -1797,6 +1807,7 @@ const FinancialTableBlockEditor: React.FC<{
                         </div>
                         {[
                           { type: 'data' as const, label: 'Data Line Item' },
+                          { type: 'header' as const, label: 'Table Header (White, Centered)' },
                           { type: 'section_title' as const, label: 'Section Header (#DAE9F7)' },
                           { type: 'subtotal' as const, label: 'Subtotal (Bordered)' },
                           { type: 'total' as const, label: 'Total Net (Double Underline)' },
@@ -1829,10 +1840,11 @@ const FinancialTableBlockEditor: React.FC<{
 
                   {row.cells.map((cellValue, colIdx) => {
                     const isDateHeader = isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
-                    const align = isDateHeader ? 'center' : (block.columnAlignments[colIdx] || 'left');
+                    const isMajorHeader = isMajorStatementHeaderCell(cellValue);
                     const isFirst = colIdx === 0;
+                    const align = (isDateHeader || isMajorHeader || (row.type === 'header' && isFirst)) ? 'center' : (block.columnAlignments[colIdx] || 'left');
                     const indentPadding =
-                      isFirst && row.indent ? (row.indent === 1 ? 'pl-6' : 'pl-10') : 'pl-1.5';
+                      isFirst && !isMajorHeader && row.indent ? (row.indent === 1 ? 'pl-6' : 'pl-10') : 'pl-1.5';
 
                     let cellBorderStyle = '';
                     if (isTotal) {
@@ -1853,9 +1865,9 @@ const FinancialTableBlockEditor: React.FC<{
                           type="text"
                           value={cellValue}
                           onChange={(e) => handleCellChange(rowIdx, colIdx, e.target.value)}
-                          placeholder={isFirst ? '' : '-'}
+                          placeholder={isFirst || isHeaderLikeRow ? '' : '-'}
                           style={{ textAlign: align }} className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
-                            isTotal || row.bold
+                            isTotal || row.bold || isHeaderLikeRow
                               ? 'font-bold text-slate-900 dark:text-zinc-100'
                               : 'text-slate-900 dark:text-zinc-200'
                           } ${row.italic ? 'italic text-slate-700 dark:text-zinc-300' : ''}`}

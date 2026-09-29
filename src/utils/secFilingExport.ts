@@ -62,6 +62,12 @@ const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?:
   return false;
 };
 
+export const isMajorStatementHeaderCell = (text: string): boolean => {
+  const trimmed = (text || '').trim();
+  if (!trimmed) return false;
+  return /^(Assets|Liabilities(\s+and\s+(shareholders['’]?|stockholders['’]?)\s+equity)?):?$/i.test(trimmed);
+};
+
 const getTopSpacingTwips = (spacingTop: number | undefined, defaultTwips: number): number => {
   if (typeof spacingTop === 'number') {
     return Math.max(0, Math.round(spacingTop * 15));
@@ -416,7 +422,9 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       for (let rowIndex = 0; rowIndex < block.rows.length; rowIndex++) {
         const row = block.rows[rowIndex];
         const isDateHeaderRow = row.type === 'header' || row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIndex, cIdx));
-        const fillHex = isDateHeaderRow
+        const isMajorHeaderRow = row.cells.some(c => isMajorStatementHeaderCell(c));
+        const isHeaderLikeRow = row.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+        const fillHex = isHeaderLikeRow
           ? undefined
           : row.shading
           ? row.shading.replace('#', '')
@@ -428,10 +436,11 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
           new TableRow({
             children: row.cells.map((cellText, colIndex) => {
               const isDateHeader = isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
+              const isMajorHeader = isMajorStatementHeaderCell(cellText);
               const defaultAlign = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
-              const align = isDateHeader ? 'center' : defaultAlign;
+              const align = (isDateHeader || isMajorHeader || (row.type === 'header' && colIndex === 0)) ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
-              const indent = isFirstCol && row.indent ? row.indent * 200 : 0;
+              const indent = isFirstCol && !isMajorHeader && row.indent ? row.indent * 200 : 0;
               const sanitizedCells = sanitizeTableCells(row.cells);
               const cellVal = sanitizedCells[colIndex] ?? cellText;
               const lines = (cellVal || '').split('\n');
@@ -454,7 +463,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                 : (AlignmentType.LEFT as any);
 
               return new TableCell({
-                shading: (fillHex && !isDateHeader) ? { fill: fillHex } : undefined,
+                shading: (fillHex && !isDateHeader && !isMajorHeader && row.type !== 'header') ? { fill: fillHex } : undefined,
                 children: lines.map((line) => new Paragraph({
                   alignment,
                   indent: indent > 0 ? { left: indent } : undefined,
@@ -462,7 +471,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                   children: [
                     new TextRun({
                       text: line,
-                      bold: isDateHeader || row.bold || row.type === 'total' || row.type === 'section_title' || row.type === 'header',
+                      bold: isDateHeader || isMajorHeader || row.bold || row.type === 'total' || row.type === 'section_title' || row.type === 'header',
                       italics: row.italic,
                       size: 18,
                       font: 'Calibri'
@@ -883,17 +892,21 @@ export function printSecFiling(doc: SecFilingDocument) {
                     <tbody>
                       ${b.rows
                         .map((r, rIdx) => {
-                          const rowClass = r.type === 'total' ? 'total' : r.type === 'subtotal' ? 'subtotal' : r.type === 'section_title' ? 'section_title' : '';
-                          const rowBg = r.shading ? `background-color: ${r.shading};` : (r.type === 'section_title' ? 'background-color: #DAE9F7;' : '');
+                          const isDateHeaderRow = r.type === 'header' || r.cells.some((c, i) => isComparativeDateHeaderCell(c, rIdx, i));
+                          const isMajorHeaderRow = r.cells.some(c => isMajorStatementHeaderCell(c));
+                          const isHeaderLikeRow = r.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+                          const rowClass = r.type === 'total' ? 'total' : r.type === 'subtotal' ? 'subtotal' : isHeaderLikeRow ? 'date_header' : (r.type === 'section_title' ? 'section_title' : '');
+                          const rowBg = isHeaderLikeRow ? 'background-color: transparent;' : (r.shading ? `background-color: ${r.shading};` : (r.type === 'section_title' ? 'background-color: #DAE9F7;' : ''));
                           return `
                             <tr class="${rowClass}" style="${rowBg}">
                               ${sanitizeTableCells(r.cells)
                                 .map((c, i) => {
                                   const isDateHeader = isComparativeDateHeaderCell(c, rIdx, i);
-                                  const alignVal = isDateHeader ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
+                                  const isMajorHeader = isMajorStatementHeaderCell(c);
+                                  const alignVal = (isDateHeader || isMajorHeader || (r.type === 'header' && i === 0)) ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
                                   const align = `align-${alignVal}`;
-                                  const indent = i === 0 && r.indent ? `indent-${r.indent}` : '';
-                                  const bold = isDateHeader || r.bold || r.type === 'section_title' ? 'font-weight: bold;' : '';
+                                  const indent = i === 0 && !isMajorHeader && r.indent ? `indent-${r.indent}` : '';
+                                  const bold = isDateHeader || isMajorHeader || r.bold || r.type === 'section_title' || r.type === 'header' ? 'font-weight: bold;' : '';
                                   const italic = r.italic ? 'font-style: italic;' : '';
                                   return `<td class="${align} ${indent}" style="text-align: ${alignVal}; ${bold} ${italic}">${c || '&nbsp;'}</td>`;
                                 })

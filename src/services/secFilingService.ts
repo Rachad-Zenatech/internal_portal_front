@@ -114,6 +114,15 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
     }));
   }
 
+  // 5. Clean shading from header rows and major statement headers (e.g. Assets)
+  for (const r of b.rows) {
+    const isMajorHeader = r.cells && r.cells.some((c: string) => /^(Assets|Liabilities(\s+and\s+(shareholders['’]?|stockholders['’]?)\s+equity)?):?$/i.test((c || '').trim()));
+    const isDateHeader = r.type === 'header' || (r.cells && r.cells.some((c: string) => /^As of$/i.test((c || '').trim()) || /^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test((c || '').trim())));
+    if ((r.type === 'header' || isMajorHeader || isDateHeader) && r.shading) {
+      delete r.shading;
+    }
+  }
+
   return b as any;
 }
 
