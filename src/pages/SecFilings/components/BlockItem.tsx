@@ -25,7 +25,9 @@ import {
   ArrowRight,
   CornerDownRight,
   GripVertical,
-  LayoutTemplate
+  LayoutTemplate,
+  Undo2,
+  Check
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
 import { mediaBucketService } from '../../../services/mediaBucketService';
@@ -60,6 +62,10 @@ const NUMERIC_OR_FINANCIAL_RE = /^[$\d,.\s()–—\-+]+$/;
 const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
   const trimmed = (text || '').trim();
   if (!trimmed) return false;
+  // A bare four-digit year in the top header rows is a period caption, not a figure.
+  // This has to be tested before the numeric fast-path below, which would otherwise
+  // reject "2026"/"2025" and leave them right-aligned with the money columns.
+  if (rowIndex <= 3 && /^(19|20)\d{2}(\s+in\s+[$a-zA-Z]+)?$/.test(trimmed)) return true;
   // FAST-PATH: Financial numbers, dashes, currency symbols can never be date headers
   if (NUMERIC_OR_FINANCIAL_RE.test(trimmed)) return false;
   if (/^As of$/i.test(trimmed)) return true;
@@ -963,6 +969,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
           <FinancialTableBlockEditor
             block={block as SecFinancialTableBlock}
             onUpdate={onUpdate}
+            isSelected={isHighlighted}
           />
         )}
 
@@ -1158,7 +1165,8 @@ const TableCellInput: React.FC<{
   placeholder?: string;
   style?: React.CSSProperties;
   className?: string;
-}> = ({ initialValue, onCommit, placeholder, style, className }) => {
+  onFocus?: () => void;
+}> = ({ initialValue, onCommit, placeholder, style, className, onFocus }) => {
   const [val, setVal] = useState(initialValue);
   const debounceRef = useRef<any>(null);
 
@@ -1197,6 +1205,7 @@ const TableCellInput: React.FC<{
       value={val}
       onChange={handleChange}
       onBlur={handleBlur}
+      onFocus={onFocus}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
       style={style}
@@ -1211,10 +1220,14 @@ const TableCellInput: React.FC<{
 const FinancialTableBlockEditor: React.FC<{
   block: SecFinancialTableBlock;
   onUpdate: (u: Partial<SecFinancialTableBlock>) => void;
-}> = ({ block, onUpdate }) => {
+  isSelected?: boolean;
+}> = ({ block, onUpdate, isSelected = false }) => {
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
   const [openRowMenuIdx, setOpenRowMenuIdx] = useState<number | null>(null);
+  // Column of the cell the user last clicked into, so the toolbar can align "that
+  // one column" without making them hunt through the column header menu.
+  const [activeColIdx, setActiveColIdx] = useState<number | null>(null);
 
   const sanitizedBlockIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1510,6 +1523,19 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({ rows: nextRows });
   };
 
+  /** Sets or clears a per-row alignment override. `undefined` falls back to the column. */
+  const setRowAlignment = (rowIndex: number, align: SecTableRow['align']) => {
+    const nextRows = [...block.rows];
+    const r = { ...nextRows[rowIndex] };
+    if (align) {
+      r.align = align;
+    } else {
+      delete r.align;
+    }
+    nextRows[rowIndex] = r;
+    onUpdate({ rows: nextRows });
+  };
+
   const setRowType = (rowIndex: number, type: SecTableRow['type']) => {
     const nextRows = [...block.rows];
     const r = { ...nextRows[rowIndex] };
@@ -1548,10 +1574,13 @@ const FinancialTableBlockEditor: React.FC<{
         const isDateHeader = !isSection && isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
         const isMajorHeader = !isSection && (isMajorStatementHeaderCell(cellValue) || (isMajorHeaderRow && colIdx === 0));
         const isFirst = colIdx === 0;
-        const align =
-          isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && isFirst)
-            ? 'center'
-            : block.columnAlignments[colIdx] || 'left';
+        // An explicit per-row alignment beats both the auto-detected header centering
+        // and the column default, so a caption row can be centered by hand.
+        const align = row.align
+          ? row.align
+          : isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && isFirst)
+          ? 'center'
+          : block.columnAlignments[colIdx] || 'left';
         const maxAllowedIndent = (row.type === 'header' || isMajorHeaderRow) ? 1 : 3;
         const effectiveIndent = Math.min(row.indent || 0, maxAllowedIndent);
         const indentPadding =
@@ -1582,8 +1611,13 @@ const FinancialTableBlockEditor: React.FC<{
       className="my-3 space-y-1 font-sans"
       style={{ fontFamily: 'Calibri, "Segoe UI", Arial, sans-serif' }}
     >
-      {/* Table Title and Quick Add Controls */}
-      <div className="flex items-center justify-between gap-2 opacity-60 hover:opacity-100 transition-opacity pb-0.5">
+      {/* Table Title and Quick Add Controls. Shown in full while the block is
+          selected so the alignment and template controls are not hover-only. */}
+      <div
+        className={`flex items-center justify-between gap-2 hover:opacity-100 transition-opacity pb-0.5 ${
+          isSelected ? 'opacity-100' : 'opacity-60'
+        }`}
+      >
         <span className="text-[11px] font-bold text-[#0E2841] tracking-wide">
           {block.title || 'Financial Schedule'}
         </span>
@@ -1645,6 +1679,47 @@ const FinancialTableBlockEditor: React.FC<{
               })}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Column alignment for the column the user is in. Clicking any cell sets
+              the target, so centering one column takes two clicks. */}
+          <div
+            className="flex items-center gap-0.5 rounded border border-slate-200 dark:border-zinc-700 px-1 py-0.5"
+            title={
+              activeColIdx === null
+                ? 'Click a cell first, then align its column'
+                : `Align column ${activeColIdx + 1}`
+            }
+          >
+            <span className="px-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">
+              {activeColIdx === null ? 'Align col' : `Col ${activeColIdx + 1}`}
+            </span>
+            {([
+              { value: 'left' as const, label: 'Align column left', Icon: AlignLeft },
+              { value: 'center' as const, label: 'Center column', Icon: AlignCenter },
+              { value: 'right' as const, label: 'Align column right', Icon: AlignRight }
+            ]).map(({ value, label, Icon }) => {
+              const isActive =
+                activeColIdx !== null && (block.columnAlignments[activeColIdx] || 'left') === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={activeColIdx === null}
+                  // Keep the focused cell so the target column does not reset on click.
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => activeColIdx !== null && setColumnAlignment(activeColIdx, value)}
+                  title={label}
+                  className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                    isActive
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                </button>
+              );
+            })}
+          </div>
 
           <Button
             type="button"
@@ -1746,6 +1821,7 @@ const FinancialTableBlockEditor: React.FC<{
                         value={header}
                         placeholder={`Col ${colIdx + 1}`}
                         onChange={(e) => handleHeaderChange(colIdx, e.target.value)}
+                        onFocus={() => setActiveColIdx(colIdx)}
                         style={{ textAlign: align }} className={`w-full bg-transparent font-bold text-[#0E2841] ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} hover:bg-white/60 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500`}
                       />
 
@@ -1756,16 +1832,37 @@ const FinancialTableBlockEditor: React.FC<{
                             type="button"
                             onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => e.stopPropagation()}
-                            title="Column Actions: Add Left/Right, Move Left/Right, Align, Delete"
-                            className="w-5 h-5 rounded flex items-center justify-center text-slate-500 hover:text-blue-700 hover:bg-white/80 transition-colors opacity-0 group-hover/col:opacity-100 shrink-0"
+                            title="Column actions: align, add, move, duplicate, delete"
+                            className="w-5 h-5 rounded flex items-center justify-center text-slate-400 hover:text-blue-700 hover:bg-white/80 transition-colors opacity-50 group-hover/col:opacity-100 shrink-0"
                           >
                             <Menu className="w-3 h-3" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52 p-1 text-xs font-normal">
+                        <DropdownMenuContent align="end" className="w-56 p-1 text-xs font-normal">
                           <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                            Column {colIdx + 1} Actions
+                            Column {colIdx + 1}
                           </div>
+
+                          {/* Alignment first: it is the control people come here for. */}
+                          {([
+                            { value: 'left' as const, label: 'Align Left', Icon: AlignLeft },
+                            { value: 'center' as const, label: 'Align Center', Icon: AlignCenter },
+                            { value: 'right' as const, label: 'Align Right', Icon: AlignRight }
+                          ]).map(({ value, label, Icon }) => (
+                            <DropdownMenuItem
+                              key={value}
+                              onClick={() => setColumnAlignment(colIdx, value)}
+                              className={`flex items-center gap-2 py-1.5 cursor-pointer ${
+                                align === value ? 'bg-blue-50 dark:bg-blue-950/50 font-semibold text-blue-700 dark:text-blue-300' : ''
+                              }`}
+                            >
+                              <Icon className={`w-3.5 h-3.5 ${align === value ? 'text-blue-600' : 'text-slate-500'}`} />
+                              <span>{label}</span>
+                              {align === value && <Check className="w-3 h-3 ml-auto text-blue-600" />}
+                            </DropdownMenuItem>
+                          ))}
+
+                          <DropdownMenuSeparator />
 
                           {/* Add Column Left */}
                           <DropdownMenuItem
@@ -1823,43 +1920,6 @@ const FinancialTableBlockEditor: React.FC<{
                             <Copy className="w-3.5 h-3.5 text-slate-500" />
                             <span>Duplicate Column</span>
                           </DropdownMenuItem>
-
-                          {/* Column Alignment */}
-                          <div className="px-2 py-1 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
-                            Alignment
-                          </div>
-                          <div className="flex items-center gap-1 px-2 py-1">
-                            <button
-                              type="button"
-                              onClick={() => setColumnAlignment(colIdx, 'left')}
-                              className={`flex-1 p-1 rounded text-center transition-colors flex items-center justify-center ${
-                                align === 'left' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200'
-                              }`}
-                              title="Align Left"
-                            >
-                              <AlignLeft className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setColumnAlignment(colIdx, 'center')}
-                              className={`flex-1 p-1 rounded text-center transition-colors flex items-center justify-center ${
-                                align === 'center' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200'
-                              }`}
-                              title="Align Center"
-                            >
-                              <AlignCenter className="w-3 h-3" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setColumnAlignment(colIdx, 'right')}
-                              className={`flex-1 p-1 rounded text-center transition-colors flex items-center justify-center ${
-                                align === 'right' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-slate-200'
-                              }`}
-                              title="Align Right"
-                            >
-                              <AlignRight className="w-3 h-3" />
-                            </button>
-                          </div>
 
                           <DropdownMenuSeparator />
 
@@ -2048,6 +2108,43 @@ const FinancialTableBlockEditor: React.FC<{
 
                         <DropdownMenuSeparator />
 
+                        {/* Row Alignment: overrides the column alignment for this row only,
+                            so a period caption row can be centered over right-aligned figures. */}
+                        <div className="px-2 py-0.5 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Row Alignment
+                        </div>
+                        <div className="flex items-center gap-1 px-2 py-1">
+                          {([
+                            { value: 'left' as const, label: 'Align row left', Icon: AlignLeft },
+                            { value: 'center' as const, label: 'Center row', Icon: AlignCenter },
+                            { value: 'right' as const, label: 'Align row right', Icon: AlignRight }
+                          ]).map(({ value, label, Icon }) => (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => setRowAlignment(rowIdx, row.align === value ? undefined : value)}
+                              title={label}
+                              className={`flex-1 p-1 rounded text-center transition-colors flex items-center justify-center ${
+                                row.align === value
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700'
+                              }`}
+                            >
+                              <Icon className="w-3 h-3" />
+                            </button>
+                          ))}
+                        </div>
+                        <DropdownMenuItem
+                          disabled={!row.align}
+                          onClick={() => { setOpenRowMenuIdx(null); setRowAlignment(rowIdx, undefined); }}
+                          className="flex items-center gap-2 py-1.5 cursor-pointer disabled:opacity-40"
+                        >
+                          <Undo2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Use column alignment</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+
                         {/* Row Format Type */}
                         <div className="px-2 py-0.5 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
                           Row Style
@@ -2112,6 +2209,7 @@ const FinancialTableBlockEditor: React.FC<{
                         <TableCellInput
                           initialValue={cellValue}
                           onCommit={(val) => handleCellChange(rowIdx, colIdx, val)}
+                          onFocus={() => setActiveColIdx(colIdx)}
                           placeholder={isFirst || isHeaderLikeRow || isSection ? '' : '-'}
                           style={{ textAlign: align }}
                           className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${

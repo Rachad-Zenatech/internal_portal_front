@@ -450,7 +450,10 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
               const isDateHeader = !isSection && isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
               const isMajorHeader = !isSection && (isMajorStatementHeaderCell(cellText) || (isMajorHeaderRow && colIndex === 0));
               const defaultAlign = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
-              const align = (isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && colIndex === 0)) ? 'center' : defaultAlign;
+              // An explicit per-row alignment wins over header auto-centering and the column default.
+              const align = row.align
+                ? row.align
+                : (isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && colIndex === 0)) ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
               const maxAllowedIndent = (row.type === 'header' || isMajorHeaderRow) ? 1 : 3;
               const effectiveIndent = Math.min(row.indent || 0, maxAllowedIndent);
@@ -919,7 +922,9 @@ export function printSecFiling(doc: SecFilingDocument) {
                                 .map((c, i) => {
                                   const isDateHeader = !isSection && isComparativeDateHeaderCell(c, rIdx, i);
                                   const isMajorHeader = !isSection && (isMajorStatementHeaderCell(c) || (isMajorHeaderRow && i === 0));
-                                  const alignVal = (isDateHeader || isMajorHeader || ((r.type === 'header' || isMajorHeaderRow) && i === 0)) ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
+                                  const alignVal = r.align
+                                    ? r.align
+                                    : (isDateHeader || isMajorHeader || ((r.type === 'header' || isMajorHeaderRow) && i === 0)) ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
                                   const align = `align-${alignVal}`;
                                   const maxAllowedIndent = (r.type === 'header' || isMajorHeaderRow) ? 1 : 3;
                                   const effectiveIndent = Math.min(r.indent || 0, maxAllowedIndent);

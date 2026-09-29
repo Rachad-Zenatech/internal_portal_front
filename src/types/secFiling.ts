@@ -64,6 +64,12 @@ export interface SecTableRow {
   doubleUnderline?: boolean;
   shading?: string;
   indent?: number; // 0, 1, 2, 3 indentation level
+  /**
+   * Per-row horizontal alignment override. When set it wins over the column's own
+   * alignment for every cell in the row, which is how a comparative-period caption
+   * row ("2026" / "2025") gets centered above right-aligned figure columns.
+   */
+  align?: 'left' | 'center' | 'right';
 }
 
 /** Centered multi-line label shown above an individual comparative-value column. */
