@@ -984,11 +984,13 @@ export function useSecFiling() {
         toast.info('Freed up browser storage by trimming old filing version history.');
         return;
       }
+      const mb = (n?: number) => (typeof n === 'number' ? `${(n / 1024 / 1024).toFixed(1)} MB` : 'the budget');
       toast.error('Browser storage is full — this filing could not be saved.', {
         id: 'sec-filing-storage-full',
         description:
-          'Keep this tab open, then clear older merged drafts or version history for this filing before continuing.',
-        duration: 10000
+          `${mb(failure.totalBytes)} in use${failure.largestKey ? `, mostly "${failure.largestKey}"` : ''}. ` +
+          'Your edits are still open in this tab. See the console for a full breakdown by key.',
+        duration: 12000
       });
     });
     return () => setStorageFailureListener(null);

@@ -231,6 +231,10 @@ export type StorageFailure = {
   key: string;
   /** True when space was reclaimed and the write eventually went through. */
   recovered: boolean;
+  /** Total bytes localStorage is holding, when the failure was a quota error. */
+  totalBytes?: number;
+  /** The single largest key, so the UI can name what is filling the budget. */
+  largestKey?: string | null;
 };
 
 let storageFailureListener: ((failure: StorageFailure) => void) | null = null;
@@ -257,53 +261,120 @@ function isQuotaError(err: unknown): boolean {
  * Frees room taken by purely historical filing data, one escalating round at a
  * time. Returns false once there is nothing left that is safe to drop.
  */
+/**
+ * Superseded key generations. They are still read as fallbacks by
+ * getMainDocument/getProposals, but once the current key holds data they are
+ * dead weight -- each one can hold another full copy of a ~0.5 MB document.
+ */
+const LEGACY_KEYS: { legacy: string; supersededBy: string }[] = [
+  { legacy: 'sec_filing_main_doc_v2_full', supersededBy: STORAGE_KEYS.MAIN_DOC },
+  { legacy: 'sec_filing_main_doc', supersededBy: STORAGE_KEYS.MAIN_DOC },
+  { legacy: 'sec_filing_proposals_v1', supersededBy: STORAGE_KEYS.PROPOSALS },
+  { legacy: 'sec_filing_proposals', supersededBy: STORAGE_KEYS.PROPOSALS },
+  { legacy: 'sec_filing_versions_v2_full', supersededBy: STORAGE_KEYS.VERSION_HISTORY }
+];
+
+/** Byte size of every localStorage entry, largest first. */
+export function describeStorageUsage(): { key: string; bytes: number }[] {
+  const entries: { key: string; bytes: number }[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      // Both the key and the value count toward the quota.
+      entries.push({ key, bytes: (localStorage.getItem(key) || '').length + key.length });
+    }
+  } catch (e) {
+    console.warn('Could not measure storage usage', e);
+  }
+  return entries.sort((a, b) => b.bytes - a.bytes);
+}
+
+function logStorageBreakdown(): { totalBytes: number; largestKey: string | null } {
+  const entries = describeStorageUsage();
+  const totalBytes = entries.reduce((sum, e) => sum + e.bytes, 0);
+  const mb = (n: number) => `${(n / 1024 / 1024).toFixed(2)} MB`;
+  console.warn(
+    `Browser storage is full. ${mb(totalBytes)} in use across ${entries.length} keys:\n` +
+      entries.map((e) => `  ${mb(e.bytes).padStart(9)}  ${e.key}`).join('\n')
+  );
+  return { totalBytes, largestKey: entries.length > 0 ? entries[0].key : null };
+}
+
+function readProposalsForReclaim(): any[] | null {
+  const source =
+    pendingProposalsToSave ||
+    JSON.parse(localStorage.getItem(STORAGE_KEYS.PROPOSALS) || 'null');
+  return Array.isArray(source) ? source : null;
+}
+
+function writeProposalsForReclaim(next: any[]): void {
+  if (pendingProposalsToSave) {
+    pendingProposalsToSave = next;
+  }
+  localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(next));
+}
+
+function trimHistoryTo(limit: number): boolean {
+  const raw = localStorage.getItem(STORAGE_KEYS.VERSION_HISTORY);
+  if (!raw) return false;
+  const history = JSON.parse(raw);
+  if (!Array.isArray(history) || history.length <= limit) return false;
+  // Newest snapshots are appended, so keep the tail.
+  localStorage.setItem(STORAGE_KEYS.VERSION_HISTORY, JSON.stringify(history.slice(-limit)));
+  return true;
+}
+
+/** Drops closed proposals beyond `keep`, newest first. Live work is never touched. */
+function trimClosedProposalsTo(keep: number): boolean {
+  const source = readProposalsForReclaim();
+  if (!source) return false;
+  const isClosed = (p: any) => p?.status === 'merged' || p?.status === 'rejected';
+  const closed = source.filter(isClosed);
+  if (closed.length <= keep) return false;
+  // Proposals are unshifted, so the newest come first.
+  const kept = new Set(closed.slice(0, keep).map((p: any) => p.id));
+  writeProposalsForReclaim(source.filter((p: any) => !isClosed(p) || kept.has(p.id)));
+  return true;
+}
+
 function reclaimStorageSpace(round: number): boolean {
   try {
-    if (round === 0) {
-      const raw = localStorage.getItem(STORAGE_KEYS.VERSION_HISTORY);
-      if (!raw) return false;
-      const history = JSON.parse(raw);
-      if (!Array.isArray(history) || history.length <= MAX_RETAINED_SNAPSHOTS) return false;
-      // Newest snapshots are appended, so keep the tail.
-      localStorage.setItem(
-        STORAGE_KEYS.VERSION_HISTORY,
-        JSON.stringify(history.slice(-MAX_RETAINED_SNAPSHOTS))
-      );
-      return true;
-    }
-
-    if (round === 1) {
-      const raw = localStorage.getItem(STORAGE_KEYS.VERSION_HISTORY);
-      if (!raw) return false;
-      const history = JSON.parse(raw);
-      if (!Array.isArray(history) || history.length <= MIN_RETAINED_SNAPSHOTS) return false;
-      localStorage.setItem(
-        STORAGE_KEYS.VERSION_HISTORY,
-        JSON.stringify(history.slice(-MIN_RETAINED_SNAPSHOTS))
-      );
-      return true;
-    }
-
-    if (round === 2) {
-      // Drop the oldest closed proposals. Drafts and anything pending review are
-      // live work and are never discarded here.
-      const source = pendingProposalsToSave || JSON.parse(localStorage.getItem(STORAGE_KEYS.PROPOSALS) || 'null');
-      if (!Array.isArray(source)) return false;
-      const isClosed = (p: any) => p?.status === 'merged' || p?.status === 'rejected';
-      const closed = source.filter(isClosed);
-      if (closed.length <= MAX_RETAINED_CLOSED_PROPOSALS) return false;
-      const keptClosed = new Set(closed.slice(0, MAX_RETAINED_CLOSED_PROPOSALS).map((p: any) => p.id));
-      const trimmed = source.filter((p: any) => !isClosed(p) || keptClosed.has(p.id));
-      if (pendingProposalsToSave) {
-        pendingProposalsToSave = trimmed;
+    switch (round) {
+      case 0: {
+        // Superseded key generations first: pure dead weight, nothing to lose.
+        let freed = false;
+        for (const { legacy, supersededBy } of LEGACY_KEYS) {
+          if (localStorage.getItem(legacy) === null) continue;
+          // Never drop a legacy copy unless the current key actually holds data.
+          if (!localStorage.getItem(supersededBy)) continue;
+          localStorage.removeItem(legacy);
+          freed = true;
+        }
+        return freed;
       }
-      localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(trimmed));
-      return true;
+      case 1:
+        return trimHistoryTo(MAX_RETAINED_SNAPSHOTS);
+      case 2:
+        return trimClosedProposalsTo(MAX_RETAINED_CLOSED_PROPOSALS);
+      case 3:
+        return trimHistoryTo(MIN_RETAINED_SNAPSHOTS);
+      case 4:
+        return trimClosedProposalsTo(1);
+      case 5:
+        // Only the version the document is currently on.
+        return trimHistoryTo(1);
+      case 6:
+        // Merged proposals are already folded into the main document and
+        // rejected ones are dead, so the last thing to go is all of them.
+        return trimClosedProposalsTo(0);
+      default:
+        return false;
     }
   } catch (e) {
     console.warn('Could not reclaim SEC filing storage space', e);
+    return false;
   }
-  return false;
 }
 
 /**
@@ -325,8 +396,11 @@ function safeSetItem(key: string, value: string): boolean {
         return false;
       }
       if (!reclaimStorageSpace(round)) {
+        // Nothing left that is safe to drop. Print what is actually using the
+        // budget so the cause is visible rather than guessed at.
+        const { totalBytes, largestKey } = logStorageBreakdown();
         console.error(`Browser storage is full; could not write ${key}`, err);
-        storageFailureListener?.({ key, recovered: false });
+        storageFailureListener?.({ key, recovered: false, totalBytes, largestKey });
         return false;
       }
     }
