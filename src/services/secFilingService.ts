@@ -14,14 +14,9 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
 
   const b = {
     ...table,
-    headerShading: (table.headerShading && !['#CCECFF', '#DAE9F7', '#A6A6A6', '#CAEDFB'].includes(table.headerShading.toUpperCase())) ? table.headerShading : '#FFFFFF',
     headers: [...(table.headers || [])],
     columnAlignments: [...(table.columnAlignments || [])],
-    rows: table.rows.map((r: any) => ({
-      ...r,
-      shading: ((r.type === 'header' || r.type === 'section_title') && ['#CCECFF', '#DAE9F7', '#A6A6A6', '#CAEDFB', '#EBF5FB'].includes(r.shading?.toUpperCase())) ? undefined : r.shading,
-      cells: [...r.cells]
-    }))
+    rows: table.rows.map((r: any) => ({ ...r, cells: [...r.cells] }))
   };
 
   const numCols = b.headers.length;

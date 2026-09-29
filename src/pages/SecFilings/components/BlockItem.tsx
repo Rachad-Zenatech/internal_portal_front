@@ -1441,7 +1441,7 @@ const FinancialTableBlockEditor: React.FC<{
         <table className="w-full text-[13px] border-collapse">
           <thead>
             {(block.periodHeaders?.length || 0) > 0 && (
-              <tr className="border-b border-slate-900 text-[#0E2841] bg-white">
+              <tr className="border-b border-slate-900 text-[#0E2841]">
                 <th className="w-7 min-w-[28px] max-w-[28px] p-1" />
                 {block.headers.map((_, colIdx) => {
                   const periodHeader = block.periodHeaders?.find((header) => header.columnIndex === colIdx);
@@ -1462,7 +1462,7 @@ const FinancialTableBlockEditor: React.FC<{
               </tr>
             )}
             <tr
-              style={{ backgroundColor: (block.headerShading && !['#CCECFF', '#DAE9F7', '#A6A6A6', '#CAEDFB'].includes(block.headerShading.toUpperCase())) ? block.headerShading : '#FFFFFF' }}
+              style={{ backgroundColor: block.headerShading || '#CCECFF' }}
               className="border-t border-b-2 border-slate-900 text-[#0E2841]"
             >
               {/* Left Sandwich Bar Column Header */}
@@ -1634,7 +1634,7 @@ const FinancialTableBlockEditor: React.FC<{
               } else if (isSubtotal) {
                 rowClass = 'font-semibold';
               } else if (isSection) {
-                rowClass = 'bg-white font-bold text-[#0E2841]';
+                rowClass = 'bg-[#DAE9F7] font-bold text-[#0E2841]';
               }
 
               const isBeingDragged = draggedRowIdx === rowIdx;
@@ -1643,7 +1643,7 @@ const FinancialTableBlockEditor: React.FC<{
               return (
                 <tr
                   key={row.id || rowIdx}
-                  style={(row.shading && !['#DAE9F7', '#CCECFF', '#CAEDFB', '#A6A6A6', '#EBF5FB'].includes(row.shading.toUpperCase())) ? { backgroundColor: row.shading } : undefined}
+                  style={row.shading ? { backgroundColor: row.shading } : undefined}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';
@@ -1769,7 +1769,7 @@ const FinancialTableBlockEditor: React.FC<{
                         </div>
                         {[
                           { type: 'data' as const, label: 'Data Line Item' },
-                          { type: 'section_title' as const, label: 'Section Header (Bold / Centered)' },
+                          { type: 'section_title' as const, label: 'Section Header (#DAE9F7)' },
                           { type: 'subtotal' as const, label: 'Subtotal (Bordered)' },
                           { type: 'total' as const, label: 'Total Net (Double Underline)' },
                           { type: 'blank' as const, label: 'Blank Spacer' }
@@ -1800,10 +1800,9 @@ const FinancialTableBlockEditor: React.FC<{
                   </td>
 
                   {row.cells.map((cellValue, colIdx) => {
-                    const isFirst = colIdx === 0;
                     const isDateHeader = isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
-                    const isCenteredHeader = isDateHeader || (isSection && isFirst) || /^assets$/i.test(cellValue?.trim());
-                    const align = isCenteredHeader ? 'center' : (block.columnAlignments[colIdx] || 'left');
+                    const align = isDateHeader ? 'center' : (block.columnAlignments[colIdx] || 'left');
+                    const isFirst = colIdx === 0;
                     const indentPadding =
                       isFirst && row.indent ? (row.indent === 1 ? 'pl-6' : 'pl-10') : 'pl-1.5';
 

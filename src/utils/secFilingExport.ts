@@ -376,7 +376,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       }
 
       if (hasMeaningfulHeader && !firstRowIsHeader) {
-        const headerFill = (block.headerShading && !['#CCECFF', '#DAE9F7', '#A6A6A6', '#CAEDFB'].includes(block.headerShading.toUpperCase()) ? block.headerShading : 'FFFFFF').replace('#', '');
+        const headerFill = (block.headerShading || 'CCECFF').replace('#', '');
         tableRows.push(
           new TableRow({
             tableHeader: true,
@@ -415,8 +415,10 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       // Dynamic Data Rows
       for (let rowIndex = 0; rowIndex < block.rows.length; rowIndex++) {
         const row = block.rows[rowIndex];
-        const fillHex = (row.shading && !['#DAE9F7', '#CCECFF', '#CAEDFB', '#A6A6A6', '#EBF5FB'].includes(row.shading.toUpperCase()))
+        const fillHex = row.shading
           ? row.shading.replace('#', '')
+          : row.type === 'section_title'
+          ? 'DAE9F7'
           : undefined;
 
         tableRows.push(
@@ -424,8 +426,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
             children: row.cells.map((cellText, colIndex) => {
               const isDateHeader = isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
               const defaultAlign = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
-              const isCentered = isDateHeader || (row.type === 'section_title' && colIndex === 0) || /^assets$/i.test(cellText?.trim());
-              const align = isCentered ? 'center' : defaultAlign;
+              const align = isDateHeader ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
               const indent = isFirstCol && row.indent ? row.indent * 200 : 0;
               const sanitizedCells = sanitizeTableCells(row.cells);
@@ -769,7 +770,7 @@ export function printSecFiling(doc: SecFilingDocument) {
             font-size: 9.5pt;
           }
           th {
-            background-color: #FFFFFF;
+            background-color: #CCECFF;
             color: #0E2841;
             border-bottom: 1.5pt solid #0E2841;
             padding: 6px 6px;
@@ -790,7 +791,7 @@ export function printSecFiling(doc: SecFilingDocument) {
             font-weight: bold;
           }
           .section_title td {
-            background-color: #FFFFFF;
+            background-color: #DAE9F7;
             font-weight: bold;
             color: #0E2841;
           }
@@ -853,7 +854,7 @@ export function printSecFiling(doc: SecFilingDocument) {
                 `;
               }
               if (b.type === 'financial_table') {
-                const headerBg = (b.headerShading && !['#CCECFF', '#DAE9F7', '#A6A6A6', '#CAEDFB'].includes(b.headerShading.toUpperCase())) ? b.headerShading : '#FFFFFF';
+                const headerBg = b.headerShading || '#CCECFF';
                 const topMargin = typeof b.spacingTop === 'number' ? `${b.spacingTop}px` : '14px';
                 return `
                   <table style="margin-top: ${topMargin};">
@@ -880,14 +881,13 @@ export function printSecFiling(doc: SecFilingDocument) {
                       ${b.rows
                         .map((r, rIdx) => {
                           const rowClass = r.type === 'total' ? 'total' : r.type === 'subtotal' ? 'subtotal' : r.type === 'section_title' ? 'section_title' : '';
-                          const rowBg = (r.shading && !['#DAE9F7', '#CCECFF', '#CAEDFB', '#A6A6A6', '#EBF5FB'].includes(r.shading.toUpperCase())) ? `background-color: ${r.shading};` : '';
+                          const rowBg = r.shading ? `background-color: ${r.shading};` : (r.type === 'section_title' ? 'background-color: #DAE9F7;' : '');
                           return `
                             <tr class="${rowClass}" style="${rowBg}">
                               ${sanitizeTableCells(r.cells)
                                 .map((c, i) => {
                                   const isDateHeader = isComparativeDateHeaderCell(c, rIdx, i);
-                                  const isCentered = isDateHeader || (r.type === 'section_title' && i === 0) || /^assets$/i.test(c?.trim());
-                                  const alignVal = isCentered ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
+                                  const alignVal = isDateHeader ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
                                   const align = `align-${alignVal}`;
                                   const indent = i === 0 && r.indent ? `indent-${r.indent}` : '';
                                   const bold = isDateHeader || r.bold || r.type === 'section_title' ? 'font-weight: bold;' : '';
