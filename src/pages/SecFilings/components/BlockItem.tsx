@@ -1523,6 +1523,19 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({ rows: nextRows });
   };
 
+  /** Sets or clears a row's background fill. `undefined` means no fill (white). */
+  const setRowShading = (rowIndex: number, shading?: string) => {
+    const nextRows = [...block.rows];
+    const r = { ...nextRows[rowIndex] };
+    if (shading) {
+      r.shading = shading;
+    } else {
+      delete r.shading;
+    }
+    nextRows[rowIndex] = r;
+    onUpdate({ rows: nextRows });
+  };
+
   /** Sets or clears a per-row alignment override. `undefined` falls back to the column. */
   const setRowAlignment = (rowIndex: number, align: SecTableRow['align']) => {
     const nextRows = [...block.rows];
@@ -2040,6 +2053,74 @@ const FinancialTableBlockEditor: React.FC<{
                           Row {rowIdx + 1} Actions
                         </div>
 
+                        {/* Row Colour. White is stored as an explicit #FFFFFF rather than by
+                            clearing the field, because the storage-read normaliser re-applies
+                            the category default to any category row left with no fill. */}
+                        <div className="px-2 py-0.5 text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+                          Row Colour
+                        </div>
+                        {isHeaderLikeRow ? (
+                          <div className="px-2 pb-1.5 text-[10px] text-slate-400 leading-snug">
+                            Header rows always print white. Change the row style below to fill it.
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 px-2 py-1">
+                            <button
+                              type="button"
+                              onClick={() => setRowShading(rowIdx, undefined)}
+                              title="Default for this row style"
+                              aria-label="Default for this row style"
+                              className={`w-5 h-5 rounded border bg-white relative transition-all ${
+                                !row.shading
+                                  ? 'border-blue-600 ring-2 ring-blue-500/40'
+                                  : 'border-slate-300 hover:border-slate-500'
+                              }`}
+                            >
+                              <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                                /
+                              </span>
+                            </button>
+                            {([
+                              { value: '#FFFFFF', label: 'White' },
+                              { value: '#CCECFF', label: 'Blue' },
+                              { value: '#DAE9F7', label: 'Light blue' },
+                              { value: '#F1F5F9', label: 'Grey' },
+                              { value: '#FFF4CE', label: 'Amber' }
+                            ] as const).map(({ value, label }) => {
+                              const isActive = (row.shading || '').toUpperCase() === value;
+                              return (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  onClick={() => setRowShading(rowIdx, value)}
+                                  title={label}
+                                  aria-label={label}
+                                  style={{ backgroundColor: value }}
+                                  className={`w-5 h-5 rounded border transition-all ${
+                                    isActive
+                                      ? 'border-blue-600 ring-2 ring-blue-500/40'
+                                      : 'border-slate-300 hover:border-slate-500'
+                                  }`}
+                                />
+                              );
+                            })}
+                            <label
+                              title="Custom colour"
+                              className="w-5 h-5 rounded border border-dashed border-slate-400 hover:border-slate-600 flex items-center justify-center cursor-pointer"
+                            >
+                              <span className="text-[9px] font-bold text-slate-500">+</span>
+                              <input
+                                type="color"
+                                value={row.shading || '#FFFFFF'}
+                                onChange={(e) => setRowShading(rowIdx, e.target.value.toUpperCase())}
+                                className="sr-only"
+                              />
+                            </label>
+                          </div>
+                        )}
+
+                        <DropdownMenuSeparator />
+
                         {/* Add Row Above */}
                         <DropdownMenuItem
                           onClick={() => { setOpenRowMenuIdx(null); addRowAt(rowIdx, 'data'); }}
@@ -2210,7 +2291,7 @@ const FinancialTableBlockEditor: React.FC<{
                           initialValue={cellValue}
                           onCommit={(val) => handleCellChange(rowIdx, colIdx, val)}
                           onFocus={() => setActiveColIdx(colIdx)}
-                          placeholder={isFirst || isHeaderLikeRow || isSection ? '' : '-'}
+                          // No placeholder: a dash here read as real content in empty cells.
                           style={{ textAlign: align }}
                           className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
                             isTotal || row.bold || isHeaderLikeRow
