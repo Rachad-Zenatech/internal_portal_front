@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import {
   ChevronUp,
   ChevronDown,
@@ -53,9 +53,13 @@ import {
   DropdownMenuSeparator
 } from '../../../components/ui/dropdown-menu';
 
+const NUMERIC_OR_FINANCIAL_RE = /^[$\d,.\s()–—\-+]+$/;
+
 const isComparativeDateHeaderCell = (text: string, rowIndex: number, _colIndex?: number): boolean => {
   const trimmed = (text || '').trim();
   if (!trimmed) return false;
+  // FAST-PATH: Financial numbers, dashes, currency symbols can never be date headers
+  if (NUMERIC_OR_FINANCIAL_RE.test(trimmed)) return false;
   if (/^As of$/i.test(trimmed)) return true;
   if (/^Notes?(\s*Ref)?$/i.test(trimmed)) return true;
   if (/^(Three|Six|Nine|Twelve)\s+months\s+ended/i.test(trimmed)) return true;
@@ -945,21 +949,21 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
         {block.type === 'financial_table' && (
           <FinancialTableBlockEditor
             block={block as SecFinancialTableBlock}
-            onUpdate={(u) => onUpdate(u)}
+            onUpdate={onUpdate}
           />
         )}
 
         {block.type === 'callout' && (
           <CalloutBlockEditor
             block={block as SecCalloutBlock}
-            onUpdate={(u) => onUpdate(u)}
+            onUpdate={onUpdate}
           />
         )}
 
         {block.type === 'signature' && (
           <SignatureBlockEditor
             block={block as SecSignatureBlock}
-            onUpdate={(u) => onUpdate(u)}
+            onUpdate={onUpdate}
           />
         )}
 
@@ -1134,6 +1138,60 @@ const ParagraphBlockEditor: React.FC<{
   );
 };
 
+/* TableCellInput: renders cell input with local state for instant 0ms typing feedback and debounced commit */
+const TableCellInput: React.FC<{
+  initialValue: string;
+  onCommit: (val: string) => void;
+  placeholder?: string;
+  style?: React.CSSProperties;
+  className?: string;
+}> = ({ initialValue, onCommit, placeholder, style, className }) => {
+  const [val, setVal] = useState(initialValue);
+  const debounceRef = useRef<any>(null);
+
+  useEffect(() => {
+    setVal(initialValue);
+  }, [initialValue]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const next = e.target.value;
+    setVal(next);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      onCommit(next);
+    }, 200);
+  };
+
+  const handleBlur = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (val !== initialValue) {
+      onCommit(val);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (val !== initialValue) {
+        onCommit(val);
+      }
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      value={val}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      placeholder={placeholder}
+      style={style}
+      className={className}
+    />
+  );
+};
+
 /* ------------------------------------------------------------------------- */
 /* 3. FINANCIAL STATEMENT TABLE EDITOR (Authentic Word Financial Table)       */
 /* ------------------------------------------------------------------------- */
@@ -1145,7 +1203,12 @@ const FinancialTableBlockEditor: React.FC<{
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
   const [openRowMenuIdx, setOpenRowMenuIdx] = useState<number | null>(null);
 
+  const sanitizedBlockIdRef = useRef<string | null>(null);
   useEffect(() => {
+    // Only sanitize once per table block identity, not continuously during typing
+    if (sanitizedBlockIdRef.current === block.id) return;
+    sanitizedBlockIdRef.current = block.id;
+
     let needsUpdate = false;
     let nextHeaderShading = block.headerShading;
     if (block.headerShading === '#CCECFF' || block.headerShading === '#DAE9F7' || block.headerShading === '#CAEDFB') {
@@ -1181,7 +1244,7 @@ const FinancialTableBlockEditor: React.FC<{
         rows: nextRows
       });
     }
-  }, [block, onUpdate]);
+  }, [block.id]);
 
   const reorderRow = (fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex || toIndex < 0 || toIndex >= block.rows.length) return;
@@ -1409,6 +1472,47 @@ const FinancialTableBlockEditor: React.FC<{
     nextRows[rowIndex] = r;
     onUpdate({ rows: nextRows });
   };
+
+  // Memoize row-level classification to avoid running 1,200 regexes per render
+  const rowMetadata = useMemo(() => {
+    return block.rows.map((row, rowIdx) => {
+      const isDateHeaderRow =
+        row.type === 'header' ||
+        row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIdx, cIdx));
+      const isMajorHeaderRow = row.cells.some((c) => isMajorStatementHeaderCell(c));
+      const isHeaderLikeRow = row.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+      const isTotal = row.type === 'total' || row.doubleUnderline;
+      const isSubtotal = row.type === 'subtotal';
+      const isSection = row.type === 'section_title';
+
+      const cellMeta = row.cells.map((cellValue, colIdx) => {
+        const isDateHeader = isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
+        const isMajorHeader = isMajorStatementHeaderCell(cellValue);
+        const isFirst = colIdx === 0;
+        const align =
+          isDateHeader || isMajorHeader || (row.type === 'header' && isFirst)
+            ? 'center'
+            : block.columnAlignments[colIdx] || 'left';
+        const indentPadding =
+          isFirst && !isMajorHeader && row.indent
+            ? row.indent === 1
+              ? 'pl-6'
+              : 'pl-10'
+            : 'pl-1.5';
+        return { isDateHeader, isMajorHeader, isFirst, align, indentPadding };
+      });
+
+      return {
+        isDateHeaderRow,
+        isMajorHeaderRow,
+        isHeaderLikeRow,
+        isTotal,
+        isSubtotal,
+        isSection,
+        cellMeta
+      };
+    });
+  }, [block.rows, block.columnAlignments]);
 
   return (
     <div
@@ -1658,13 +1762,16 @@ const FinancialTableBlockEditor: React.FC<{
           </thead>
           <tbody>
             {block.rows.map((row, rowIdx) => {
-              const isSection = row.type === 'section_title';
-              const isSubtotal = row.type === 'subtotal';
-              const isTotal = row.type === 'total';
-
-              const isDateHeaderRow = row.type === 'header' || row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIdx, cIdx));
-              const isMajorHeaderRow = row.cells.some(c => isMajorStatementHeaderCell(c));
-              const isHeaderLikeRow = row.type === 'header' || isDateHeaderRow || isMajorHeaderRow;
+              const meta = rowMetadata[rowIdx] || {
+                isTotal: row.type === 'total',
+                isSubtotal: row.type === 'subtotal',
+                isSection: row.type === 'section_title',
+                isHeaderLikeRow: row.type === 'header',
+                isDateHeaderRow: false,
+                isMajorHeaderRow: false,
+                cellMeta: []
+              };
+              const { isTotal, isSubtotal, isSection, isHeaderLikeRow } = meta;
               let rowClass = 'hover:bg-blue-50/20 dark:hover:bg-zinc-800/40';
               if (isHeaderLikeRow) {
                 rowClass = 'font-bold bg-white dark:bg-zinc-900 text-[#0E2841]';
@@ -1860,12 +1967,12 @@ const FinancialTableBlockEditor: React.FC<{
                   </td>
 
                   {row.cells.map((cellValue, colIdx) => {
-                    const isDateHeader = isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
-                    const isMajorHeader = isMajorStatementHeaderCell(cellValue);
-                    const isFirst = colIdx === 0;
-                    const align = (isDateHeader || isMajorHeader || (row.type === 'header' && isFirst)) ? 'center' : (block.columnAlignments[colIdx] || 'left');
-                    const indentPadding =
-                      isFirst && !isMajorHeader && row.indent ? (row.indent === 1 ? 'pl-6' : 'pl-10') : 'pl-1.5';
+                    const cMeta = meta.cellMeta[colIdx] || {
+                      isFirst: colIdx === 0,
+                      align: block.columnAlignments[colIdx] || 'left',
+                      indentPadding: 'pl-1.5'
+                    };
+                    const { isFirst, align, indentPadding } = cMeta;
 
                     let cellBorderStyle = '';
                     if (isTotal) {
@@ -1882,12 +1989,12 @@ const FinancialTableBlockEditor: React.FC<{
                           isFirst ? 'min-w-[220px]' : 'min-w-[55px]'
                         }`}
                       >
-                        <input
-                          type="text"
-                          value={cellValue}
-                          onChange={(e) => handleCellChange(rowIdx, colIdx, e.target.value)}
+                        <TableCellInput
+                          initialValue={cellValue}
+                          onCommit={(val) => handleCellChange(rowIdx, colIdx, val)}
                           placeholder={isFirst || isHeaderLikeRow ? '' : '-'}
-                          style={{ textAlign: align }} className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
+                          style={{ textAlign: align }}
+                          className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${
                             isTotal || row.bold || isHeaderLikeRow
                               ? 'font-bold text-slate-900 dark:text-zinc-100'
                               : 'text-slate-900 dark:text-zinc-200'

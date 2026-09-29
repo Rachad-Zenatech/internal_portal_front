@@ -575,7 +575,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                           />
 
                           {/* Inline Add Bar below each block */}
-                          <InlineAddBlock onAdd={(type) => onAddBlock(actualIndex + 1, type)} />
+                          <InlineAddBlock index={actualIndex + 1} onAddBlock={onAddBlock} />
                         </React.Fragment>
                       );
                     })}

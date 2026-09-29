@@ -62,29 +62,44 @@ export function useSecFiling() {
 
   const documentSections = useMemo(() => {
     const list: string[] = [];
-    workingBlocks.forEach((b) => {
-      if (b.section && !list.includes(b.section)) {
+    const seen = new Set<string>();
+    for (const b of workingBlocks) {
+      if (b.section && !seen.has(b.section)) {
+        seen.add(b.section);
         list.push(b.section);
       }
-    });
+    }
     return list;
   }, [workingBlocks]);
 
+  const sectionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const b of workingBlocks) {
+      if (b.section) {
+        counts[b.section] = (counts[b.section] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [workingBlocks]);
+
   const filteredBlocks = useMemo(() => {
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    if (!trimmedQuery && sectionFilter === 'ALL') {
+      return workingBlocks;
+    }
     return workingBlocks.filter((b) => {
       if (sectionFilter !== 'ALL' && b.section !== sectionFilter) {
         return false;
       }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        if (b.type === 'heading' && b.text.toLowerCase().includes(q)) return true;
-        if (b.type === 'paragraph' && b.text.toLowerCase().includes(q)) return true;
-        if (b.type === 'callout' && (b.content.toLowerCase().includes(q) || b.title?.toLowerCase().includes(q)))
+      if (trimmedQuery) {
+        if (b.type === 'heading' && b.text.toLowerCase().includes(trimmedQuery)) return true;
+        if (b.type === 'paragraph' && b.text.toLowerCase().includes(trimmedQuery)) return true;
+        if (b.type === 'callout' && (b.content.toLowerCase().includes(trimmedQuery) || b.title?.toLowerCase().includes(trimmedQuery)))
           return true;
         if (b.type === 'financial_table') {
-          if (b.title?.toLowerCase().includes(q)) return true;
-          if (b.headers.some((h) => h.toLowerCase().includes(q))) return true;
-          if (b.rows.some((r) => r.cells.some((c) => c.toLowerCase().includes(q)))) return true;
+          if (b.title?.toLowerCase().includes(trimmedQuery)) return true;
+          if (b.headers.some((h) => h.toLowerCase().includes(trimmedQuery))) return true;
+          if (b.rows.some((r) => r.cells.some((c) => c.toLowerCase().includes(trimmedQuery)))) return true;
         }
         return false;
       }
@@ -175,12 +190,12 @@ export function useSecFiling() {
   const setWorkingBlocks = useCallback(
     (newBlocks: SecBlock[]) => {
       if (!isUndoRedoActionRef.current) {
-        const currentStr = JSON.stringify(workingBlocks);
-        const newStr = JSON.stringify(newBlocks);
-        if (currentStr !== newStr) {
-          const snapshot = JSON.parse(currentStr);
+        const hasChanged =
+          workingBlocks.length !== newBlocks.length ||
+          workingBlocks.some((b, i) => b !== newBlocks[i]);
+        if (hasChanged) {
           setUndoStack((prev) => {
-            const next = [...prev, snapshot];
+            const next = [...prev, workingBlocks];
             if (next.length > 60) return next.slice(next.length - 60);
             return next;
           });
@@ -199,7 +214,7 @@ export function useSecFiling() {
     }
 
     const previousSnapshot = undoStack[undoStack.length - 1];
-    const currentSnapshot = JSON.parse(JSON.stringify(workingBlocks));
+    const currentSnapshot = workingBlocks;
 
     isUndoRedoActionRef.current = true;
     setUndoStack((prev) => prev.slice(0, prev.length - 1));
@@ -217,7 +232,7 @@ export function useSecFiling() {
     }
 
     const nextSnapshot = redoStack[redoStack.length - 1];
-    const currentSnapshot = JSON.parse(JSON.stringify(workingBlocks));
+    const currentSnapshot = workingBlocks;
 
     isUndoRedoActionRef.current = true;
     setRedoStack((prev) => prev.slice(0, prev.length - 1));
@@ -602,27 +617,20 @@ export function useSecFiling() {
     (sectionName: string, direction: 'up' | 'down') => {
       if (!sectionName) return;
 
-      const currentSections: string[] = [];
-      workingBlocks.forEach((b) => {
-        if (b.section && !currentSections.includes(b.section)) {
-          currentSections.push(b.section);
-        }
-      });
-
-      const currentIdx = currentSections.indexOf(sectionName);
+      const currentIdx = documentSections.indexOf(sectionName);
       if (currentIdx === -1) return;
       if (direction === 'up' && currentIdx === 0) return;
-      if (direction === 'down' && currentIdx === currentSections.length - 1) return;
+      if (direction === 'down' && currentIdx === documentSections.length - 1) return;
 
       const targetSecIndex = direction === 'up' ? currentIdx - 1 : currentIdx + 1;
-      const targetSection = currentSections[targetSecIndex];
+      const targetSection = documentSections[targetSecIndex];
 
       const sectionBlocks = workingBlocks.filter((b) => b.section === sectionName);
       const otherBlocks = workingBlocks.filter((b) => b.section !== sectionName);
 
+      const nextBlocks = [...otherBlocks];
       if (direction === 'up') {
         const insertIdx = otherBlocks.findIndex((b) => b.section === targetSection);
-        const nextBlocks = [...otherBlocks];
         nextBlocks.splice(insertIdx !== -1 ? insertIdx : 0, 0, ...sectionBlocks);
         setWorkingBlocks(nextBlocks);
         toast.success(`Moved section "${sectionName}" before "${targetSection}"`);
@@ -634,35 +642,27 @@ export function useSecFiling() {
             break;
           }
         }
-        const nextBlocks = [...otherBlocks];
         nextBlocks.splice(lastIdx !== -1 ? lastIdx + 1 : otherBlocks.length, 0, ...sectionBlocks);
         setWorkingBlocks(nextBlocks);
         toast.success(`Moved section "${sectionName}" after "${targetSection}"`);
       }
     },
-    [workingBlocks, setWorkingBlocks]
+    [workingBlocks, documentSections, setWorkingBlocks]
   );
 
   const reorderSection = useCallback(
     (sectionName: string, targetSecIndex: number) => {
       if (!sectionName) return;
 
-      const currentSections: string[] = [];
-      workingBlocks.forEach((b) => {
-        if (b.section && !currentSections.includes(b.section)) {
-          currentSections.push(b.section);
-        }
-      });
-
-      const currentIdx = currentSections.indexOf(sectionName);
-      if (currentIdx === -1 || targetSecIndex < 0 || targetSecIndex >= currentSections.length || currentIdx === targetSecIndex) {
+      const currentIdx = documentSections.indexOf(sectionName);
+      if (currentIdx === -1 || targetSecIndex < 0 || targetSecIndex >= documentSections.length || currentIdx === targetSecIndex) {
         return;
       }
 
       const sectionBlocks = workingBlocks.filter((b) => b.section === sectionName);
       const otherBlocks = workingBlocks.filter((b) => b.section !== sectionName);
 
-      const targetSection = currentSections[targetSecIndex];
+      const targetSection = documentSections[targetSecIndex];
       const nextBlocks = [...otherBlocks];
 
       if (targetSecIndex < currentIdx) {
@@ -682,7 +682,7 @@ export function useSecFiling() {
       setWorkingBlocks(nextBlocks);
       toast.success(`Moved section "${sectionName}"`);
     },
-    [workingBlocks, setWorkingBlocks]
+    [workingBlocks, documentSections, setWorkingBlocks]
   );
 
   const createSection = useCallback(
@@ -1037,6 +1037,7 @@ export function useSecFiling() {
     workingBlocks,
     filteredBlocks,
     documentSections,
+    sectionCounts,
     selectedBlockId,
     selectedBlockIds,
     activeRole,

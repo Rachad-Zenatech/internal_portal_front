@@ -69,12 +69,27 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
     }
   }
 
-  // 3. For header rows at the top (rows with 'Ended', '2026', '2025', 'June 30', etc.):
-  // If text is in col C, but all data rows are in col C+1 or C-1, move the header text into the data column
+  // 3 & 4. Optimized single-pass scan for empty columns & header alignment
+  const colNonEmptyCounts = new Array(numCols).fill(0);
+  const colHasDataRows = new Array(numCols).fill(false);
+
+  for (let rIdx = 0; rIdx < b.rows.length; rIdx++) {
+    const rowCells = b.rows[rIdx].cells;
+    for (let c = 1; c < numCols; c++) {
+      const val = (rowCells[c] || '').trim();
+      if (val !== '') {
+        colNonEmptyCounts[c]++;
+        if (rIdx >= 3) {
+          colHasDataRows[c] = true;
+        }
+      }
+    }
+  }
+
+  // Header re-alignment for columns without data rows
   for (let c = 1; c < numCols; c++) {
-    const hasDataRows = b.rows.slice(3).some((r: any) => (r.cells[c] || '').trim() !== '');
-    if (!hasDataRows) {
-      const targetCol = [c + 1, c - 1, c + 2].find(k => k >= 1 && k < numCols && b.rows.slice(3).some((r: any) => (r.cells[k] || '').trim() !== ''));
+    if (!colHasDataRows[c]) {
+      const targetCol = [c + 1, c - 1, c + 2].find((k) => k >= 1 && k < numCols && colHasDataRows[k]);
       if (targetCol !== undefined) {
         for (let rIdx = 0; rIdx < Math.min(4, b.rows.length); rIdx++) {
           const topVal = (b.rows[rIdx].cells[c] || '').trim();
@@ -88,18 +103,12 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
     }
   }
 
-  // 4. Detect and remove completely empty columns across all rows (or columns where >95% are empty)
+  // Detect and remove completely empty columns across all rows (or ghost headers)
   const colsToRemove: number[] = [];
   for (let c = 1; c < numCols; c++) {
-    let nonEmptyCount = 0;
-    for (const r of b.rows) {
-      if ((r.cells[c] || '').trim() !== '') {
-        nonEmptyCount++;
-      }
-    }
     const hVal = (b.headers[c] || '').trim();
     const isGhostHeader = hVal === '' || /^Col\s*\d+$/i.test(hVal) || hVal === '-';
-    if (nonEmptyCount === 0 || (nonEmptyCount <= 1 && numCols > 3 && isGhostHeader)) {
+    if (colNonEmptyCounts[c] === 0 || (colNonEmptyCounts[c] <= 1 && numCols > 3 && isGhostHeader)) {
       colsToRemove.push(c);
     }
   }
@@ -141,21 +150,82 @@ const STORAGE_KEYS = {
   VERSION_HISTORY: 'sec_filing_versions_v4_compact'
 };
 
-// Cross-tab synchronization via BroadcastChannel
-function broadcastSync(type: string, payload?: any) {
+// Cross-tab synchronization via BroadcastChannel (single reused instance)
+let syncBroadcastChannel: BroadcastChannel | null = null;
+function getBroadcastChannel(): BroadcastChannel | null {
   if (typeof BroadcastChannel !== 'undefined') {
-    try {
-      const channel = new BroadcastChannel('sec_filing_sync_channel');
-      channel.postMessage({ type, ...payload, timestamp: Date.now() });
-      channel.close();
-    } catch (e) {
-      console.warn('BroadcastChannel sync error', e);
+    if (!syncBroadcastChannel) {
+      try {
+        syncBroadcastChannel = new BroadcastChannel('sec_filing_sync_channel');
+      } catch (e) {
+        console.warn('BroadcastChannel init error', e);
+      }
     }
+    return syncBroadcastChannel;
+  }
+  return null;
+}
+
+function broadcastSync(type: string, payload?: any) {
+  try {
+    const channel = getBroadcastChannel();
+    if (channel) {
+      channel.postMessage({ type, ...payload, timestamp: Date.now() });
+    }
+  } catch (e) {
+    console.warn('BroadcastChannel sync error', e);
   }
 }
 
+// Debounced Disk I/O: prevents synchronous localStorage serialization freezes on every keystroke
+let saveMainDocTimer: any = null;
+let pendingMainDocToSave: SecFilingDocument | null = null;
+
+let saveProposalsTimer: any = null;
+let pendingProposalsToSave: SecChangeProposal[] | null = null;
+
+export function flushPendingSaves(): void {
+  if (pendingMainDocToSave) {
+    if (saveMainDocTimer) clearTimeout(saveMainDocTimer);
+    saveMainDocTimer = null;
+    try {
+      localStorage.setItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(pendingMainDocToSave));
+      broadcastSync("MAIN_DOC_SAVED", { version: pendingMainDocToSave.version });
+    } catch (e) {
+      console.error('Failed to flush main document to storage', e);
+    }
+    pendingMainDocToSave = null;
+  }
+
+  if (pendingProposalsToSave) {
+    if (saveProposalsTimer) clearTimeout(saveProposalsTimer);
+    saveProposalsTimer = null;
+    try {
+      localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(pendingProposalsToSave));
+      broadcastSync("PROPOSALS_SAVED", { count: pendingProposalsToSave.length });
+    } catch (e) {
+      console.error('Failed to flush proposals to storage', e);
+    }
+    pendingProposalsToSave = null;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushPendingSaves);
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingSaves();
+    }
+  });
+}
+
 export const secFilingService = {
+  flushPendingSaves,
+
   getMainDocument(): SecFilingDocument {
+    if (pendingMainDocToSave) {
+      return pendingMainDocToSave;
+    }
     const saved = localStorage.getItem(STORAGE_KEYS.MAIN_DOC) || localStorage.getItem('sec_filing_main_doc_v2_full') || localStorage.getItem('sec_filing_main_doc');
     if (saved) {
       try {
@@ -172,12 +242,20 @@ export const secFilingService = {
     return JSON.parse(JSON.stringify(INITIAL_SEC_FILING_DOC));
   },
 
-  saveMainDocument(doc: SecFilingDocument): void {
-    localStorage.setItem(STORAGE_KEYS.MAIN_DOC, JSON.stringify(doc));
-    broadcastSync("MAIN_DOC_SAVED", { version: doc.version });
+  saveMainDocument(doc: SecFilingDocument, immediate = false): void {
+    pendingMainDocToSave = doc;
+    if (immediate) {
+      flushPendingSaves();
+    } else {
+      if (saveMainDocTimer) clearTimeout(saveMainDocTimer);
+      saveMainDocTimer = setTimeout(flushPendingSaves, 350);
+    }
   },
 
   getProposals(): SecChangeProposal[] {
+    if (pendingProposalsToSave) {
+      return pendingProposalsToSave;
+    }
     const saved = localStorage.getItem(STORAGE_KEYS.PROPOSALS) || localStorage.getItem('sec_filing_proposals_v1') || localStorage.getItem('sec_filing_proposals');
     if (saved) {
       try {
@@ -196,9 +274,14 @@ export const secFilingService = {
     return JSON.parse(JSON.stringify(INITIAL_PROPOSALS));
   },
 
-  saveProposals(proposals: SecChangeProposal[]): void {
-    localStorage.setItem(STORAGE_KEYS.PROPOSALS, JSON.stringify(proposals));
-    broadcastSync("PROPOSALS_SAVED", { count: proposals.length });
+  saveProposals(proposals: SecChangeProposal[], immediate = false): void {
+    pendingProposalsToSave = proposals;
+    if (immediate) {
+      flushPendingSaves();
+    } else {
+      if (saveProposalsTimer) clearTimeout(saveProposalsTimer);
+      saveProposalsTimer = setTimeout(flushPendingSaves, 350);
+    }
   },
 
   createProposal(
@@ -556,6 +639,14 @@ export const secFilingService = {
           changeTags: [
             { category: 'structure', label: `New ${pBlock.type.replace('_', ' ')} block added` }
           ]
+        });
+      } else if (orig === pBlock) {
+        // FAST-PATH: Pointer equality confirms 0 changes in O(1) time
+        diffs.push({
+          blockId: pBlock.id,
+          status: 'unchanged',
+          originalBlock: orig,
+          proposedBlock: pBlock
         });
       } else {
         const isSame = JSON.stringify(orig) === JSON.stringify(pBlock);

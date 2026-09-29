@@ -18,6 +18,7 @@ import {
   Redo2
 } from 'lucide-react';
 import { useSecFiling } from '../../hooks/useSecFiling';
+import { secFilingService } from '../../services/secFilingService';
 import { BlockBuilder } from './components/BlockBuilder';
 import { DocumentOutline } from './components/DocumentOutline';
 import { BlockInspector } from './components/BlockInspector';
@@ -50,6 +51,7 @@ export default function SecFilingsPage() {
     workingBlocks,
     filteredBlocks,
     documentSections,
+    sectionCounts,
     selectedBlockId,
     selectedBlockIds,
     activeRole,
@@ -110,6 +112,7 @@ export default function SecFilingsPage() {
   // Export handlers
   const handleExportDocx = async () => {
     try {
+      secFilingService.flushPendingSaves();
       setIsExportingDocx(true);
       toast.info('Generating formatted Word Document (.docx)...');
       const currentWorkingDoc = {
@@ -625,7 +628,7 @@ export default function SecFilingsPage() {
               activeSection={sectionFilter}
               onSelectSection={setSectionFilter}
               totalBlocks={workingBlocks.length}
-              blocks={workingBlocks}
+              sectionCounts={sectionCounts}
               onMoveSection={moveSection}
               onReorderSection={reorderSection}
               onCreateSection={createSection}

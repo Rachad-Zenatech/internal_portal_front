@@ -29,6 +29,7 @@ interface DocumentOutlineProps {
   onSelectSection: (section: string) => void;
   totalBlocks: number;
   blocks?: SecBlock[];
+  sectionCounts?: Record<string, number>;
   onMoveSection?: (sectionName: string, direction: 'up' | 'down') => void;
   onReorderSection?: (sectionName: string, targetIndex: number) => void;
   onCreateSection?: () => void;
@@ -41,6 +42,7 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
   onSelectSection,
   totalBlocks,
   blocks = [],
+  sectionCounts,
   onMoveSection,
   onReorderSection,
   onCreateSection,
@@ -133,7 +135,8 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
     handleDragEnd();
   };
 
-  const sectionCounts = useMemo(() => {
+  const effectiveSectionCounts = useMemo(() => {
+    if (sectionCounts) return sectionCounts;
     const map: Record<string, number> = {};
     blocks.forEach((b) => {
       if (b.section) {
@@ -141,7 +144,7 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
       }
     });
     return map;
-  }, [blocks]);
+  }, [sectionCounts, blocks]);
 
   return (
     <div
@@ -203,7 +206,7 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
           const isSelected = activeSection === sec;
           const isFirst = idx === 0;
           const isLast = idx === sections.length - 1;
-          const count = sectionCounts[sec] || 0;
+          const count = effectiveSectionCounts[sec] || 0;
           const isBeingDragged = draggedSec === sec;
           const isOver = dragOverSec === sec;
 

@@ -14,7 +14,9 @@ import type { SecBlockType } from '../../../types/secFiling';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 
 interface InlineAddBlockProps {
-  onAdd: (type: SecBlockType) => void;
+  index?: number;
+  onAddBlock?: (index: number, type: SecBlockType) => void;
+  onAdd?: (type: SecBlockType) => void;
   className?: string;
   isAlwaysVisible?: boolean;
 }
@@ -85,10 +87,19 @@ const BLOCK_OPTIONS: {
   ];
 
 const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
+  index,
+  onAddBlock,
   onAdd,
   className = '',
   isAlwaysVisible = false
 }) => {
+  const handleAdd = (type: SecBlockType) => {
+    if (onAddBlock && typeof index === 'number') {
+      onAddBlock(index, type);
+    } else if (onAdd) {
+      onAdd(type);
+    }
+  };
   const [open, setOpen] = useState(false);
 
   // When empty or explicitly always visible (like the top inserter when 0 blocks)
@@ -126,7 +137,7 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
                     key={item.type}
                     type="button"
                     onClick={() => {
-                      onAdd(item.type);
+                      handleAdd(item.type);
                       setOpen(false);
                     }}
                     className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
@@ -201,7 +212,7 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
                     key={item.type}
                     type="button"
                     onClick={() => {
-                      onAdd(item.type);
+                      handleAdd(item.type);
                       setOpen(false);
                     }}
                     className="flex items-start gap-3 p-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-zinc-800/70 transition-colors group/btn cursor-pointer"
