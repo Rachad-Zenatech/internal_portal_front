@@ -375,8 +375,8 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
         );
       }
 
-      if (hasMeaningfulHeader && !firstRowIsHeader) {
-        const headerFill = (block.headerShading || 'CCECFF').replace('#', '');
+      if (hasMeaningfulHeader && !firstRowIsHeader && (!block.periodHeaders || block.periodHeaders.length === 0)) {
+        const headerFill = (block.headerShading || 'FFFFFF').replace('#', '');
         tableRows.push(
           new TableRow({
             tableHeader: true,
@@ -415,7 +415,10 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       // Dynamic Data Rows
       for (let rowIndex = 0; rowIndex < block.rows.length; rowIndex++) {
         const row = block.rows[rowIndex];
-        const fillHex = row.shading
+        const isDateHeaderRow = row.type === 'header' || row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIndex, cIdx));
+        const fillHex = isDateHeaderRow
+          ? undefined
+          : row.shading
           ? row.shading.replace('#', '')
           : row.type === 'section_title'
           ? 'DAE9F7'
@@ -451,7 +454,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
                 : (AlignmentType.LEFT as any);
 
               return new TableCell({
-                shading: fillHex ? { fill: fillHex } : undefined,
+                shading: (fillHex && !isDateHeader) ? { fill: fillHex } : undefined,
                 children: lines.map((line) => new Paragraph({
                   alignment,
                   indent: indent > 0 ? { left: indent } : undefined,
@@ -854,7 +857,7 @@ export function printSecFiling(doc: SecFilingDocument) {
                 `;
               }
               if (b.type === 'financial_table') {
-                const headerBg = b.headerShading || '#CCECFF';
+                const headerBg = b.headerShading || '#FFFFFF';
                 const topMargin = typeof b.spacingTop === 'number' ? `${b.spacingTop}px` : '14px';
                 return `
                   <table style="margin-top: ${topMargin};">

@@ -1138,13 +1138,38 @@ const FinancialTableBlockEditor: React.FC<{
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
 
   useEffect(() => {
-    const hasSplitParens = block.rows?.some(r => r.cells.some(c => c.trim() === ')' || (c.trim().startsWith('(') && !c.trim().endsWith(')'))));
-    const hasGhostCols = block.headers.length > 5 && block.headers.some(h => /^Col\s*\d+$/i.test(h.trim()) || h.trim() === '');
-    if (hasSplitParens || hasGhostCols) {
-      const compacted = compactFinancialTableBlock(block as any) as SecFinancialTableBlock;
-      if (compacted.headers.length !== block.headers.length || JSON.stringify(compacted.rows) !== JSON.stringify(block.rows)) {
-        onUpdate(compacted);
+    let needsUpdate = false;
+    let nextHeaderShading = block.headerShading;
+    if (block.headerShading === '#CCECFF' || block.headerShading === '#DAE9F7' || block.headerShading === '#CAEDFB') {
+      nextHeaderShading = undefined;
+      needsUpdate = true;
+    }
+
+    const nextRows = block.rows.map((r, rIdx) => {
+      const isDateHeaderRow = r.type === 'header' || r.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rIdx, cIdx));
+      if (isDateHeaderRow && r.shading) {
+        needsUpdate = true;
+        const copy = { ...r };
+        delete copy.shading;
+        return copy;
       }
+      return r;
+    });
+
+    const hasSplitParens = nextRows.some(r => r.cells.some(c => c.trim() === ')' || (c.trim().startsWith('(') && !c.trim().endsWith(')'))));
+    const hasGhostCols = block.headers.length > 5 && block.headers.some(h => /^Col\s*\d+$/i.test(h.trim()) || h.trim() === '');
+
+    if (hasSplitParens || hasGhostCols) {
+      const compacted = compactFinancialTableBlock({ ...block, rows: nextRows, headerShading: nextHeaderShading } as any) as SecFinancialTableBlock;
+      onUpdate(compacted);
+      return;
+    }
+
+    if (needsUpdate) {
+      onUpdate({
+        headerShading: nextHeaderShading,
+        rows: nextRows
+      });
     }
   }, [block, onUpdate]);
 
@@ -1462,8 +1487,8 @@ const FinancialTableBlockEditor: React.FC<{
               </tr>
             )}
             <tr
-              style={{ backgroundColor: block.headerShading || '#CCECFF' }}
-              className="border-t border-b-2 border-slate-900 text-[#0E2841]"
+              style={{ backgroundColor: (block.headerShading && block.headerShading !== '#CCECFF' && block.headerShading !== '#DAE9F7' && block.headerShading !== '#CAEDFB') ? block.headerShading : 'transparent' }}
+              className="border-t border-b-2 border-slate-900 text-[#0E2841] bg-white dark:bg-zinc-900"
             >
               {/* Left Sandwich Bar Column Header */}
               <th className="w-7 min-w-[28px] max-w-[28px] p-1 text-center font-normal text-[10px] text-slate-400">
@@ -1626,8 +1651,11 @@ const FinancialTableBlockEditor: React.FC<{
               const isSubtotal = row.type === 'subtotal';
               const isTotal = row.type === 'total';
 
+              const isDateHeaderRow = row.type === 'header' || row.cells.some((c, cIdx) => isComparativeDateHeaderCell(c, rowIdx, cIdx));
               let rowClass = 'hover:bg-blue-50/20 dark:hover:bg-zinc-800/40';
-              if (row.shading) {
+              if (isDateHeaderRow) {
+                rowClass = 'font-bold bg-white dark:bg-zinc-900';
+              } else if (row.shading) {
                 // custom row shading
               } else if (isTotal) {
                 rowClass = 'font-bold bg-slate-50/40';
@@ -1643,7 +1671,7 @@ const FinancialTableBlockEditor: React.FC<{
               return (
                 <tr
                   key={row.id || rowIdx}
-                  style={row.shading ? { backgroundColor: row.shading } : undefined}
+                  style={(!isDateHeaderRow && row.shading) ? { backgroundColor: row.shading } : undefined}
                   onDragOver={(e) => {
                     e.preventDefault();
                     e.dataTransfer.dropEffect = 'move';

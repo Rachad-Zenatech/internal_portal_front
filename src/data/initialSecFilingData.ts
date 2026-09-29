@@ -147,7 +147,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Financial Position",
       "title": "Table: Statements of Financial Position",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "",
@@ -172,7 +171,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -890,7 +888,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Financial Position",
       "title": "Table: Statements of Financial Position",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "",
@@ -1048,7 +1045,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Comprehensive Loss",
       "title": "Table: Statements of Comprehensive Loss",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Three Months Ended",
@@ -1076,7 +1072,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -1632,7 +1627,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Comprehensive Loss",
       "title": "Table: Statements of Comprehensive Loss",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "",
@@ -1785,7 +1779,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Retained Earnings",
       "title": "Table: Statements of Retained Earnings",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "PreferredStock",
@@ -1828,7 +1821,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -2351,7 +2343,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Retained Earnings",
       "title": "Table: Statements of Retained Earnings",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "",
@@ -2504,7 +2495,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Cash Flows",
       "title": "Table: Statements of Cash Flows",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Six Months Ended June 30, 2026",
@@ -2526,7 +2516,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -3105,7 +3094,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Statements of Cash Flows",
       "title": "Table: Statements of Cash Flows",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "",
@@ -3844,7 +3832,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "BASIS OF PREPARATION",
       "title": "Table: BASIS OF PREPARATION",
-      "headerShading": "#CCECFF",
       "headers": [
         "Company Name",
         "Country of Incorporation",
@@ -3866,7 +3853,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -4825,7 +4811,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "BASIS OF PREPARATION",
       "title": "Table: BASIS OF PREPARATION",
-      "headerShading": "#CCECFF",
       "headers": [
         "Currency Pair",
         "Six Months-Ended Rate",
@@ -4847,7 +4832,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -4962,7 +4946,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "BASIS OF PREPARATION",
       "title": "Table: BASIS OF PREPARATION",
-      "headerShading": "#CCECFF",
       "headers": [
         "Currency Pair",
         "Year-Ended Rate",
@@ -4984,7 +4967,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -5085,7 +5067,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "BASIS OF PREPARATION",
       "title": "Table: BASIS OF PREPARATION",
-      "headerShading": "#CCECFF",
       "headers": [
         "Company Name",
         "Functional Currency"
@@ -5104,7 +5085,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -6139,7 +6119,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Asset class",
         "Estimated useful life"
@@ -6158,7 +6137,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -6388,7 +6366,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Goodwill – in CAD",
         "June 30, 2026",
@@ -6410,7 +6387,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -6898,7 +6874,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Amounts in CAD",
         "Six Months Ended",
@@ -6920,7 +6895,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -7251,7 +7225,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Maturity analysis",
         ""
@@ -7270,7 +7243,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -7353,7 +7325,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Right of Use Asset, net",
         ""
@@ -7372,7 +7343,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -7421,7 +7391,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Lease Liability",
         ""
@@ -7440,7 +7409,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -7498,7 +7466,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Maturity analysis as of December  31, 2025",
         ""
@@ -7517,7 +7484,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -7600,7 +7566,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Right of Use Asset, net",
         ""
@@ -7619,7 +7584,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -7668,7 +7632,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "MATERIAL ACCOUNTING POLICIES",
       "title": "Table: MATERIAL ACCOUNTING POLICIES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Lease Liability",
         ""
@@ -7687,7 +7650,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8062,7 +8024,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "ACQUISITIONS AND SALES",
       "title": "Table: ACQUISITIONS AND SALES",
-      "headerShading": "#CCECFF",
       "headers": [
         "Acquired Company - Basis",
         "Acquisition Date",
@@ -8087,7 +8048,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8102,7 +8062,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8131,7 +8090,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8160,7 +8118,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8189,7 +8146,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8218,7 +8174,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8247,7 +8202,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8276,7 +8230,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8305,7 +8258,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8334,7 +8286,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8363,7 +8314,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8392,7 +8342,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8421,7 +8370,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8450,7 +8398,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8593,7 +8540,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "Note Receivable Affiliate",
       "title": "Table: Note Receivable Affiliate",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "As of",
@@ -8615,7 +8561,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -8982,7 +8927,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "INTANGIBLES",
       "title": "Table: INTANGIBLES",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Asset Source",
@@ -9352,7 +9296,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "INTANGIBLES",
       "title": "Table: INTANGIBLES",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Asset Source",
@@ -9395,7 +9338,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -9741,7 +9683,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "LOANS PAYABLE",
       "title": "Table: LOANS PAYABLE",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "June 30, 2026",
@@ -9763,7 +9704,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -9945,7 +9885,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "LOANS PAYABLE",
       "title": "Table: LOANS PAYABLE",
-      "headerShading": "#CCECFF",
       "headers": [
         "Loan Name",
         "Nature / Key terms",
@@ -9973,7 +9912,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -9989,7 +9927,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10020,7 +9957,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10051,7 +9987,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10082,7 +10017,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10169,7 +10103,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "LOANS PAYABLE",
       "title": "Table: LOANS PAYABLE",
-      "headerShading": "#CCECFF",
       "headers": [
         "Convertible debt",
         "Carrying amount",
@@ -10191,7 +10124,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10315,7 +10247,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "LOANS PAYABLE",
       "title": "Table: LOANS PAYABLE",
-      "headerShading": "#CCECFF",
       "headers": [
         "Derivative Liability – Amount in CAD",
         "June 30, 2026 in $",
@@ -10337,7 +10268,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10511,7 +10441,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "Transaction type",
         "Number of Common Shares"
@@ -10530,7 +10459,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10631,7 +10559,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "Transaction type",
         "Number of Common Shares"
@@ -10650,7 +10577,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10865,7 +10791,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Number of Preferred Shares"
@@ -10884,7 +10809,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -10985,7 +10909,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Number of Preferred Shares"
@@ -11004,7 +10927,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11148,7 +11070,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Number of Super Voting Shares"
@@ -11167,7 +11088,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11259,7 +11179,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Number of Super Voting Shares"
@@ -11278,7 +11197,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11436,7 +11354,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Number of warrants"
@@ -11455,7 +11372,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11556,7 +11472,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "Issue date",
         "Holder / category",
@@ -11587,7 +11502,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11604,7 +11518,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11637,7 +11550,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11670,7 +11582,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11703,7 +11614,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11736,7 +11646,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11769,7 +11678,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11802,7 +11710,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -11847,7 +11754,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "SHARE CAPITAL",
       "title": "Table: SHARE CAPITAL",
-      "headerShading": "#CCECFF",
       "headers": [
         "Warrants",
         "Exercise price currency",
@@ -11872,7 +11778,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12044,7 +11949,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "DIRECTORS AND OFFICERS STOCK COMPENSATION",
       "title": "Table: DIRECTORS AND OFFICERS STOCK COMPENSATION",
-      "headerShading": "#CCECFF",
       "headers": [
         "Recipient",
         "Position / relationship",
@@ -12075,7 +11979,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12092,7 +11995,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12125,7 +12027,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12179,7 +12080,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "DIRECTORS AND OFFICERS STOCK COMPENSATION",
       "title": "Table: DIRECTORS AND OFFICERS STOCK COMPENSATION",
-      "headerShading": "#CCECFF",
       "headers": [
         "Recipient",
         "Position / relationship",
@@ -12210,7 +12110,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12227,7 +12126,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12260,7 +12158,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12293,7 +12190,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12326,7 +12222,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": false,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12477,7 +12372,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#A6A6A6",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12647,7 +12541,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#A6A6A6",
           "doubleUnderline": false,
           "underline": false
         },
@@ -12938,7 +12831,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "RELATED PARTY TRANSACTIONS",
       "title": "Table: RELATED PARTY TRANSACTIONS",
-      "headerShading": "#CCECFF",
       "headers": [
         "Related party",
         "Nature of relationship"
@@ -12957,7 +12849,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -13202,7 +13093,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "RELATED PARTY TRANSACTIONS",
       "title": "Table: RELATED PARTY TRANSACTIONS",
-      "headerShading": "#CCECFF",
       "headers": [
         "Related Party",
         "Description",
@@ -13227,7 +13117,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -13647,7 +13536,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "RELATED PARTY TRANSACTIONS",
       "title": "Table: RELATED PARTY TRANSACTIONS",
-      "headerShading": "#CCECFF",
       "headers": [
         "Related Party",
         "Particulars",
@@ -13672,7 +13560,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -13823,7 +13710,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "RELATED PARTY TRANSACTIONS",
       "title": "Table: RELATED PARTY TRANSACTIONS",
-      "headerShading": "#CCECFF",
       "headers": [
         "Related Party",
         "Particulars",
@@ -13848,7 +13734,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -14462,7 +14347,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "RELATED PARTY TRANSACTIONS",
       "title": "Table: RELATED PARTY TRANSACTIONS",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Activity",
@@ -14763,7 +14647,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "RELATED PARTY TRANSACTIONS",
       "title": "Table: RELATED PARTY TRANSACTIONS",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Activity",
@@ -15076,7 +14959,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
       "type": "financial_table",
       "section": "BASIC AND DILUTED EPS",
       "title": "Table: BASIC AND DILUTED EPS",
-      "headerShading": "#CCECFF",
       "headers": [
         "",
         "Six Months Ended June 30, 2026",
@@ -15098,7 +14980,6 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
           ],
           "bold": true,
           "italic": false,
-          "shading": "#CCECFF",
           "doubleUnderline": false,
           "underline": false
         },
@@ -15427,6 +15308,8 @@ export const INITIAL_SEC_FILING_DOC: SecFilingDocument = {
   "lastModifiedBy": "Corporate Accounting Lead",
   "lockedBy": null
 };
+
+
 
 
 
