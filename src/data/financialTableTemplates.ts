@@ -31,7 +31,7 @@ export const FINANCIAL_TABLE_TEMPLATES: FinancialTableTemplate[] = [
     block: {
       title: 'Table: Statements of Financial Position',
       // Mirrors the live filing's Statements of Financial Position: the comparative
-      // period caption lives in the first three rows rather than periodHeaders,
+      // period caption lives in the first three rows of the table body,
       // column 1 carries note references, and value columns are right aligned.
       headers: ['', '', 'As of', 'As of'],
       columnAlignments: ['left', 'right', 'right', 'right'],
@@ -98,12 +98,6 @@ export const FINANCIAL_TABLE_TEMPLATES: FinancialTableTemplate[] = [
     block: {
       title: 'Consolidated Statements of Comprehensive Loss',
       headers: ['Description / Line Item', 'Three Months Ended 2026', 'Three Months Ended 2025', 'Six Months Ended 2026', 'Six Months Ended 2025'],
-      periodHeaders: [
-        { columnIndex: 1, lines: ['Three Months Ended', 'June 30, 2026'] },
-        { columnIndex: 2, lines: ['Three Months Ended', 'June 30, 2025'] },
-        { columnIndex: 3, lines: ['Six Months Ended', 'June 30, 2026'] },
-        { columnIndex: 4, lines: ['Six Months Ended', 'June 30, 2025'] }
-      ],
       columnAlignments: ['left', 'right', 'right', 'right', 'right'],
       columnWidths: ['40%', '15%', '15%', '15%', '15%'],
       rows: [
@@ -135,10 +129,6 @@ export const FINANCIAL_TABLE_TEMPLATES: FinancialTableTemplate[] = [
     block: {
       title: 'Consolidated Statements of Cash Flows',
       headers: ['Description / Line Item', 'Notes', 'Six Months Ended June 30, 2026', 'Six Months Ended June 30, 2025'],
-      periodHeaders: [
-        { columnIndex: 2, lines: ['Six Months Ended', 'June 30, 2026'] },
-        { columnIndex: 3, lines: ['Six Months Ended', 'June 30, 2025'] }
-      ],
       columnAlignments: ['left', 'center', 'right', 'right'],
       columnWidths: ['52%', '8%', '20%', '20%'],
       rows: [
@@ -195,10 +185,6 @@ export const FINANCIAL_TABLE_TEMPLATES: FinancialTableTemplate[] = [
     block: {
       title: 'Schedule of Financial Details',
       headers: ['Description / Category', 'Note Ref', 'June 30, 2026 ($)', 'December 31, 2025 ($)'],
-      periodHeaders: [
-        { columnIndex: 2, lines: ['As of', 'June 30,', '2026'] },
-        { columnIndex: 3, lines: ['As of', 'December 31,', '2025'] }
-      ],
       columnAlignments: ['left', 'center', 'right', 'right'],
       columnWidths: ['50%', '10%', '20%', '20%'],
       rows: [

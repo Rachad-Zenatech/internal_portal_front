@@ -360,39 +360,7 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       const hasMeaningfulHeader = cleanedHeaders.some((h) => h && h.trim().length > 0);
       const firstRowIsHeader = block.rows && block.rows.length > 0 && block.rows[0].type === 'header';
 
-      if (block.periodHeaders?.length) {
-        tableRows.push(
-          new TableRow({
-            children: cleanedHeaders.map((_, i) => {
-              const periodHeader = block.periodHeaders?.find((header) => header.columnIndex === i);
-              const lines = periodHeader?.lines || [];
-              const align = block.columnAlignments[i] || 'center';
-              const alignment = align === 'right' ? AlignmentType.RIGHT : align === 'left' ? AlignmentType.LEFT : AlignmentType.CENTER;
-              return new TableCell({
-                children: lines.length > 0
-                  ? lines.map((line) => new Paragraph({
-                      alignment: alignment as any,
-                      spacing: { before: 0, after: 0, line: 240 },
-                      children: [
-                        new TextRun({
-                          text: line,
-                          bold: true,
-                          size: 18,
-                          color: '0E2841',
-                          font: 'Calibri'
-                        })
-                      ]
-                    }))
-                  : [new Paragraph({ children: [] })],
-                margins: { top: 40, bottom: 40, left: 80, right: 80 },
-                borders: { top: noBorder, left: noBorder, right: noBorder, bottom: noBorder }
-              });
-            })
-          })
-        );
-      }
-
-      if (hasMeaningfulHeader && !firstRowIsHeader && (!block.periodHeaders || block.periodHeaders.length === 0)) {
+      if (hasMeaningfulHeader && !firstRowIsHeader) {
         const headerFill = (block.headerShading || 'FFFFFF').replace('#', '');
         tableRows.push(
           new TableRow({
@@ -889,15 +857,6 @@ export function printSecFiling(doc: SecFilingDocument) {
                 return `
                   <table style="margin-top: ${topMargin};">
                     <thead>
-                      ${b.periodHeaders?.length ? `
-                        <tr>
-                          ${b.headers.map((_, i) => {
-                            const periodHeader = b.periodHeaders?.find((header) => header.columnIndex === i);
-                            const align = b.columnAlignments?.[i] || 'center';
-                            return `<th class="align-${align}" style="background-color: transparent; text-align: ${align};">${periodHeader?.lines.map((line) => line || '&nbsp;').join('<br/>') || ''}</th>`;
-                          }).join('')}
-                        </tr>
-                      ` : ''}
                       <tr style="background-color: ${headerBg};">
                         ${b.headers
                           .map((h, i) => {

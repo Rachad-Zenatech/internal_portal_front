@@ -1722,25 +1722,6 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
         )}
         <table className="w-full border-collapse text-xs font-sans">
           <thead>
-            {b.periodHeaders && b.periodHeaders.length > 0 && (
-              <tr className="border-b border-slate-900 text-[#0E2841]">
-                {cleanedHeaders.map((_, i) => {
-                  const periodHeader = b.periodHeaders?.find((header) => header.columnIndex === i);
-                  const align = b.columnAlignments?.[i] || 'center';
-                  return (
-                    <th
-                      key={i}
-                      style={{ textAlign: align, width: b.columnWidths?.[i] || undefined }}
-                      className="py-1 px-2 font-bold text-[#0E2841] text-[11px] align-bottom"
-                    >
-                      {periodHeader?.lines.map((line, lIdx) => (
-                        <div key={lIdx} className="leading-tight">{line}</div>
-                      ))}
-                    </th>
-                  );
-                })}
-              </tr>
-            )}
             {showHeaderRow && (
               <tr className="border-t-2 border-b border-slate-900 bg-slate-50/50">
                 {cleanedHeaders.map((h, i) => (
