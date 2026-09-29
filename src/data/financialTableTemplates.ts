@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { SecFinancialTableBlock } from '../types/secFiling';
+import type { SecFinancialTableTemplate } from '../types/secFilingTemplate';
 import {
   Scale,
   TrendingDown,
@@ -266,3 +267,38 @@ export const FINANCIAL_TABLE_TEMPLATES: FinancialTableTemplate[] = [
     }
   }
 ];
+
+/**
+ * Icon names as stored in `sec_financial_table_templates.icon`, mapped back to
+ * lucide components. Unknown names fall back to a plain table icon so a template
+ * created with a new icon name still renders.
+ */
+export const TEMPLATE_ICON_BY_NAME: Record<string, ComponentType<{ className?: string }>> = {
+  scale: Scale,
+  'trending-down': TrendingDown,
+  activity: Activity,
+  'pie-chart': PieChart,
+  'file-spreadsheet': FileSpreadsheet,
+  table: Table
+};
+
+const DEFAULT_TEMPLATE_COLOR = 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-zinc-800';
+
+/**
+ * Converts templates from the API into the shape the block menus consume.
+ * `FINANCIAL_TABLE_TEMPLATES` remains the seed source and the offline fallback.
+ */
+export function resolveTableTemplates(
+  apiTemplates: SecFinancialTableTemplate[] | undefined
+): FinancialTableTemplate[] {
+  if (!apiTemplates || apiTemplates.length === 0) return FINANCIAL_TABLE_TEMPLATES;
+  return apiTemplates.map((t) => ({
+    id: t.id,
+    name: t.name,
+    badge: t.badge,
+    description: t.description || '',
+    icon: TEMPLATE_ICON_BY_NAME[t.icon] || Table,
+    color: t.color || DEFAULT_TEMPLATE_COLOR,
+    block: t.block as Partial<SecFinancialTableBlock>
+  }));
+}

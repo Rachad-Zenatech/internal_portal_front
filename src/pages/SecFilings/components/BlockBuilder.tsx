@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import type { SecBlock, SecBlockType, SecBlockDiff, SecBlockSpacing } from '../../../types/secFiling';
 import { BlockItem } from './BlockItem';
 import { InlineAddBlock } from './InlineAddBlock';
+import type { FinancialTableTemplate } from '../../../data/financialTableTemplates';
 import { paginateBlocks } from '../../../utils/secFilingPagination';
 import {
   FileText,
@@ -39,6 +40,8 @@ interface BlockBuilderProps {
   onSelectAllBlocks?: () => void;
   onClearSelection?: () => void;
   onAddBlock: (index: number, type: SecBlockType, customBlock?: Partial<SecBlock>) => void;
+  /** Statement templates, from the API. Falls back to the bundled set. */
+  tableTemplates?: FinancialTableTemplate[];
   onUpdateBlock: (id: string, updates: Partial<SecBlock>) => void;
   onMoveBlock: (id: string, direction: 'up' | 'down') => void;
   onMoveMultipleBlocks?: (ids: string[], direction: 'up' | 'down') => void;
@@ -64,6 +67,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
   onSelectAllBlocks,
   onClearSelection,
   onAddBlock,
+  tableTemplates,
   onUpdateBlock,
   onMoveBlock,
   onMoveMultipleBlocks,
@@ -541,7 +545,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
 
                   {/* If page 1, show top add block bar */}
                   {pageIdx === 0 && (
-                    <InlineAddBlock
+                    <InlineAddBlock tableTemplates={tableTemplates}
                       onAdd={(type, customBlock) => onAddBlock(0, type, customBlock)}
                       className="mb-2"
                       isAlwaysVisible={blocks.length === 0}
@@ -556,7 +560,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
 
                       return (
                         <React.Fragment key={block.id}>
-                          <BlockItem
+                          <BlockItem tableTemplates={tableTemplates}
                             block={block}
                             index={actualIndex}
                             totalBlocks={blocks.length}
@@ -575,7 +579,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                           />
 
                           {/* Inline Add Bar below each block */}
-                          <InlineAddBlock index={actualIndex + 1} onAddBlock={onAddBlock} />
+                          <InlineAddBlock tableTemplates={tableTemplates} index={actualIndex + 1} onAddBlock={onAddBlock} />
                         </React.Fragment>
                       );
                     })}
@@ -628,7 +632,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
 
             {/* Top Add Block Bar */}
             <div className="relative z-10">
-              <InlineAddBlock
+              <InlineAddBlock tableTemplates={tableTemplates}
                 onAdd={(type, customBlock) => onAddBlock(0, type, customBlock)}
                 className="mb-2"
                 isAlwaysVisible={blocks.length === 0}
@@ -643,7 +647,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
 
                 return (
                   <React.Fragment key={block.id}>
-                    <BlockItem
+                    <BlockItem tableTemplates={tableTemplates}
                       block={block}
                       index={actualIndex}
                       totalBlocks={blocks.length}
@@ -662,7 +666,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                     />
 
                     {/* Inline Add Bar below each block */}
-                    <InlineAddBlock onAdd={(type, customBlock) => onAddBlock(actualIndex + 1, type, customBlock)} />
+                    <InlineAddBlock tableTemplates={tableTemplates} onAdd={(type, customBlock) => onAddBlock(actualIndex + 1, type, customBlock)} />
                   </React.Fragment>
                 );
               })}

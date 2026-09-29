@@ -21,5 +21,6 @@ export const queryKeys = {
   statementDeposits: (stmtId: string, section?: string | null):             unknown[] => ["statements", stmtId, "deposits", { section }],
   byQuarter:         (year: number, quarter: number, acctId?: number | null): unknown[] => ["statements", "by-quarter", { year, quarter, acctId }],
   quarterlySummary:  (year: number, companyId?: number | null, acctId?: number | null): unknown[] => ["statements", "quarterly", { year, companyId, acctId }],
+  secFilingTableTemplates: ():                                              unknown[] => ["sec-filing-table-templates"],
   summary:           (period: string, year: number, companyId?: number | null, acctId?: number | null): unknown[] => ["statements", "summary", { period, year, companyId, acctId }],
 };

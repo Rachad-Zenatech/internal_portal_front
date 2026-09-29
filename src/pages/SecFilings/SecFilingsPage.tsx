@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   FileText,
   FileDown,
@@ -40,6 +40,8 @@ import {
   DropdownMenuTrigger
 } from '../../components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { useFinancialTableTemplates } from '../../hooks/useFinancialTableTemplates';
+import { resolveTableTemplates } from '../../data/financialTableTemplates';
 
 export default function SecFilingsPage() {
   const {
@@ -94,6 +96,21 @@ export default function SecFilingsPage() {
     calculateDiffForProposal,
     contributorSession
   } = useSecFiling();
+
+  // Statement templates come from the database; the bundled set is the fallback
+
+  // while the request is in flight or if the user lacks SEC_FILINGS_READ.
+
+  const { data: templateData } = useFinancialTableTemplates();
+
+  const tableTemplates = useMemo(
+
+    () => resolveTableTemplates(templateData?.templates),
+
+    [templateData]
+
+  );
+
 
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -640,6 +657,7 @@ export default function SecFilingsPage() {
         {/* Center Column: Prominent Word Document Sheet */}
         <div className="flex-1 w-full min-w-0">
           <BlockBuilder
+            tableTemplates={tableTemplates}
             blocks={workingBlocks}
             filteredBlocks={filteredBlocks}
             selectedBlockId={selectedBlockId}

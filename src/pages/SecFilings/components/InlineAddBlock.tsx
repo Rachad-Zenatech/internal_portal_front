@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { SecBlock, SecBlockType } from '../../../types/secFiling';
 import { FINANCIAL_TABLE_TEMPLATES } from '../../../data/financialTableTemplates';
+import type { FinancialTableTemplate } from '../../../data/financialTableTemplates';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
 
 interface InlineAddBlockProps {
@@ -21,6 +22,8 @@ interface InlineAddBlockProps {
   onAdd?: (type: SecBlockType, customBlock?: Partial<SecBlock>) => void;
   className?: string;
   isAlwaysVisible?: boolean;
+  /** Statement templates, from the API. Falls back to the bundled set. */
+  tableTemplates?: FinancialTableTemplate[];
 }
 
 const BLOCK_OPTIONS: {
@@ -93,7 +96,8 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
   onAddBlock,
   onAdd,
   className = '',
-  isAlwaysVisible = false
+  isAlwaysVisible = false,
+  tableTemplates = FINANCIAL_TABLE_TEMPLATES
 }) => {
   const [open, setOpen] = useState(false);
   const [templatesExpanded, setTemplatesExpanded] = useState(false);
@@ -173,7 +177,7 @@ const InlineAddBlockComponent: React.FC<InlineAddBlockProps> = ({
                   <div className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-zinc-500">
                     Build table from template
                   </div>
-                  {FINANCIAL_TABLE_TEMPLATES.map((tpl) => {
+                  {tableTemplates.map((tpl) => {
                     const TplIcon = tpl.icon;
                     return (
                       <button

@@ -33,6 +33,7 @@ import { MediaBucketModal } from './MediaBucketModal';
 import { mediaBucketService } from '../../../services/mediaBucketService';
 import { compactFinancialTableBlock } from '../../../services/secFilingService';
 import { FINANCIAL_TABLE_TEMPLATES } from '../../../data/financialTableTemplates';
+import type { FinancialTableTemplate } from '../../../data/financialTableTemplates';
 import { ZENATECH_LOGO_DATA_URL } from '../../../data/zenatechLogoAsset';
 import type {
   SecBlock,
@@ -113,6 +114,8 @@ interface BlockItemProps {
   onSelect: (e?: React.MouseEvent) => void;
   onToggleSelect?: (multiSelect: boolean) => void;
   onUpdate: (updates: Partial<SecBlock>) => void;
+  /** Statement templates, from the API. Falls back to the bundled set. */
+  tableTemplates?: FinancialTableTemplate[];
   onMoveUp: () => void;
   onMoveDown: () => void;
   onDuplicate: () => void;
@@ -132,6 +135,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
   onSelect,
   onToggleSelect,
   onUpdate,
+  tableTemplates = FINANCIAL_TABLE_TEMPLATES,
   onMoveUp,
   onMoveDown,
   onDuplicate,
@@ -970,6 +974,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
             block={block as SecFinancialTableBlock}
             onUpdate={onUpdate}
             isSelected={isHighlighted}
+            tableTemplates={tableTemplates}
           />
         )}
 
@@ -1016,6 +1021,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
 export const BlockItem = React.memo(BlockItemComponent, (prev, next) => {
   return (
     prev.block === next.block &&
+    prev.tableTemplates === next.tableTemplates &&
     prev.isSelected === next.isSelected &&
     prev.isMultiSelected === next.isMultiSelected &&
     prev.diffType === next.diffType &&
@@ -1221,7 +1227,8 @@ const FinancialTableBlockEditor: React.FC<{
   block: SecFinancialTableBlock;
   onUpdate: (u: Partial<SecFinancialTableBlock>) => void;
   isSelected?: boolean;
-}> = ({ block, onUpdate, isSelected = false }) => {
+  tableTemplates?: FinancialTableTemplate[];
+}> = ({ block, onUpdate, isSelected = false, tableTemplates = FINANCIAL_TABLE_TEMPLATES }) => {
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
   const [openRowMenuIdx, setOpenRowMenuIdx] = useState<number | null>(null);
@@ -1288,7 +1295,7 @@ const FinancialTableBlockEditor: React.FC<{
    * block's own id/type/section are left untouched so the block stays in place.
    */
   const applyTableTemplate = (templateId: string) => {
-    const template = FINANCIAL_TABLE_TEMPLATES.find((t) => t.id === templateId);
+    const template = tableTemplates.find((t) => t.id === templateId);
     if (!template) return;
 
     const tpl = template.block;
@@ -1627,7 +1634,7 @@ const FinancialTableBlockEditor: React.FC<{
                   Replaces this table's columns and rows. Undo with Ctrl+Z.
                 </p>
               </div>
-              {FINANCIAL_TABLE_TEMPLATES.map((tpl) => {
+              {tableTemplates.map((tpl) => {
                 const TplIcon = tpl.icon;
                 return (
                   <DropdownMenuItem

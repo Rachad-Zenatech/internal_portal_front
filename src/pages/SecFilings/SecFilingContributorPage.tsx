@@ -34,6 +34,8 @@ import {
   DropdownMenuTrigger
 } from '../../components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { useFinancialTableTemplates } from '../../hooks/useFinancialTableTemplates';
+import { resolveTableTemplates } from '../../data/financialTableTemplates';
 
 export default function SecFilingContributorPage() {
   const location = useLocation();
@@ -118,6 +120,21 @@ export default function SecFilingContributorPage() {
     canRedo,
     handleSubmitForReview
   } = useSecFiling();
+
+  // Statement templates come from the database; the bundled set is the fallback
+
+  // while the request is in flight or if the user lacks SEC_FILINGS_READ.
+
+  const { data: templateData } = useFinancialTableTemplates();
+
+  const tableTemplates = useMemo(
+
+    () => resolveTableTemplates(templateData?.templates),
+
+    [templateData]
+
+  );
+
 
   const [showOutline, setShowOutline] = useState<boolean>(true);
   const [showInspector, setShowInspector] = useState<boolean>(false);
@@ -474,6 +491,7 @@ export default function SecFilingContributorPage() {
         {/* Center Column: The Prominent Word Document Sheet */}
         <div className="flex-1 w-full min-w-0">
           <BlockBuilder
+            tableTemplates={tableTemplates}
             blocks={workingBlocks}
             filteredBlocks={filteredBlocks}
             selectedBlockId={selectedBlockId}
