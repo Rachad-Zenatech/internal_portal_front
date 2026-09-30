@@ -1772,7 +1772,7 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
                 >
                   {sanitizeTableCells(row.cells).map((cell, cIdx) => {
                     const isDateHeader = isComparativeDateHeaderCell(cell, rIdx, cIdx);
-                    const align = isDateHeader ? 'center' : (b.columnAlignments?.[cIdx] || (cIdx === 0 ? 'left' : 'right'));
+                    const align = row.cellAlignments?.[cIdx] || row.align || (isDateHeader ? 'center' : (b.columnAlignments?.[cIdx] || (cIdx === 0 ? 'left' : 'right')));
                     return (
                       <td
                         key={cIdx}

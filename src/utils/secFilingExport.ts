@@ -418,8 +418,10 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
               const isDateHeader = !isSection && isComparativeDateHeaderCell(cellText, rowIndex, colIndex);
               const isMajorHeader = !isSection && (isMajorStatementHeaderCell(cellText) || (isMajorHeaderRow && colIndex === 0));
               const defaultAlign = block.columnAlignments[colIndex] || (colIndex === 0 ? 'left' : 'right');
-              // An explicit per-row alignment wins over header auto-centering and the column default.
-              const align = row.align
+              // An explicit per-cell override wins over per-row alignment, header auto-centering, and column default.
+              const align = row.cellAlignments?.[colIndex]
+                ? row.cellAlignments[colIndex]
+                : row.align
                 ? row.align
                 : (isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && colIndex === 0)) ? 'center' : defaultAlign;
               const isFirstCol = colIndex === 0;
@@ -881,7 +883,9 @@ export function printSecFiling(doc: SecFilingDocument) {
                                 .map((c, i) => {
                                   const isDateHeader = !isSection && isComparativeDateHeaderCell(c, rIdx, i);
                                   const isMajorHeader = !isSection && (isMajorStatementHeaderCell(c) || (isMajorHeaderRow && i === 0));
-                                  const alignVal = r.align
+                                  const alignVal = r.cellAlignments?.[i]
+                                    ? r.cellAlignments[i]
+                                    : r.align
                                     ? r.align
                                     : (isDateHeader || isMajorHeader || ((r.type === 'header' || isMajorHeaderRow) && i === 0)) ? 'center' : (b.columnAlignments[i] || (i === 0 ? 'left' : 'right'));
                                   const align = `align-${alignVal}`;

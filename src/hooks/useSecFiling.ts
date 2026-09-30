@@ -300,6 +300,7 @@ export function useSecFiling() {
             ? customFt.rows.map((r, rIdx) => ({
                 ...r,
                 cells: [...r.cells],
+                ...(r.cellAlignments ? { cellAlignments: [...r.cellAlignments] } : {}),
                 id: `r-${Date.now()}-${rIdx}-${Math.random().toString(36).substring(2, 6)}`
               }))
             : [

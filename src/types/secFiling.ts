@@ -70,6 +70,8 @@ export interface SecTableRow {
    * row ("2026" / "2025") gets centered above right-aligned figure columns.
    */
   align?: 'left' | 'center' | 'right';
+  /** Per-cell horizontal alignment overrides: row 5 col 2 can be centered individually. */
+  cellAlignments?: ('left' | 'center' | 'right' | null | undefined)[];
 }
 
 /** Centered multi-line comparative reporting-period label above one value column. */

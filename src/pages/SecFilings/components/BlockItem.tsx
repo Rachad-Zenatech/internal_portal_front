@@ -1233,6 +1233,7 @@ const FinancialTableBlockEditor: React.FC<{
   tableTemplates?: FinancialTableTemplate[];
 }> = ({ block, onUpdate, isSelected = false, tableTemplates = FINANCIAL_TABLE_TEMPLATES }) => {
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
+  const [activeCell, setActiveCell] = useState<{ rowIdx: number; colIdx: number } | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   const [templateModalMode, setTemplateModalMode] = useState<'create' | 'update'>('create');
   const [templateModalInitialId, setTemplateModalInitialId] = useState<string | undefined>(undefined);
@@ -1329,6 +1330,7 @@ const FinancialTableBlockEditor: React.FC<{
       rows: (tpl.rows || []).map((r, rIdx) => ({
         ...r,
         cells: [...r.cells],
+        ...(r.cellAlignments ? { cellAlignments: [...r.cellAlignments] } : {}),
         id: `r-${stamp}-${rIdx}-${Math.random().toString(36).substring(2, 6)}`
       })),
       footnotes: tpl.footnotes ? [...tpl.footnotes] : undefined
@@ -1530,6 +1532,28 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({ rows: nextRows });
   };
 
+  /** Sets or clears a single cell's alignment override (e.g. Row 5, Col 2 centered). `undefined` resets to row/column default. */
+  const setCellAlignment = (rowIndex: number, colIndex: number, align?: 'left' | 'center' | 'right') => {
+    const nextRows = [...block.rows];
+    const r = { ...nextRows[rowIndex] };
+    const nextCellAlignments = r.cellAlignments ? [...r.cellAlignments] : [];
+    while (nextCellAlignments.length <= colIndex) {
+      nextCellAlignments.push(undefined);
+    }
+    if (align) {
+      nextCellAlignments[colIndex] = align;
+    } else {
+      nextCellAlignments[colIndex] = undefined;
+    }
+    if (nextCellAlignments.every((a) => !a)) {
+      delete r.cellAlignments;
+    } else {
+      r.cellAlignments = nextCellAlignments;
+    }
+    nextRows[rowIndex] = r;
+    onUpdate({ rows: nextRows });
+  };
+
   /** Sets or clears a per-row alignment override. `undefined` falls back to the column. */
   const setRowAlignment = (rowIndex: number, align: SecTableRow['align']) => {
     const nextRows = [...block.rows];
@@ -1581,9 +1605,11 @@ const FinancialTableBlockEditor: React.FC<{
         const isDateHeader = !isSection && isComparativeDateHeaderCell(cellValue, rowIdx, colIdx);
         const isMajorHeader = !isSection && (isMajorStatementHeaderCell(cellValue) || (isMajorHeaderRow && colIdx === 0));
         const isFirst = colIdx === 0;
-        // An explicit per-row alignment beats both the auto-detected header centering
-        // and the column default, so a caption row can be centered by hand.
-        const align = row.align
+        // An explicit per-cell alignment override wins over row alignment, header auto-centering, and column default.
+        const cellAlignOverride = row.cellAlignments?.[colIdx];
+        const align = cellAlignOverride
+          ? cellAlignOverride
+          : row.align
           ? row.align
           : isDateHeader || isMajorHeader || ((row.type === 'header' || isMajorHeaderRow) && isFirst)
           ? 'center'
@@ -1720,18 +1746,88 @@ const FinancialTableBlockEditor: React.FC<{
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {/* Column alignment for the column the user is in. Clicking any cell sets
-              the target, so centering one column takes two clicks. */}
+          {/* Cell Alignment for the single focused cell (e.g. Row 5, Col 2) */}
+          <div
+            className="flex items-center gap-0.5 rounded border border-slate-200 dark:border-zinc-700 px-1 py-0.5 bg-slate-50/70 dark:bg-zinc-800/40"
+            title={
+              activeCell === null
+                ? 'Click any table cell to align that single cell'
+                : `Align single cell: Row ${activeCell.rowIdx + 1}, Col ${activeCell.colIdx + 1}`
+            }
+          >
+            <span className="px-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+              {activeCell === null ? 'Cell' : `R${activeCell.rowIdx + 1} C${activeCell.colIdx + 1}`}
+            </span>
+            {([
+              { value: 'left' as const, label: 'Align single cell left', Icon: AlignLeft },
+              { value: 'center' as const, label: 'Center single cell', Icon: AlignCenter },
+              { value: 'right' as const, label: 'Align single cell right', Icon: AlignRight }
+            ]).map(({ value, label, Icon }) => {
+              const customCellAlign =
+                activeCell !== null
+                  ? block.rows[activeCell.rowIdx]?.cellAlignments?.[activeCell.colIdx]
+                  : undefined;
+              const effectiveAlign =
+                activeCell !== null
+                  ? rowMetadata[activeCell.rowIdx]?.cellMeta[activeCell.colIdx]?.align || 'left'
+                  : null;
+              const isCustomActive = customCellAlign === value;
+              const isInheritedActive = !customCellAlign && effectiveAlign === value;
+
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  disabled={activeCell === null}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() =>
+                    activeCell !== null &&
+                    setCellAlignment(
+                      activeCell.rowIdx,
+                      activeCell.colIdx,
+                      isCustomActive ? undefined : value
+                    )
+                  }
+                  title={label}
+                  className={`p-0.5 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+                    isCustomActive
+                      ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                      : isInheritedActive
+                      ? 'bg-blue-600/70 text-white'
+                      : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  <Icon className="w-3 h-3" />
+                </button>
+              );
+            })}
+            {activeCell !== null && block.rows[activeCell.rowIdx]?.cellAlignments?.[activeCell.colIdx] && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() =>
+                  activeCell !== null &&
+                  setCellAlignment(activeCell.rowIdx, activeCell.colIdx, undefined)
+                }
+                title="Reset single cell to default column/row alignment"
+                className="p-0.5 rounded text-amber-600 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors"
+              >
+                <Undo2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Column alignment for the column the user is in. */}
           <div
             className="flex items-center gap-0.5 rounded border border-slate-200 dark:border-zinc-700 px-1 py-0.5"
             title={
               activeColIdx === null
                 ? 'Click a cell first, then align its column'
-                : `Align column ${activeColIdx + 1}`
+                : `Align entire column ${activeColIdx + 1}`
             }
           >
             <span className="px-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">
-              {activeColIdx === null ? 'Align col' : `Col ${activeColIdx + 1}`}
+              {activeColIdx === null ? 'Col' : `Col ${activeColIdx + 1}`}
             </span>
             {([
               { value: 'left' as const, label: 'Align column left', Icon: AlignLeft },
@@ -2272,7 +2368,10 @@ const FinancialTableBlockEditor: React.FC<{
                         <TableCellInput
                           initialValue={cellValue}
                           onCommit={(val) => handleCellChange(rowIdx, colIdx, val)}
-                          onFocus={() => setActiveColIdx(colIdx)}
+                          onFocus={() => {
+                            setActiveColIdx(colIdx);
+                            setActiveCell({ rowIdx, colIdx });
+                          }}
                           // No placeholder: a dash here read as real content in empty cells.
                           style={{ textAlign: align }}
                           className={`w-full bg-transparent hover:bg-white/80 dark:hover:bg-zinc-800/80 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} ${

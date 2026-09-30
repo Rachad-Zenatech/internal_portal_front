@@ -72,6 +72,9 @@ function sanitizeTableBlock(block: SecFinancialTableBlock): SecFinancialTableTem
   const rows = (block.rows || []).map((r, idx) => {
     const rawCells = r.cells || [];
     const cells = Array.from({ length: colCount }, (_, cIdx) => rawCells[cIdx] ?? '');
+    const cellAlignments = r.cellAlignments
+      ? Array.from({ length: colCount }, (_, cIdx) => r.cellAlignments?.[cIdx] || null)
+      : undefined;
     return {
       id: r.id || `r-${idx + 1}`,
       type: r.type || 'data',
@@ -82,7 +85,8 @@ function sanitizeTableBlock(block: SecFinancialTableBlock): SecFinancialTableTem
       ...(r.doubleUnderline !== undefined ? { doubleUnderline: r.doubleUnderline } : {}),
       ...(r.shading ? { shading: r.shading } : {}),
       ...(r.indent !== undefined ? { indent: Math.max(0, Math.min(3, r.indent)) } : {}),
-      ...(r.align ? { align: r.align } : {})
+      ...(r.align ? { align: r.align } : {}),
+      ...(cellAlignments && cellAlignments.some(Boolean) ? { cellAlignments } : {})
     };
   });
 
