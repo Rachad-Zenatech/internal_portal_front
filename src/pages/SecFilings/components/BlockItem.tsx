@@ -1264,6 +1264,9 @@ const FinancialTableBlockEditor: React.FC<{
       await updateTemplateMutation.mutateAsync({
         id: tpl.id,
         payload: {
+          name: tpl.name,
+          badge: tpl.badge,
+          description: tpl.description,
           block: sanitized
         }
       });
