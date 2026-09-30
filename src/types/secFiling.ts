@@ -113,6 +113,9 @@ export interface SecCalloutBlock {
   modifiedBy?: string;
 }
 
+export type ESignProvider = 'docusign' | 'dropbox_sign';
+export type ESignDeliveryMethod = 'SMS' | 'WhatsApp' | 'Email_and_SMS';
+
 export interface SecSignatureOfficer {
   id: string;
   name: string;
@@ -120,6 +123,17 @@ export interface SecSignatureOfficer {
   date: string;
   signatureText?: string;
   signed: boolean;
+  phoneNumber?: string;
+  email?: string;
+  provider?: ESignProvider;
+  deliveryMethod?: ESignDeliveryMethod;
+  envelopeId?: string;
+  status?: 'pending_signature' | 'sent_sms' | 'signed' | 'declined';
+  signedAt?: string;
+  signedVia?: string;
+  signatureImageUrl?: string;
+  auditTrailId?: string;
+  ipAddress?: string;
 }
 
 export interface SecSignatureBlock {

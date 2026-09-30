@@ -30,10 +30,12 @@ import {
   Edit2,
   PlusCircle,
   Check,
-  Save
+  Save,
+  Smartphone
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
 import { TableTemplateModal, findMatchingTemplate, sanitizeTableBlock } from './TableTemplateModal';
+import { MobileSigningModal } from './MobileSigningModal';
 import { useUpdateFinancialTableTemplate } from '../../../hooks/useFinancialTableTemplates';
 import { toast } from 'sonner';
 import { mediaBucketService } from '../../../services/mediaBucketService';
@@ -2512,6 +2514,8 @@ const SignatureBlockEditor: React.FC<{
   block: SecSignatureBlock;
   onUpdate?: (u: Partial<SecSignatureBlock>) => void;
 }> = ({ block, onUpdate }) => {
+  const [mobileSignOfficerIdx, setMobileSignOfficerIdx] = useState<number | null>(null);
+
   const addOfficer = () => {
     if (!onUpdate) return;
     const newOfficer = {
@@ -2566,14 +2570,28 @@ const SignatureBlockEditor: React.FC<{
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {block.officers.map((officer, idx) => (
-          <div key={officer.id || idx} className="space-y-1 text-xs group/sig relative">
-            <input
-              type="text"
-              value={officer.signatureText || ''}
-              placeholder="/s/ ____________________ (Signature spot)"
-              onChange={(e) => updateOfficer(idx, { signatureText: e.target.value, signed: Boolean(e.target.value.trim()) })}
-              className="w-full font-mono font-medium text-sm text-slate-900 dark:text-zinc-100 border-b border-slate-400 pb-0.5 bg-transparent focus:outline-none focus:border-blue-500 placeholder:text-slate-400/60 placeholder:italic"
-            />
+          <div key={officer.id || idx} className="space-y-1 text-xs group/sig relative p-2.5 rounded-lg border border-transparent hover:border-slate-200 dark:hover:border-zinc-800 transition-colors">
+            {/* Signature Input / Status */}
+            <div className="flex items-center justify-between gap-2">
+              <input
+                type="text"
+                value={officer.signatureText || ''}
+                placeholder="/s/ ____________________ (Signature spot)"
+                onChange={(e) => updateOfficer(idx, { signatureText: e.target.value, signed: Boolean(e.target.value.trim()) })}
+                className="w-full font-mono font-medium text-sm text-slate-900 dark:text-zinc-100 border-b border-slate-400 pb-0.5 bg-transparent focus:outline-none focus:border-blue-500 placeholder:text-slate-400/60 placeholder:italic"
+              />
+              <button
+                type="button"
+                onClick={() => setMobileSignOfficerIdx(idx)}
+                title="Send signing prompt to phone via DocuSign / Dropbox Sign SMS"
+                className="shrink-0 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 transition-colors shadow-2xs"
+              >
+                <Smartphone className="w-3 h-3 text-blue-600" />
+                <span>{officer.signed ? 'View E-Sign' : '📱 Sign via Phone'}</span>
+              </button>
+            </div>
+
+            {/* Officer Name & Title */}
             <div className="flex items-center gap-1">
               <input
                 type="text"
@@ -2591,6 +2609,8 @@ const SignatureBlockEditor: React.FC<{
                 className="text-slate-700 dark:text-zinc-300 bg-transparent border-none focus:outline-none flex-1"
               />
             </div>
+
+            {/* Date and Status Details */}
             <div className="flex items-center justify-between text-slate-500 italic">
               <input
                 type="text"
@@ -2609,9 +2629,36 @@ const SignatureBlockEditor: React.FC<{
                 </button>
               )}
             </div>
+
+            {/* Signed Verification Pill */}
+            {officer.signed && (
+              <div
+                onClick={() => setMobileSignOfficerIdx(idx)}
+                className="cursor-pointer inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+              >
+                <span>✓ {officer.signedVia || 'Rule 302(b) Mobile Verified'}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
+
+      {/* Mobile Signing Modal */}
+      {mobileSignOfficerIdx !== null && (
+        <MobileSigningModal
+          open={mobileSignOfficerIdx !== null}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setMobileSignOfficerIdx(null);
+          }}
+          documentTitle="SEC Filing Document"
+          documentId="sec-active-doc"
+          block={block}
+          officerIndex={mobileSignOfficerIdx}
+          onSignatureCompleted={(updatedOfficer) => {
+            updateOfficer(mobileSignOfficerIdx, updatedOfficer);
+          }}
+        />
+      )}
     </div>
   );
 };

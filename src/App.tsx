@@ -33,11 +33,17 @@ const AuditLog = lazy(() => import("./pages/Log/AuditLog"));
 const SecFilings = lazy(() => import("./pages/SecFilings/SecFilingsPage"));
 const CreateSecFilingPage = lazy(() => import("./pages/SecFilings/CreateSecFilingPage"));
 const SecFilingContributorPage = lazy(() => import("./pages/SecFilings/SecFilingContributorPage"));
+const MobileSignerPage = lazy(() => import("./pages/SecFilings/MobileSignerPage"));
 
 function SecFilingsRoute() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const isContributor = searchParams.get('contributor') === 'true';
+  const isSignEnvelope = searchParams.has('signEnvelope') || searchParams.has('sign');
+
+  if (isSignEnvelope) {
+    return <MobileSignerPage />;
+  }
 
   if (isContributor) {
     return <SecFilingContributorPage />;
