@@ -2516,11 +2516,11 @@ const SignatureBlockEditor: React.FC<{
     if (!onUpdate) return;
     const newOfficer = {
       id: `off-${Date.now()}`,
-      name: 'Executive Signer',
+      name: '',
       title: 'Chief Financial Officer',
-      signatureText: '/s/ Executive Signer',
+      signatureText: '',
       date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-      signed: true
+      signed: false
     };
     onUpdate({ officers: [...block.officers, newOfficer] });
   };
@@ -2569,15 +2569,16 @@ const SignatureBlockEditor: React.FC<{
           <div key={officer.id || idx} className="space-y-1 text-xs group/sig relative">
             <input
               type="text"
-              value={officer.signatureText || `/s/ ${officer.name}`}
-              onChange={(e) => updateOfficer(idx, { signatureText: e.target.value })}
-              className="w-full font-mono font-bold text-sm text-slate-900 dark:text-zinc-100 border-b border-slate-400 pb-0.5 bg-transparent focus:outline-none focus:border-blue-500"
+              value={officer.signatureText || ''}
+              placeholder="/s/ ____________________ (Signature spot)"
+              onChange={(e) => updateOfficer(idx, { signatureText: e.target.value, signed: Boolean(e.target.value.trim()) })}
+              className="w-full font-mono font-medium text-sm text-slate-900 dark:text-zinc-100 border-b border-slate-400 pb-0.5 bg-transparent focus:outline-none focus:border-blue-500 placeholder:text-slate-400/60 placeholder:italic"
             />
             <div className="flex items-center gap-1">
               <input
                 type="text"
                 value={officer.name}
-                onChange={(e) => updateOfficer(idx, { name: e.target.value, signatureText: `/s/ ${e.target.value}` })}
+                onChange={(e) => updateOfficer(idx, { name: e.target.value })}
                 placeholder="Officer Name"
                 className="font-semibold text-slate-900 dark:text-zinc-200 bg-transparent border-none focus:outline-none flex-1"
               />

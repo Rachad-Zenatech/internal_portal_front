@@ -527,11 +527,17 @@ export async function exportSecFilingToDocx(doc: SecFilingDocument): Promise<Blo
       );
 
       for (const officer of block.officers) {
+        const sigText = officer.signed && officer.signatureText
+          ? officer.signatureText
+          : officer.signed && officer.name
+          ? `/s/ ${officer.name}`
+          : '/s/ ____________________________';
+
         children.push(
           new Paragraph({
             children: [
               new TextRun({
-                text: officer.signatureText || `/s/ ${officer.name}`,
+                text: sigText,
                 bold: true,
                 size: 20,
                 font: 'Calibri'
@@ -916,13 +922,20 @@ export function printSecFiling(doc: SecFilingDocument) {
                     <h3>${b.title || 'SIGNATURES'}</h3>
                     ${b.officers
                       .map(
-                        (off) => `
+                        (off) => {
+                          const sig = off.signed && off.signatureText
+                            ? off.signatureText
+                            : off.signed && off.name
+                            ? `/s/ ${off.name}`
+                            : '/s/ ____________________________';
+                          return `
                       <div class="signature-item">
-                        <p><strong>${off.signatureText || `/s/ ${off.name}`}</strong><br/>
-                        ${off.name} — ${off.title}<br/>
-                        <em>Date: ${off.date}</em></p>
+                        <p><strong>${sig}</strong><br/>
+                        ${off.name ? `${off.name} — ` : ''}${off.title}<br/>
+                        <em>Date: ${off.date || '____________________'}</em></p>
                       </div>
-                    `
+                    `;
+                        }
                       )
                       .join('')}
                   </div>

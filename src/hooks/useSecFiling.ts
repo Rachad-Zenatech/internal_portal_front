@@ -350,8 +350,8 @@ export function useSecFiling() {
                 name: user?.full_name || 'Authorized Officer',
                 title: 'Principal Financial Officer',
                 date: new Date().toISOString().split('T')[0],
-                signatureText: `/s/ ${user?.full_name || 'Authorized Officer'}`,
-                signed: true
+                signatureText: '',
+                signed: false
               }
             ],
             spacingTop: 16,

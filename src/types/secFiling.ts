@@ -285,3 +285,19 @@ export interface SecBlockDiff {
     newValue: any;
   }[];
 }
+
+export interface SecDocumentSummary {
+  id: string;
+  title: string;
+  formType: string;
+  period?: string;
+  updatedAt: string;
+  createdAt: string;
+  owner: string;
+  isShared: boolean;
+  version: string;
+  versionNumber?: number;
+  blocksCount: number;
+  templateType?: string;
+}
+

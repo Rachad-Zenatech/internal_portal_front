@@ -454,11 +454,11 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
                   onClick={() => {
                     const newOfficer = {
                       id: `off-${Date.now()}`,
-                      name: 'Executive Officer',
+                      name: '',
                       title: 'Chief Financial Officer',
-                      signatureText: '/s/ Executive Officer',
+                      signatureText: '',
                       date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
-                      signed: true
+                      signed: false
                     };
                     onUpdate({ officers: [...block.officers, newOfficer] });
                   }}
@@ -474,7 +474,7 @@ export const BlockInspector: React.FC<BlockInspectorProps> = ({
                     value={off.name}
                     onChange={(e) => {
                       const next = [...block.officers];
-                      next[idx] = { ...next[idx], name: e.target.value, signatureText: `/s/ ${e.target.value}` };
+                      next[idx] = { ...next[idx], name: e.target.value };
                       onUpdate({ officers: next });
                     }}
                     placeholder="Officer Name"

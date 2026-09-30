@@ -31,6 +31,7 @@ const GeneralLedgerUpload = lazy(() => import("./pages/GeneralLedgerUpload"));
 const CompanyGeneralLedger = lazy(() => import("./pages/CompanyGeneralLedger"));
 const AuditLog = lazy(() => import("./pages/Log/AuditLog"));
 const SecFilings = lazy(() => import("./pages/SecFilings/SecFilingsPage"));
+const CreateSecFilingPage = lazy(() => import("./pages/SecFilings/CreateSecFilingPage"));
 const SecFilingContributorPage = lazy(() => import("./pages/SecFilings/SecFilingContributorPage"));
 
 function SecFilingsRoute() {
@@ -81,6 +82,7 @@ function App() {
             <Route path="/consolidated-trial-balance" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE_MATRIX"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
             {/* /sec-filings managed above by SecFilingsRoute */}
+            <Route path="/sec-filings/new" element={<ProtectedRoute navigationCode="SEC_FILINGS"><CreateSecFilingPage /></ProtectedRoute>} />
 
             {/* Configuration Routes */}
             <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />
