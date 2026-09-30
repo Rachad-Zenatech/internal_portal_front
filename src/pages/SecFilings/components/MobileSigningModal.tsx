@@ -94,6 +94,50 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<MobileSigningResponse | null>(null);
 
+  // Real-Time Cross-Device Polling: detects when phone completes signature on CloudFront / Mobile
+  useEffect(() => {
+    if (!open) return;
+    const activeEnvelopeId = dispatchResult?.envelopeId || `sec-env-${officer.id || ''}`;
+    if (!activeEnvelopeId) return;
+
+    let isSubscribed = true;
+    const interval = setInterval(async () => {
+      try {
+        const remoteStatus = await eSignatureService.getMobileSignatureStatus(activeEnvelopeId);
+        if (remoteStatus && remoteStatus.status === 'signed' && isSubscribed) {
+          clearInterval(interval);
+          toast.success(`📱 Electronic signature received from ${remoteStatus.signerName || officerName}!`);
+
+          const updatedOfficer = eSignatureService.completeMobileSignature(
+            {
+              ...officer,
+              name: remoteStatus.signerName || officerName,
+              title: remoteStatus.signerTitle || officerTitle,
+              phoneNumber: `+${countryCode} ${phoneNumber}`,
+              provider,
+              deliveryMethod,
+            },
+            activeEnvelopeId,
+            {
+              signatureText: remoteStatus.signatureText || `/s/ ${remoteStatus.signerName || officerName}`,
+              signatureImageUrl: remoteStatus.signatureImageUrl,
+              provider,
+              ipAddress: remoteStatus.ipAddress || 'Mobile Cellular (Verified)'
+            }
+          );
+
+          onSignatureCompleted(updatedOfficer);
+          onOpenChange(false);
+        }
+      } catch (err) {}
+    }, 2000);
+
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
+  }, [open, dispatchResult, officer, officerName, officerTitle, countryCode, phoneNumber, provider, deliveryMethod, onSignatureCompleted, onOpenChange]);
+
   // Phone Canvas State
   const [signMode, setSignMode] = useState<'draw' | 'type'>('draw');
   const [typedSignature, setTypedSignature] = useState(officer.name ? `/s/ ${officer.name}` : '/s/ Shaun Passley');

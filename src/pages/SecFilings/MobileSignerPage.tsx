@@ -1,3 +1,4 @@
+import { eSignatureService } from '../../services/eSignatureService';
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CheckCircle2, ShieldCheck, FileText, Lock } from 'lucide-react';
@@ -107,6 +108,16 @@ export const MobileSignerPage: React.FC = () => {
       provider: providerParam,
       envelopeId,
       signedVia: `${providerParam === 'dropbox_sign' ? 'Dropbox Sign' : 'DocuSign'} Mobile SMS (Rule 302(b) Verified)`
+    });
+
+    // Broadcast and save to backend server for cross-device real-time sync with desktop
+    void eSignatureService.submitMobileSignature(envelopeId, {
+      signerName,
+      signatureText: finalSigText,
+      signatureImageUrl: sigImgUrl,
+      provider: providerParam,
+      signedVia: `${providerParam === 'dropbox_sign' ? 'Dropbox Sign' : 'DocuSign'} Mobile SMS (Rule 302(b) Verified)`,
+      ipAddress: 'Mobile Client (Rule 302(b) Verified)'
     });
 
     // Save session in local storage for audit

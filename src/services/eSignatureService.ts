@@ -1,3 +1,4 @@
+import { apiClient } from './apiClient';
 /**
  * E-Signature Service for DocuSign & Dropbox Sign (HelloSign) SMS Direct-to-Phone Delivery
  * Supporting SEC EDGAR Electronic Signatures (Rule 302(b) of Regulation S-T)
@@ -130,6 +131,23 @@ export const eSignatureService = {
       localStorage.setItem(`sec_esign_envelope_${envelopeId}`, JSON.stringify(sessionData));
     }
 
+    try {
+      await apiClient.post('/sec-filings/mobile-signatures/dispatch', {
+        envelopeId,
+        documentTitle: params.documentTitle,
+        documentId: params.documentId,
+        blockId: params.blockId,
+        officerId: params.officerId,
+        signerName: params.recipientName,
+        signerTitle: params.recipientTitle,
+        phoneNumber: cleanPhone,
+        provider: params.provider,
+        deliveryMethod: params.deliveryMethod
+      });
+    } catch (err) {
+      console.warn('Backend envelope dispatch warning:', err);
+    }
+
     return {
       success: true,
       envelopeId,
@@ -146,6 +164,33 @@ export const eSignatureService = {
   /**
    * Finalizes an electronic signature completed via mobile phone
    */
+  async getMobileSignatureStatus(envelopeId: string): Promise<any | null> {
+    try {
+      return await apiClient.get(`/sec-filings/mobile-signatures/${envelopeId}`);
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async submitMobileSignature(
+    envelopeId: string,
+    signatureData: {
+      signerName?: string;
+      signatureText: string;
+      signatureImageUrl?: string;
+      provider?: string;
+      signedVia?: string;
+      ipAddress?: string;
+    }
+  ): Promise<any | null> {
+    try {
+      return await apiClient.post(`/sec-filings/mobile-signatures/${envelopeId}/complete`, signatureData);
+    } catch (e) {
+      console.warn('Remote signature sync warning:', e);
+      return null;
+    }
+  },
+
   completeMobileSignature(
     officer: SecSignatureOfficer,
     envelopeId: string,
