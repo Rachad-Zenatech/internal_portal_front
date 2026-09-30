@@ -1243,11 +1243,9 @@ const FinancialTableBlockEditor: React.FC<{
     sanitizedBlockIdRef.current = block.id;
 
     let needsUpdate = false;
-    let nextHeaderShading = block.headerShading;
-    if (block.headerShading === '#CCECFF' || block.headerShading === '#DAE9F7' || block.headerShading === '#CAEDFB') {
-      nextHeaderShading = undefined;
-      needsUpdate = true;
-    }
+    // Template header fills are part of the saved layout. Do not normalise the
+    // standard financial-statement blues away when a database template is read.
+    const nextHeaderShading = block.headerShading;
 
     const nextRows = block.rows.map((r, rIdx) => {
       const isCategory = r.type === 'category_header' || r.type === 'section_title';
@@ -1742,7 +1740,7 @@ const FinancialTableBlockEditor: React.FC<{
         <table className="w-full text-[13px] border-collapse">
           <thead>
             <tr
-              style={{ backgroundColor: (block.headerShading && block.headerShading !== '#CCECFF' && block.headerShading !== '#DAE9F7' && block.headerShading !== '#CAEDFB') ? block.headerShading : 'transparent' }}
+              style={{ backgroundColor: block.headerShading || undefined }}
               className="border-t border-b-2 border-slate-900 text-[#0E2841] bg-white dark:bg-zinc-900"
             >
               {/* Left Sandwich Bar Column Header */}
