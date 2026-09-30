@@ -313,6 +313,15 @@ export function useSecFiling() {
             section: customFt?.section || section,
             title: customFt?.title || 'Schedule of Financial Details',
             headers: customFt?.headers ? [...customFt.headers] : ['Description / Line Item', 'Note Ref', 'Q2 2026 ($)', 'Q2 2025 ($)'],
+            ...(customFt?.headerShading ? { headerShading: customFt.headerShading } : {}),
+            ...(customFt?.periodHeaders
+              ? {
+                  periodHeaders: customFt.periodHeaders.map((header) => ({
+                    ...header,
+                    lines: [...header.lines]
+                  }))
+                }
+              : {}),
             columnAlignments: customFt?.columnAlignments ? [...customFt.columnAlignments] : ['left', 'center', 'right', 'right'],
             columnWidths: customFt?.columnWidths ? [...customFt.columnWidths] : ['50%', '10%', '20%', '20%'],
             rows: freshRows,

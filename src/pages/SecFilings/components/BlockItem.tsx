@@ -1303,6 +1303,11 @@ const FinancialTableBlockEditor: React.FC<{
     onUpdate({
       title: tpl.title ?? block.title,
       headers: [...(tpl.headers || block.headers)],
+      headerShading: tpl.headerShading,
+      periodHeaders: tpl.periodHeaders?.map((header) => ({
+        ...header,
+        lines: [...header.lines]
+      })),
       columnAlignments: [...(tpl.columnAlignments || block.columnAlignments)],
       columnWidths: tpl.columnWidths ? [...tpl.columnWidths] : undefined,
       rows: (tpl.rows || []).map((r, rIdx) => ({
@@ -2614,4 +2619,3 @@ const ImageBlockEditor: React.FC<{
     </div>
   );
 };
-

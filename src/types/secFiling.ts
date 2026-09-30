@@ -72,12 +72,19 @@ export interface SecTableRow {
   align?: 'left' | 'center' | 'right';
 }
 
+/** Centered multi-line comparative reporting-period label above one value column. */
+export interface SecTablePeriodHeader {
+  columnIndex: number;
+  lines: string[];
+}
+
 export interface SecFinancialTableBlock {
   id: string;
   type: 'financial_table';
   section: string;
   title?: string;
   headers: string[];
+  periodHeaders?: SecTablePeriodHeader[];
   headerShading?: string;
   columnAlignments: ('left' | 'center' | 'right')[];
   columnWidths?: string[];

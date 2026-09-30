@@ -7,7 +7,8 @@ import type { SecFinancialTableBlock } from './secFiling';
  */
 export type SecFinancialTableTemplateBlock = Pick<
   SecFinancialTableBlock,
-  'title' | 'headers' | 'columnAlignments' | 'columnWidths' | 'rows' | 'footnotes'
+  'title' | 'headers' | 'headerShading' | 'columnAlignments' | 'columnWidths' | 'rows' | 'footnotes'
+  | 'periodHeaders'
 >;
 
 /** A template as returned by `GET /api/sec-filings/table-templates`. */
