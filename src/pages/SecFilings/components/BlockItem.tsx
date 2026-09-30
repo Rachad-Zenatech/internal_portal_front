@@ -27,9 +27,12 @@ import {
   GripVertical,
   LayoutTemplate,
   Undo2,
+  Edit2,
+  PlusCircle,
   Check
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
+import { TableTemplateModal } from './TableTemplateModal';
 import { mediaBucketService } from '../../../services/mediaBucketService';
 import { compactFinancialTableBlock } from '../../../services/secFilingService';
 import { FINANCIAL_TABLE_TEMPLATES } from '../../../data/financialTableTemplates';
@@ -1230,6 +1233,21 @@ const FinancialTableBlockEditor: React.FC<{
   tableTemplates?: FinancialTableTemplate[];
 }> = ({ block, onUpdate, isSelected = false, tableTemplates = FINANCIAL_TABLE_TEMPLATES }) => {
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
+  const [templateModalMode, setTemplateModalMode] = useState<'create' | 'update'>('create');
+  const [templateModalInitialId, setTemplateModalInitialId] = useState<string | undefined>(undefined);
+
+  const openCreateTemplateModal = () => {
+    setTemplateModalMode('create');
+    setTemplateModalInitialId(undefined);
+    setIsTemplateModalOpen(true);
+  };
+
+  const openUpdateTemplateModal = (templateId?: string) => {
+    setTemplateModalMode('update');
+    setTemplateModalInitialId(templateId);
+    setIsTemplateModalOpen(true);
+  };
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
   const [openRowMenuIdx, setOpenRowMenuIdx] = useState<number | null>(null);
   // Column of the cell the user last clicked into, so the toolbar can align "that
@@ -1621,51 +1639,84 @@ const FinancialTableBlockEditor: React.FC<{
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-5 text-[10px] gap-1 px-1.5 text-emerald-700 hover:bg-emerald-50"
-                title="Replace this table with a standard financial statement template"
+                className="h-5 text-[10px] gap-1 px-1.5 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                title="Apply standard layout or manage database templates"
               >
                 <LayoutTemplate className="w-3 h-3" />
                 <span>Table Templates</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[19rem] p-1 text-xs">
+            <DropdownMenuContent align="end" className="w-[20rem] p-1.5 text-xs">
               <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
                 <p className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200">
-                  Apply Table Template
+                  Financial Statement Templates
                 </p>
                 <p className="text-[10px] text-slate-500 dark:text-zinc-400">
-                  Replaces this table's columns and rows. Undo with Ctrl+Z.
+                  Click to apply layout. Undo with Ctrl+Z.
                 </p>
               </div>
-              {tableTemplates.map((tpl) => {
-                const TplIcon = tpl.icon;
-                return (
-                  <DropdownMenuItem
-                    key={tpl.id}
-                    onClick={() => applyTableTemplate(tpl.id)}
-                    className="gap-2 cursor-pointer py-1.5 items-start"
-                  >
-                    <div className={`p-1 rounded ${tpl.color} shrink-0 mt-0.5`}>
-                      <TplIcon className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px] font-medium text-slate-900 dark:text-zinc-100 truncate">
-                          {tpl.name}
-                        </span>
-                        {tpl.badge && (
-                          <span className="shrink-0 px-1 rounded bg-slate-100 dark:bg-zinc-800 text-[9px] font-mono text-slate-500 dark:text-zinc-400">
-                            {tpl.badge}
-                          </span>
-                        )}
+              <div className="max-h-[280px] overflow-y-auto space-y-0.5 pr-0.5">
+                {tableTemplates.map((tpl) => {
+                  const TplIcon = tpl.icon;
+                  return (
+                    <div
+                      key={tpl.id}
+                      onClick={() => applyTableTemplate(tpl.id)}
+                      className="flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 group cursor-pointer transition-colors"
+                    >
+                      <div className="flex items-start gap-2 min-w-0 flex-1">
+                        <div className={`p-1 rounded ${tpl.color} shrink-0 mt-0.5`}>
+                          <TplIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-medium text-slate-900 dark:text-zinc-100 truncate">
+                              {tpl.name}
+                            </span>
+                            {tpl.badge && (
+                              <span className="shrink-0 px-1 rounded bg-slate-100 dark:bg-zinc-800 text-[9px] font-mono text-slate-500 dark:text-zinc-400">
+                                {tpl.badge}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-1">
+                            {tpl.description}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[10px] text-slate-500 dark:text-zinc-400 line-clamp-2">
-                        {tpl.description}
-                      </div>
+                      <button
+                        type="button"
+                        title="Edit / Update this template"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openUpdateTemplateModal(tpl.id);
+                        }}
+                        className="p-1 rounded text-slate-400 hover:text-emerald-700 dark:hover:text-emerald-400 hover:bg-slate-200 dark:hover:bg-zinc-700 opacity-60 group-hover:opacity-100 transition-all shrink-0"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
                     </div>
-                  </DropdownMenuItem>
-                );
-              })}
+                  );
+                })}
+              </div>
+              <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-zinc-800 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => openCreateTemplateModal()}
+                  className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-md transition-colors text-left cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Save Current Table as New Template...</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openUpdateTemplateModal()}
+                  className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-left cursor-pointer"
+                >
+                  <Edit2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Manage / Update Existing Templates...</span>
+                </button>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -2248,6 +2299,15 @@ const FinancialTableBlockEditor: React.FC<{
           ))}
         </div>
       )}
+
+      {/* Modal for saving / updating table templates */}
+      <TableTemplateModal
+        open={isTemplateModalOpen}
+        onOpenChange={setIsTemplateModalOpen}
+        block={block}
+        initialMode={templateModalMode}
+        initialTemplateId={templateModalInitialId}
+      />
     </div>
   );
 };
