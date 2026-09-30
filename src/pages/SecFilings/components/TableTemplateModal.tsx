@@ -25,7 +25,6 @@ import {
   Sparkles,
   Layers,
   AlertTriangle,
-  Zap,
   Wand2
 } from 'lucide-react';
 import type { SecFinancialTableBlock } from '../../../types/secFiling';
@@ -412,43 +411,7 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSave} className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* In update mode: Quick Update Highlight Banner */}
-          {mode === 'update' && selectedTemplate && (
-            <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-300/80 dark:border-emerald-700/60 flex items-center justify-between gap-2 shadow-2xs">
-              <div className="flex items-start gap-2 min-w-0">
-                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">
-                      Matched Template:
-                    </span>
-                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 truncate">
-                      {selectedTemplate.name}
-                    </span>
-                    {selectedTemplate.isBuiltin && (
-                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-200/80 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 font-mono">
-                        Standard
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 truncate">
-                    Ready to quick update with active table ({block.headers.length} cols, {block.rows.length} rows)
-                  </p>
-                </div>
-              </div>
 
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => handleSave()}
-                disabled={isSaving}
-                className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 shrink-0 shadow-xs"
-              >
-                {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                <span>Quick Update</span>
-              </Button>
-            </div>
-          )}
 
           {/* In update mode: Select Template dropdown */}
           {mode === 'update' && (
