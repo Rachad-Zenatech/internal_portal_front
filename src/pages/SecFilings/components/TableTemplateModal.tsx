@@ -24,7 +24,9 @@ import {
   RefreshCw,
   Sparkles,
   Layers,
-  AlertTriangle
+  AlertTriangle,
+  Zap,
+  Wand2
 } from 'lucide-react';
 import type { SecFinancialTableBlock } from '../../../types/secFiling';
 import type {
@@ -59,12 +61,21 @@ export const COLOR_OPTIONS = [
   { key: 'slate', label: 'Slate', class: 'text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-zinc-800 border-slate-300' }
 ];
 
-function sanitizeTableBlock(block: SecFinancialTableBlock): SecFinancialTableTemplateBlock {
+export function matchColorOption(colorStr?: string) {
+  if (!colorStr) return COLOR_OPTIONS[0];
+  const lower = colorStr.toLowerCase();
+  const matched = COLOR_OPTIONS.find(opt =>
+    lower.includes(opt.key) || opt.class.toLowerCase() === lower
+  );
+  return matched || COLOR_OPTIONS[0];
+}
+
+export function sanitizeTableBlock(block: SecFinancialTableBlock): SecFinancialTableTemplateBlock {
   const colCount = Math.max(2, block.headers?.length || 2);
   const headers = block.headers && block.headers.length >= 2
     ? [...block.headers]
     : ['Description / Line Item', 'Value ($)'];
-  
+
   const columnAlignments = block.columnAlignments && block.columnAlignments.length === colCount
     ? [...block.columnAlignments]
     : Array.from({ length: colCount }, (_, i) => (i === 0 ? 'left' : 'right'));
@@ -113,6 +124,56 @@ function sanitizeTableBlock(block: SecFinancialTableBlock): SecFinancialTableTem
   };
 }
 
+export function normalizeTemplateTitle(raw?: string): string {
+  if (!raw) return '';
+  return raw
+    .replace(/^(table|custom|statement of|schedule of|statements of|schedules of):\s*/i, '')
+    .replace(/[_\s-]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+export function findMatchingTemplate<T extends { id: string; name: string; templateKey?: string; block?: { title?: string } }>(
+  templates: T[],
+  targetId?: string,
+  blockTitle?: string
+): T | null {
+  if (!templates || templates.length === 0) return null;
+
+  if (targetId) {
+    const byId = templates.find((t) => t.id === targetId);
+    if (byId) return byId;
+  }
+
+  const normBlock = normalizeTemplateTitle(blockTitle);
+  if (normBlock) {
+    // Exact normalized name match
+    const exactName = templates.find((t) => normalizeTemplateTitle(t.name) === normBlock);
+    if (exactName) return exactName;
+
+    // Exact match on template block title
+    const exactBlockTitle = templates.find(
+      (t) => t.block?.title && normalizeTemplateTitle(t.block.title) === normBlock
+    );
+    if (exactBlockTitle) return exactBlockTitle;
+
+    // Key match
+    const keyMatch = templates.find(
+      (t) => t.templateKey && normalizeTemplateTitle(t.templateKey) === normBlock
+    );
+    if (keyMatch) return keyMatch;
+
+    // Substring match
+    const subMatch = templates.find((t) => {
+      const tNorm = normalizeTemplateTitle(t.name);
+      return tNorm.length > 3 && (tNorm.includes(normBlock) || normBlock.includes(tNorm));
+    });
+    if (subMatch) return subMatch;
+  }
+
+  return templates[0] || null;
+}
+
 export interface TableTemplateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -137,9 +198,13 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
 
   const templates = templateData?.templates || [];
 
+  const matchedTemplate = useMemo(() => {
+    return findMatchingTemplate(templates, initialTemplateId, block.title);
+  }, [templates, initialTemplateId, block.title]);
+
   const [mode, setMode] = useState<'create' | 'update'>(initialMode);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(initialTemplateId || '');
-  
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+
   // Form fields
   const [name, setName] = useState('');
   const [badge, setBadge] = useState('');
@@ -149,45 +214,72 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
   const [overwriteLayout, setOverwriteLayout] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Sync mode and selected template when modal opens
+  // Sync mode and selected template when modal opens or templates arrive
   useEffect(() => {
     if (open) {
-      setMode(initialMode);
       setConfirmDelete(false);
-      if (initialTemplateId && templates.some((t) => t.id === initialTemplateId)) {
-        setSelectedTemplateId(initialTemplateId);
-      } else if (templates.length > 0 && !selectedTemplateId) {
-        setSelectedTemplateId(templates[0].id);
+
+      const target = findMatchingTemplate(templates, initialTemplateId, block.title);
+      if (target) {
+        setSelectedTemplateId(target.id);
+        if (initialMode === 'update' || (initialTemplateId && target.id === initialTemplateId) || normalizeTemplateTitle(target.name) === normalizeTemplateTitle(block.title)) {
+          setMode('update');
+        } else {
+          setMode(initialMode);
+        }
+      } else {
+        setMode(initialMode);
       }
     }
-  }, [open, initialMode, initialTemplateId, templates]);
+  }, [open, initialMode, initialTemplateId, templates, block.title]);
 
   const selectedTemplate = useMemo(() => {
-    return templates.find((t) => t.id === selectedTemplateId) || null;
-  }, [templates, selectedTemplateId]);
+    if (!templates.length) return null;
+    return templates.find((t) => t.id === selectedTemplateId) || matchedTemplate || templates[0];
+  }, [templates, selectedTemplateId, matchedTemplate]);
+
+  // Keep selectedTemplateId in sync if empty
+  useEffect(() => {
+    if (templates.length > 0 && (!selectedTemplateId || !templates.some(t => t.id === selectedTemplateId))) {
+      const match = findMatchingTemplate(templates, initialTemplateId, block.title);
+      if (match) {
+        setSelectedTemplateId(match.id);
+      }
+    }
+  }, [templates, selectedTemplateId, initialTemplateId, block.title]);
 
   // Populate form fields based on mode / selection
   useEffect(() => {
     if (mode === 'update' && selectedTemplate) {
       setName(selectedTemplate.name || '');
-      setBadge(selectedTemplate.badge || '');
-      setDescription(selectedTemplate.description || '');
+      setBadge(selectedTemplate.badge || `${block.headers?.length || 2} Cols`);
+      setDescription(selectedTemplate.description || `Statement layout with ${block.rows?.length || 0} rows and ${block.headers?.length || 0} columns.`);
       setIcon(selectedTemplate.icon || 'table');
-      setColorClass(selectedTemplate.color || COLOR_OPTIONS[0].class);
+      setColorClass(matchColorOption(selectedTemplate.color).class);
       setOverwriteLayout(true);
     } else if (mode === 'create') {
-      setName(block.title ? `Custom: ${block.title.replace(/^Table:\s*/i, '')}` : 'Custom Financial Table');
-      setBadge(`${block.headers.length} Cols`);
-      setDescription(`Custom statement layout with ${block.rows.length} rows and ${block.headers.length} columns.`);
+      const rawTitle = block.title ? block.title.replace(/^(Table|Custom):\s*/i, '').trim() : '';
+      setName(rawTitle ? `Custom: ${rawTitle}` : 'Custom Financial Table');
+      setBadge(`${block.headers?.length || 2} Cols`);
+      setDescription(`Custom statement layout with ${block.rows?.length || 0} rows and ${block.headers?.length || 0} columns.`);
       setIcon('table');
       setColorClass(COLOR_OPTIONS[0].class);
     }
-  }, [mode, selectedTemplate, block]);
+  }, [mode, selectedTemplate?.id, selectedTemplate?.name, selectedTemplate?.description, selectedTemplate?.badge, selectedTemplate?.icon, selectedTemplate?.color]);
 
   const isSaving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Handler to autofill details from active table
+  const handleAutofillFromTable = () => {
+    const rawTitle = block.title ? block.title.replace(/^(Table|Custom):\s*/i, '').trim() : '';
+    if (rawTitle) setName(rawTitle);
+    setBadge(`${block.headers?.length || 2} Cols`);
+    setDescription(`Statement layout with ${block.rows?.length || 0} rows and ${block.headers?.length || 0} columns.`);
+    toast.info('Autofilled template details from the active table.');
+  };
+
+  const handleSave = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!name.trim()) {
       toast.error('Template name is required.');
       return;
@@ -212,7 +304,8 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
         if (onTemplateUpdated) onTemplateUpdated(created);
         onOpenChange(false);
       } else {
-        if (!selectedTemplate) {
+        const targetTpl = selectedTemplate;
+        if (!targetTpl) {
           toast.error('Please select a template to update.');
           return;
         }
@@ -225,12 +318,12 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
           ...(overwriteLayout ? { block: sanitizedBlock } : {})
         };
         const updated = await updateMutation.mutateAsync({
-          id: selectedTemplate.id,
+          id: targetTpl.id,
           payload
         });
         toast.success('Financial table template updated successfully!', {
           description: overwriteLayout
-            ? `"${updated.name}" layout replaced with current table.`
+            ? `"${updated.name}" layout replaced with active table (${block.headers.length} cols, ${block.rows.length} rows).`
             : `"${updated.name}" details updated.`
         });
         if (onTemplateUpdated) onTemplateUpdated(updated);
@@ -266,7 +359,7 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] p-0 overflow-hidden bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl">
+      <DialogContent className="sm:max-w-[580px] p-0 overflow-hidden bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-xl shadow-2xl">
         <DialogHeader className="px-6 pt-5 pb-4 bg-slate-50 dark:bg-zinc-800/50 border-b border-slate-200 dark:border-zinc-800">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -290,7 +383,12 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
           <div className="flex items-center gap-1 mt-3 p-0.5 bg-slate-200/70 dark:bg-zinc-800 rounded-lg text-xs">
             <button
               type="button"
-              onClick={() => setMode('update')}
+              onClick={() => {
+                setMode('update');
+                if (templates.length > 0 && !selectedTemplateId) {
+                  setSelectedTemplateId(templates[0].id);
+                }
+              }}
               className={`flex-1 py-1 px-3 rounded-md font-medium transition-all ${
                 mode === 'update'
                   ? 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-xs'
@@ -314,21 +412,79 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
         </DialogHeader>
 
         <form onSubmit={handleSave} className="px-6 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-          {/* In update mode: select template */}
+          {/* In update mode: Quick Update Highlight Banner */}
+          {mode === 'update' && selectedTemplate && (
+            <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-emerald-500/10 border border-emerald-300/80 dark:border-emerald-700/60 flex items-center justify-between gap-2 shadow-2xs">
+              <div className="flex items-start gap-2 min-w-0">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                      Matched Template:
+                    </span>
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 truncate">
+                      {selectedTemplate.name}
+                    </span>
+                    {selectedTemplate.isBuiltin && (
+                      <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-200/80 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 font-mono">
+                        Standard
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 truncate">
+                    Ready to quick update with active table ({block.headers.length} cols, {block.rows.length} rows)
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => handleSave()}
+                disabled={isSaving}
+                className="h-7 px-3 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 shrink-0 shadow-xs"
+              >
+                {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                <span>Quick Update</span>
+              </Button>
+            </div>
+          )}
+
+          {/* In update mode: Select Template dropdown */}
           {mode === 'update' && (
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
-                Select Template to Update
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                  Select Template to Update
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAutofillFromTable}
+                  className="text-[11px] text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                >
+                  <Wand2 className="w-3 h-3" />
+                  <span>Autofill from active table</span>
+                </button>
+              </div>
               <select
-                value={selectedTemplateId}
-                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                value={selectedTemplate?.id || selectedTemplateId}
+                onChange={(e) => {
+                  setSelectedTemplateId(e.target.value);
+                  const chosen = templates.find((t) => t.id === e.target.value);
+                  if (chosen) {
+                    setName(chosen.name || '');
+                    setBadge(chosen.badge || `${block.headers?.length || 2} Cols`);
+                    setDescription(chosen.description || '');
+                    setIcon(chosen.icon || 'table');
+                    setColorClass(chosen.color || COLOR_OPTIONS[0].class);
+                  }
+                }}
                 disabled={isTemplatesLoading || templates.length === 0}
-                className="w-full text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-2 text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-emerald-500"
+                className="w-full text-xs rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 p-2 text-slate-900 dark:text-zinc-100 focus:ring-1 focus:ring-emerald-500 font-medium"
               >
                 {templates.map((tpl) => (
                   <option key={tpl.id} value={tpl.id}>
-                    {tpl.name} {tpl.badge ? `(${tpl.badge})` : ''} {tpl.isBuiltin ? '[Standard Built-in]' : '[Custom]'}
+                    {tpl.isBuiltin ? '🏛️ [Standard]' : '📁 [Custom]'} {tpl.name} {tpl.badge ? `(${tpl.badge})` : ''}
                   </option>
                 ))}
               </select>
@@ -345,7 +501,7 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Schedule of Intangible Assets"
-                className="text-xs h-8"
+                className="text-xs h-8 font-medium"
                 required
               />
             </div>
@@ -393,7 +549,7 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
                       onClick={() => setIcon(opt.key)}
                       className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-[11px] transition-all ${
                         isSelected
-                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-medium'
+                          ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-medium shadow-2xs'
                           : 'border-slate-200 dark:border-zinc-700 hover:bg-slate-50 dark:hover:bg-zinc-800 text-slate-600 dark:text-zinc-400'
                       }`}
                     >
@@ -411,7 +567,7 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
               </label>
               <div className="grid grid-cols-3 gap-1.5">
                 {COLOR_OPTIONS.map((opt) => {
-                  const isSelected = colorClass === opt.class;
+                  const isSelected = matchColorOption(colorClass).key === opt.key;
                   return (
                     <button
                       key={opt.key}
@@ -528,7 +684,7 @@ export const TableTemplateModal: React.FC<TableTemplateModalProps> = ({
               type="submit"
               size="sm"
               disabled={isSaving}
-              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium gap-1.5 shadow-xs"
+              className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-xs"
             >
               {isSaving ? (
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />

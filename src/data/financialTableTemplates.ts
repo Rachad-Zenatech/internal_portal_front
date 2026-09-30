@@ -227,6 +227,53 @@ export const FINANCIAL_TABLE_TEMPLATES: FinancialTableTemplate[] = [
     }
   },
   {
+    id: 'acquisitions_and_sales',
+    name: 'Acquisitions and Sales',
+    badge: '4 Cols',
+    description: 'Schedule of business acquisitions, purchase dates, consideration & goodwill',
+    icon: FileSpreadsheet,
+    color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50',
+    block: {
+      title: 'Table: ACQUISITIONS AND SALES',
+      headers: [
+        'Acquired Company - Basis',
+        'Acquisition Date',
+        'Consideration (CAD)',
+        'Goodwill (CAD)'
+      ],
+      columnAlignments: ['left', 'left', 'right', 'right'],
+      columnWidths: ['42%', '22%', '18%', '18%'],
+      rows: [
+        { id: 'acq-1', type: 'data', cells: ['Weddle Surveying, Inc.', 'January 14, 2025', '720,615', '258,470'] },
+        { id: 'acq-2', type: 'data', cells: ['KJM Land Surveying, Inc.', 'January 22, 2025', '549,040', '198,251'] },
+        { id: 'acq-3', type: 'data', cells: ['Othership, Limited', 'March 14, 2025', '713,752', '612,071'] },
+        { id: 'acq-4', type: 'data', cells: ['Wallace Surveying Corporation', 'April 2, 2025', '1,784,380', '630,956'] },
+        { id: 'acq-5', type: 'data', cells: ['Miller Land Corporation', 'April 7, 2025', '1,166,710', '458,497'] },
+        { id: 'acq-6', type: 'data', cells: ['Laventure & Associates, Inc. and Atlantic Civil Engineering', 'May 21, 2025', '694,349', '296,893'] },
+        { id: 'acq-7', type: 'data', cells: ['Empire Land Surveying', 'June 9, 2025', '274,520', '140,071'] },
+        { id: 'acq-8', type: 'data', cells: ['Cardinal Civil Resources', 'August 1, 2025', '3,727,982', '1,562,179'] },
+        { id: 'acq-9', type: 'data', cells: ['Morgan Surveying', 'August 4, 2025', '844,149', '354,530'] },
+        { id: 'acq-10', type: 'data', cells: ['Lescure Engineers, Inc.', 'September 11, 2025', '520,141', '206,044'] },
+        { id: 'acq-11', type: 'data', cells: ['A&J Land Surveyor, Inc.', 'September 23, 2025', '648,492', '122,344'] },
+        { id: 'acq-12', type: 'data', cells: ['Putt Land Surveying, Inc.', 'October 3, 2025', '789,245', '354,732'] },
+        { id: 'acq-13', type: 'data', cells: ['Rampart Surveys Inc.', 'November 12, 2025', '754,930', '228,655'] },
+        { id: 'acq-14', type: 'data', cells: ['Smith Surveying Group LLC', 'November 17, 2025', '2,081,777', '916,193'] },
+        { id: 'acq-15', type: 'data', cells: ['Casado Design Ltd.', 'December 9, 2025', '793,819', '387,796'] },
+        { id: 'acq-16', type: 'data', cells: ['Vara 3D Inc.', 'December 12, 2025', '1,196,175', '525,396'] },
+        { id: 'acq-17', type: 'data', cells: ['Holt Surveying & Mapping, Inc.', 'December 15, 2025', '505,443', '150,800'] },
+        { id: 'acq-18', type: 'data', cells: ['L.D. King Engineering', 'December 18, 2025', '4,130,866', '1,971,906'] },
+        { id: 'acq-19', type: 'data', cells: ['Andrew Spiewak Land Surveyor, Inc.', 'December 22, 2025', '676,322', '270,793'] },
+        { id: 'acq-20', type: 'data', cells: ['Sunrise Window Cleaners', 'December 22, 2025', '249,257', '108,057'] },
+        { id: 'acq-21', type: 'data', cells: ['NOW Solutions, Inc.', 'April 6, 2026', '2,413,490', '1,416,443'] },
+        { id: 'acq-22', type: 'data', cells: ['Andy Paris & Associates', 'April 8, 2026', '1,475,744', '657,892'] },
+        { id: 'acq-23', type: 'data', cells: ['High Prairie Survey Company', 'May 28, 2026', '496,895', '24,574'] },
+        { id: 'acq-24', type: 'data', cells: ['NorthGroup Consulting, LLP', 'June 1, 2026', '6,945,180', '2,490,694'] },
+        { id: 'acq-25', type: 'data', cells: ['Green Earth Power Washing, LLC', 'June 22, 2026', '3,984,786', '1,922,232'] },
+        { id: 'acq-total', type: 'total', cells: ['Total', '', '38,138,059', '18,735,192'], bold: true, underline: true, doubleUnderline: true }
+      ]
+    }
+  },
+  {
     id: 'note_schedule',
     name: 'Note Disclosure Schedule',
     badge: '4 Cols',

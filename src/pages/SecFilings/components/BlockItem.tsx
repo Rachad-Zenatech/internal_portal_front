@@ -29,10 +29,13 @@ import {
   Undo2,
   Edit2,
   PlusCircle,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 import { MediaBucketModal } from './MediaBucketModal';
-import { TableTemplateModal } from './TableTemplateModal';
+import { TableTemplateModal, findMatchingTemplate, sanitizeTableBlock } from './TableTemplateModal';
+import { useUpdateFinancialTableTemplate } from '../../../hooks/useFinancialTableTemplates';
+import { toast } from 'sonner';
 import { mediaBucketService } from '../../../services/mediaBucketService';
 import { compactFinancialTableBlock } from '../../../services/secFilingService';
 import { FINANCIAL_TABLE_TEMPLATES } from '../../../data/financialTableTemplates';
@@ -1232,11 +1235,16 @@ const FinancialTableBlockEditor: React.FC<{
   isSelected?: boolean;
   tableTemplates?: FinancialTableTemplate[];
 }> = ({ block, onUpdate, isSelected = false, tableTemplates = FINANCIAL_TABLE_TEMPLATES }) => {
+  const updateTemplateMutation = useUpdateFinancialTableTemplate();
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowIdx: number; colIdx: number } | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   const [templateModalMode, setTemplateModalMode] = useState<'create' | 'update'>('create');
   const [templateModalInitialId, setTemplateModalInitialId] = useState<string | undefined>(undefined);
+
+  const matchedTemplate = useMemo(() => {
+    return findMatchingTemplate(tableTemplates, undefined, block.title);
+  }, [tableTemplates, block.title]);
 
   const openCreateTemplateModal = () => {
     setTemplateModalMode('create');
@@ -1246,8 +1254,26 @@ const FinancialTableBlockEditor: React.FC<{
 
   const openUpdateTemplateModal = (templateId?: string) => {
     setTemplateModalMode('update');
-    setTemplateModalInitialId(templateId);
+    setTemplateModalInitialId(templateId || matchedTemplate?.id);
     setIsTemplateModalOpen(true);
+  };
+
+  const handleDirectQuickUpdate = async (tpl: FinancialTableTemplate) => {
+    try {
+      const sanitized = sanitizeTableBlock(block);
+      await updateTemplateMutation.mutateAsync({
+        id: tpl.id,
+        payload: {
+          block: sanitized
+        }
+      });
+      toast.success(`Template "${tpl.name}" updated successfully!`, {
+        description: `Layout overwritten with active table (${block.headers.length} cols, ${block.rows.length} rows).`
+      });
+    } catch (err: any) {
+      console.error('Failed to quick-update template:', err);
+      toast.error(err?.response?.data?.detail || err?.message || 'Failed to update template.');
+    }
   };
   const [dragOverRowIdx, setDragOverRowIdx] = useState<number | null>(null);
   const [openRowMenuIdx, setOpenRowMenuIdx] = useState<number | null>(null);
@@ -1672,7 +1698,7 @@ const FinancialTableBlockEditor: React.FC<{
                 <span>Table Templates</span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[20rem] p-1.5 text-xs">
+            <DropdownMenuContent align="end" className="w-[21rem] p-1.5 text-xs">
               <div className="px-2 py-1.5 border-b border-slate-100 dark:border-zinc-800 mb-1">
                 <p className="text-[11px] font-semibold text-slate-800 dark:text-zinc-200">
                   Financial Statement Templates
@@ -1681,14 +1707,58 @@ const FinancialTableBlockEditor: React.FC<{
                   Click to apply layout. Undo with Ctrl+Z.
                 </p>
               </div>
-              <div className="max-h-[280px] overflow-y-auto space-y-0.5 pr-0.5">
+
+              {/* Quick Overwrite Banner if active table matches a saved template */}
+              {matchedTemplate && (
+                <div className="p-2 mb-1.5 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40 rounded-md border border-emerald-300 dark:border-emerald-700/60 shadow-2xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      Matched Saved Template
+                    </span>
+                    <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-emerald-200/80 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 font-semibold">
+                      Active
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-emerald-800/90 dark:text-emerald-300/90 mt-0.5 mb-1.5 font-medium truncate">
+                    "{matchedTemplate.name}" ({block.headers.length} cols, {block.rows.length} rows)
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={updateTemplateMutation.isPending}
+                      onClick={() => handleDirectQuickUpdate(matchedTemplate)}
+                      className="h-6 flex-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1 shadow-xs"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>⚡ Quick Overwrite Template</span>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openUpdateTemplateModal(matchedTemplate.id)}
+                      className="h-6 text-[10px] border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 px-2"
+                      title="Edit template name, description, or color"
+                    >
+                      <Edit2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="max-h-[260px] overflow-y-auto space-y-0.5 pr-0.5">
                 {tableTemplates.map((tpl) => {
                   const TplIcon = tpl.icon;
+                  const isCurrentMatch = matchedTemplate?.id === tpl.id;
                   return (
                     <div
                       key={tpl.id}
                       onClick={() => applyTableTemplate(tpl.id)}
-                      className="flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 group cursor-pointer transition-colors"
+                      className={`flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 group cursor-pointer transition-colors ${
+                        isCurrentMatch ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/60' : ''
+                      }`}
                     >
                       <div className="flex items-start gap-2 min-w-0 flex-1">
                         <div className={`p-1 rounded ${tpl.color} shrink-0 mt-0.5`}>
@@ -1699,7 +1769,12 @@ const FinancialTableBlockEditor: React.FC<{
                             <span className="text-[11px] font-medium text-slate-900 dark:text-zinc-100 truncate">
                               {tpl.name}
                             </span>
-                            {tpl.badge && (
+                            {isCurrentMatch && (
+                              <span className="shrink-0 px-1 py-0.2 rounded bg-emerald-100 dark:bg-emerald-900 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                Current
+                              </span>
+                            )}
+                            {tpl.badge && !isCurrentMatch && (
                               <span className="shrink-0 px-1 rounded bg-slate-100 dark:bg-zinc-800 text-[9px] font-mono text-slate-500 dark:text-zinc-400">
                                 {tpl.badge}
                               </span>
@@ -1736,7 +1811,7 @@ const FinancialTableBlockEditor: React.FC<{
                 </button>
                 <button
                   type="button"
-                  onClick={() => openUpdateTemplateModal()}
+                  onClick={() => openUpdateTemplateModal(matchedTemplate?.id)}
                   className="w-full flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-md transition-colors text-left cursor-pointer"
                 >
                   <Edit2 className="w-3.5 h-3.5 shrink-0" />
