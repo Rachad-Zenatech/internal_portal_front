@@ -159,7 +159,7 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
               Document Sections
             </h3>
           </div>
-          <p className="text-[10px] text-slate-400">Reorder whole sections or filter view</p>
+          <p className="text-[10px] text-slate-400">Reorder whole sections or jump to section</p>
         </div>
         <div className="flex items-center gap-1.5">
           <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-zinc-800 font-mono">
@@ -310,7 +310,7 @@ const DocumentOutlineComponent: React.FC<DocumentOutlineProps> = ({
                 type="button"
                 onClick={() => onSelectSection(sec)}
                 className="flex items-center gap-2 truncate flex-1 text-left py-1 cursor-pointer min-w-0"
-                title={`Filter view to: ${sec} (${count} blocks)`}
+                title={`Jump to section: ${sec} (${count} blocks)`}
               >
                 <Icon className={`w-3.5 h-3.5 shrink-0 ${isSelected ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate flex-1">{sec}</span>

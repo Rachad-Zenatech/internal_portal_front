@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import {
   FileText,
   FileDown,
@@ -96,6 +96,66 @@ export default function SecFilingsPage() {
     calculateDiffForProposal,
     contributorSession
   } = useSecFiling();
+
+  const isJumpingRef = useRef(false);
+
+  const handleSelectSection = (section: string) => {
+    setSectionFilter(section);
+    isJumpingRef.current = true;
+
+    if (section === 'ALL') {
+      const firstPage = document.getElementById('doc-page-1');
+      if (firstPage) {
+        firstPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      setTimeout(() => {
+        isJumpingRef.current = false;
+      }, 700);
+      return;
+    }
+
+    const targetBlock = workingBlocks.find((b) => b.section === section);
+    if (targetBlock) {
+      setSelectedBlockId(targetBlock.id);
+      const el = document.getElementById(targetBlock.id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+    setTimeout(() => {
+      isJumpingRef.current = false;
+    }, 700);
+  };
+
+  // Keep outline active section updated as user scrolls through the document
+  useEffect(() => {
+    const handleScroll = () => {
+      if (isJumpingRef.current) return;
+      if (window.scrollY < 120) {
+        if (sectionFilter !== 'ALL') {
+          setSectionFilter('ALL');
+        }
+        return;
+      }
+      for (const block of workingBlocks) {
+        const el = document.getElementById(block.id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= 260 && rect.bottom >= 100) {
+            if (block.section && block.section !== sectionFilter) {
+              setSectionFilter(block.section);
+            }
+            break;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [workingBlocks, sectionFilter, setSectionFilter]);
 
   // Statement templates come from the database; the bundled set is the fallback
 
@@ -643,7 +703,7 @@ export default function SecFilingsPage() {
             <DocumentOutline
               sections={documentSections}
               activeSection={sectionFilter}
-              onSelectSection={setSectionFilter}
+              onSelectSection={handleSelectSection}
               totalBlocks={workingBlocks.length}
               sectionCounts={sectionCounts}
               onMoveSection={moveSection}

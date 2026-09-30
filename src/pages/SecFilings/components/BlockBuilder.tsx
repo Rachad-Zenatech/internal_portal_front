@@ -517,7 +517,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
               <div
                 id={`doc-page-${page.pageNumber}`}
                 onClick={() => onSelectBlock(null)}
-                className={`${sheetWidthClass} ${
+                className={`${sheetWidthClass} scroll-mt-32 ${
                   viewMode === 'word'
                     ? 'bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-300/80 px-8 sm:px-12 md:px-18 lg:px-22 py-12 md:py-14'
                     : 'bg-slate-50/50 dark:bg-zinc-900/60 text-slate-900 dark:text-zinc-100 shadow-xl rounded-2xl border border-slate-200/90 dark:border-zinc-800/90 p-6 md:p-8'

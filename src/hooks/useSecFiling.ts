@@ -86,28 +86,22 @@ export function useSecFiling() {
 
   const filteredBlocks = useMemo(() => {
     const trimmedQuery = searchQuery.trim().toLowerCase();
-    if (!trimmedQuery && sectionFilter === 'ALL') {
+    if (!trimmedQuery) {
       return workingBlocks;
     }
     return workingBlocks.filter((b) => {
-      if (sectionFilter !== 'ALL' && b.section !== sectionFilter) {
-        return false;
+      if (b.type === 'heading' && b.text.toLowerCase().includes(trimmedQuery)) return true;
+      if (b.type === 'paragraph' && b.text.toLowerCase().includes(trimmedQuery)) return true;
+      if (b.type === 'callout' && (b.content.toLowerCase().includes(trimmedQuery) || b.title?.toLowerCase().includes(trimmedQuery)))
+        return true;
+      if (b.type === 'financial_table') {
+        if (b.title?.toLowerCase().includes(trimmedQuery)) return true;
+        if (b.headers.some((h) => h.toLowerCase().includes(trimmedQuery))) return true;
+        if (b.rows.some((r) => r.cells.some((c) => c.toLowerCase().includes(trimmedQuery)))) return true;
       }
-      if (trimmedQuery) {
-        if (b.type === 'heading' && b.text.toLowerCase().includes(trimmedQuery)) return true;
-        if (b.type === 'paragraph' && b.text.toLowerCase().includes(trimmedQuery)) return true;
-        if (b.type === 'callout' && (b.content.toLowerCase().includes(trimmedQuery) || b.title?.toLowerCase().includes(trimmedQuery)))
-          return true;
-        if (b.type === 'financial_table') {
-          if (b.title?.toLowerCase().includes(trimmedQuery)) return true;
-          if (b.headers.some((h) => h.toLowerCase().includes(trimmedQuery))) return true;
-          if (b.rows.some((r) => r.cells.some((c) => c.toLowerCase().includes(trimmedQuery)))) return true;
-        }
-        return false;
-      }
-      return true;
+      return false;
     });
-  }, [workingBlocks, sectionFilter, searchQuery]);
+  }, [workingBlocks, searchQuery]);
 
   // --------------------------------------------------------------------------
   // 3. ALL CALLBACKS
