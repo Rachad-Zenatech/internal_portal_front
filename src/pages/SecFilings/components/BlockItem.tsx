@@ -2574,13 +2574,13 @@ const SignatureBlockEditor: React.FC<{
             {/* Signature Area */}
             <div className="space-y-1">
               {officer.signed ? (
-                <div className="border-b border-slate-400 dark:border-zinc-600 pb-1 flex items-center justify-between min-h-[44px]">
+                <div className="border-b border-slate-400 dark:border-zinc-600 pb-1.5 flex items-end justify-between min-h-[58px]">
                   <div className="flex items-center gap-2">
                     {officer.signatureImageUrl ? (
                       <img
                         src={officer.signatureImageUrl}
                         alt="Drawn Electronic Signature"
-                        className="h-10 w-auto max-w-[200px] object-contain filter dark:invert"
+                        className="h-14 sm:h-16 w-auto max-w-[280px] object-contain filter dark:invert my-0.5"
                       />
                     ) : (
                       <span className="font-serif italic font-bold text-base text-blue-900 dark:text-blue-300 tracking-wide">

@@ -31,6 +31,7 @@ import QRCode from 'qrcode';
 import { toast } from 'sonner';
 import {
   eSignatureService,
+  cropSignatureCanvas,
   type MobileSigningResponse,
   type ESignConfig
 } from '../../../services/eSignatureService';
@@ -185,7 +186,7 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.strokeStyle = '#1e3a8a';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 3.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
       }
@@ -270,7 +271,7 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
     const sigText = signMode === 'type' ? typedSignature : `/s/ ${officerName}`;
     let sigImgUrl: string | undefined = undefined;
     if (signMode === 'draw' && canvasRef.current && hasDrawn) {
-      sigImgUrl = canvasRef.current.toDataURL('image/png');
+      sigImgUrl = cropSignatureCanvas(canvasRef.current);
     }
 
     const envelopeId = dispatchResult?.envelopeId || `mobile-sign-${Date.now()}`;

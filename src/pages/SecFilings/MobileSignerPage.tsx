@@ -1,4 +1,4 @@
-import { eSignatureService } from '../../services/eSignatureService';
+import { eSignatureService, cropSignatureCanvas } from '../../services/eSignatureService';
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CheckCircle2, ShieldCheck, FileText, Lock } from 'lucide-react';
@@ -34,7 +34,7 @@ export const MobileSignerPage: React.FC = () => {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.strokeStyle = '#0e2841';
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
       }
@@ -98,7 +98,7 @@ export const MobileSignerPage: React.FC = () => {
 
     let sigImgUrl: string | undefined = undefined;
     if (signMode === 'draw' && canvasRef.current && hasDrawn) {
-      sigImgUrl = canvasRef.current.toDataURL('image/png');
+      sigImgUrl = cropSignatureCanvas(canvasRef.current);
     }
     const finalSigText = signMode === 'type' ? typedSignature : `/s/ ${signerName}`;
 

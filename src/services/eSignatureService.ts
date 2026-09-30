@@ -229,3 +229,53 @@ export const eSignatureService = {
     return completed;
   }
 };
+
+/**
+ * Trims transparent whitespace around drawn signatures on canvas
+ * to ensure crisp, properly-proportioned signature rendering in documents.
+ */
+export function cropSignatureCanvas(canvas: HTMLCanvasElement): string {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return canvas.toDataURL('image/png');
+
+  const w = canvas.width;
+  const h = canvas.height;
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+
+  let minX = w, minY = h, maxX = 0, maxY = 0;
+  let hasPixels = false;
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const alpha = data[(y * w + x) * 4 + 3];
+      if (alpha > 15) {
+        hasPixels = true;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (!hasPixels) {
+    return canvas.toDataURL('image/png');
+  }
+
+  // Add a balanced padding around the signature strokes
+  const padding = 16;
+  const cropX = Math.max(0, minX - padding);
+  const cropY = Math.max(0, minY - padding);
+  const cropW = Math.min(w - cropX, (maxX - minX) + padding * 2);
+  const cropH = Math.min(h - cropY, (maxY - minY) + padding * 2);
+
+  const croppedCanvas = document.createElement('canvas');
+  croppedCanvas.width = cropW;
+  croppedCanvas.height = cropH;
+  const croppedCtx = croppedCanvas.getContext('2d');
+  if (!croppedCtx) return canvas.toDataURL('image/png');
+
+  croppedCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+  return croppedCanvas.toDataURL('image/png');
+}
