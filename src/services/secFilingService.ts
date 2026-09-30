@@ -1584,6 +1584,78 @@ export const secFilingService = {
     return diffs;
   },
 
+  applyElectronicSignature(
+    officerIdentifier: string,
+    signatureData: {
+      signatureText: string;
+      signatureImageUrl?: string;
+      provider?: any;
+      signedVia?: string;
+      envelopeId?: string;
+      ipAddress?: string;
+    }
+  ): boolean {
+    const doc = this.getMainDocument();
+    let updated = false;
+
+    const formattedDate = new Date().toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric'
+    });
+
+    const nextBlocks = doc.blocks.map((b) => {
+      if (b.type === 'signature') {
+        const nextOfficers = b.officers.map((officer) => {
+          const match =
+            officer.id === officerIdentifier ||
+            (officer.name && officerIdentifier && officer.name.toLowerCase().trim() === officerIdentifier.toLowerCase().trim()) ||
+            b.officers.length === 1;
+
+          if (match) {
+            updated = true;
+            return {
+              ...officer,
+              signed: true,
+              signatureText: signatureData.signatureText.startsWith('/s/')
+                ? signatureData.signatureText
+                : `/s/ ${signatureData.signatureText}`,
+              signatureImageUrl: signatureData.signatureImageUrl,
+              date: formattedDate,
+              provider: signatureData.provider || officer.provider || 'docusign',
+              envelopeId: signatureData.envelopeId,
+              signedAt: new Date().toISOString(),
+              signedVia:
+                signatureData.signedVia ||
+                `${signatureData.provider === 'dropbox_sign' ? 'Dropbox Sign' : 'DocuSign'} Mobile SMS (Rule 302(b) Verified)`,
+              auditTrailId: signatureData.envelopeId
+                ? `SEC-AUDIT-${signatureData.envelopeId.replace(/^[a-z]+-env-/i, '').toUpperCase()}`
+                : undefined
+            };
+          }
+          return officer;
+        });
+
+        return { ...b, officers: nextOfficers };
+      }
+      return b;
+    });
+
+    if (updated) {
+      this.saveMainDocument({ ...doc, blocks: nextBlocks, updatedAt: new Date().toISOString() });
+      broadcastSync('DOCUMENT_UPDATED', { action: 'SIGNATURE_APPLIED', officerIdentifier });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('sec-filing-signature-applied', {
+            detail: { officerIdentifier, signatureData }
+          })
+        );
+      }
+      return true;
+    }
+    return false;
+  },
+
   resetToDefault(): void {
     // Drop the debounced buffers too, otherwise reads keep serving the pre-reset
     // document from memory.

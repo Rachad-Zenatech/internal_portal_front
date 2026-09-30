@@ -6,6 +6,7 @@ import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
 import { toast } from 'sonner';
 import { ZENATECH_LOGO_DATA_URL } from '../../data/zenatechLogoAsset';
+import { secFilingService } from '../../services/secFilingService';
 
 export const MobileSignerPage: React.FC = () => {
   const location = useLocation();
@@ -93,6 +94,36 @@ export const MobileSignerPage: React.FC = () => {
       hour: '2-digit',
       minute: '2-digit',
     });
+
+    let sigImgUrl: string | undefined = undefined;
+    if (signMode === 'draw' && canvasRef.current && hasDrawn) {
+      sigImgUrl = canvasRef.current.toDataURL('image/png');
+    }
+    const finalSigText = signMode === 'type' ? typedSignature : `/s/ ${signerName}`;
+
+    secFilingService.applyElectronicSignature(signerName, {
+      signatureText: finalSigText,
+      signatureImageUrl: sigImgUrl,
+      provider: providerParam,
+      envelopeId,
+      signedVia: `${providerParam === 'dropbox_sign' ? 'Dropbox Sign' : 'DocuSign'} Mobile SMS (Rule 302(b) Verified)`
+    });
+
+    // Save session in local storage for audit
+    const sessionData = {
+      envelopeId,
+      signerName,
+      docTitle: docTitleParam,
+      provider: providerParam,
+      signatureText: finalSigText,
+      signatureImageUrl: sigImgUrl,
+      signedAt: now.toISOString(),
+      status: 'signed'
+    };
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`sec_esign_envelope_${envelopeId}`, JSON.stringify(sessionData));
+    }
+
     setSignatureTimestamp(formatted);
     setIsSubmitted(true);
     toast.success('Electronic signature submitted successfully!');

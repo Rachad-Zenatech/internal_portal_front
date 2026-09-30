@@ -2571,24 +2571,73 @@ const SignatureBlockEditor: React.FC<{
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {block.officers.map((officer, idx) => (
           <div key={officer.id || idx} className="space-y-1 text-xs group/sig relative p-2.5 rounded-lg border border-transparent hover:border-slate-200 dark:hover:border-zinc-800 transition-colors">
-            {/* Signature Input / Status */}
-            <div className="flex items-center justify-between gap-2">
-              <input
-                type="text"
-                value={officer.signatureText || ''}
-                placeholder="/s/ ____________________ (Signature spot)"
-                onChange={(e) => updateOfficer(idx, { signatureText: e.target.value, signed: Boolean(e.target.value.trim()) })}
-                className="w-full font-mono font-medium text-sm text-slate-900 dark:text-zinc-100 border-b border-slate-400 pb-0.5 bg-transparent focus:outline-none focus:border-blue-500 placeholder:text-slate-400/60 placeholder:italic"
-              />
-              <button
-                type="button"
-                onClick={() => setMobileSignOfficerIdx(idx)}
-                title="Send signing prompt to phone via DocuSign / Dropbox Sign SMS"
-                className="shrink-0 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 transition-colors shadow-2xs"
-              >
-                <Smartphone className="w-3 h-3 text-blue-600" />
-                <span>{officer.signed ? 'View E-Sign' : '📱 Sign via Phone'}</span>
-              </button>
+            {/* Signature Area */}
+            <div className="space-y-1">
+              {officer.signed ? (
+                <div className="border-b border-slate-400 dark:border-zinc-600 pb-1 flex items-center justify-between min-h-[44px]">
+                  <div className="flex items-center gap-2">
+                    {officer.signatureImageUrl ? (
+                      <img
+                        src={officer.signatureImageUrl}
+                        alt="Drawn Electronic Signature"
+                        className="h-10 w-auto max-w-[200px] object-contain filter dark:invert"
+                      />
+                    ) : (
+                      <span className="font-serif italic font-bold text-base text-blue-900 dark:text-blue-300 tracking-wide">
+                        {officer.signatureText || `/s/ ${officer.name}`}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setMobileSignOfficerIdx(idx)}
+                      title="View verification certificate"
+                      className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/50"
+                    >
+                      E-Sign Details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateOfficer(idx, {
+                          signed: false,
+                          signatureText: '',
+                          signatureImageUrl: undefined
+                        })
+                      }
+                      title="Clear Signature"
+                      className="text-[10px] text-red-500 hover:text-red-700 hover:underline px-1"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-2">
+                  <input
+                    type="text"
+                    value={officer.signatureText || ''}
+                    placeholder="/s/ ____________________ (Signature spot)"
+                    onChange={(e) =>
+                      updateOfficer(idx, {
+                        signatureText: e.target.value,
+                        signed: Boolean(e.target.value.trim())
+                      })
+                    }
+                    className="w-full font-mono font-medium text-sm text-slate-900 dark:text-zinc-100 border-b border-slate-400 pb-0.5 bg-transparent focus:outline-none focus:border-blue-500 placeholder:text-slate-400/60 placeholder:italic"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setMobileSignOfficerIdx(idx)}
+                    title="Send signing prompt to phone via DocuSign / Dropbox Sign SMS"
+                    className="shrink-0 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-md bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/80 transition-colors shadow-2xs"
+                  >
+                    <Smartphone className="w-3 h-3 text-blue-600" />
+                    <span>📱 Sign via Phone</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Officer Name & Title */}
