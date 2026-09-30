@@ -56,13 +56,10 @@ export const navigation = [
   },
   {
     label: "SEC Filings",
+    path: "/sec-filings",
     icon: ScrollText,
     section: "SEC FILINGS",
     navigationCode: "SEC_FILINGS",
-    subItems: [
-      { label: "Active Filing Editor", path: "/sec-filings", navigationCode: "SEC_FILINGS" },
-      { label: "Create New Filing", path: "/sec-filings/new", navigationCode: "SEC_FILINGS" },
-    ],
   },
   {
     label: "Reports",

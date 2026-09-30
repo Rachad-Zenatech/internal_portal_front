@@ -668,6 +668,29 @@ export const secFilingService = {
     }
   },
 
+  getDocumentContent(id: string): SecFilingDocument {
+    if (id === this.getActiveDocumentId() || id === 'sec-doc-zenatech-2026-q2') {
+      return this.getMainDocument();
+    }
+    const customKey = `sec_doc_content_${id}`;
+    const customSaved = typeof localStorage !== 'undefined' ? localStorage.getItem(customKey) : null;
+    if (customSaved) {
+      try {
+        const parsed = JSON.parse(customSaved);
+        if (parsed && Array.isArray(parsed.blocks)) {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+    if (id === 'sec-doc-zenatech-v24-sarah-jenkins') return generateSarahJenkinsMergedDoc();
+    if (id === 'sec-doc-zenatech-10q-q2') return generate10QDoc('ZenaTech, Inc. Form 10-Q');
+    if (id === 'sec-doc-zenatech-2025-10k') return generate10KDoc('ZenaTech, Inc. Form 10-K');
+    if (id === 'sec-doc-zenatech-8k-acq') return generate8KDoc('ZenaTech, Inc. Form 8-K');
+    if (id === 'doc-onboarding-1') return generateOnboardingChecklistDoc('Onboarding');
+    if (id === 'doc-offboarding-2') return generateOffboardingChecklistDoc('Offboarding Checklist');
+    return generateBlankDocument('Untitled Document');
+  },
+
   getActiveDocumentId(): string {
     return localStorage.getItem(STORAGE_KEYS.ACTIVE_DOC_ID) || 'sec-doc-zenatech-2026-q2';
   },
@@ -995,7 +1018,7 @@ export const secFilingService = {
     proposals.unshift(newProposal);
     this.saveProposals(proposals);
 
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
+    const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://d3ont31k0o7w7h.cloudfront.net';
     const paramsList = new URLSearchParams();
     paramsList.set('contributor', 'true');
     paramsList.set('proposalId', newProposal.id);

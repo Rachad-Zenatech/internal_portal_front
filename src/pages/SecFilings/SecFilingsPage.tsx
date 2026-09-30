@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   FileText,
   FileDown,
@@ -181,6 +182,7 @@ export default function SecFilingsPage() {
   const [selectedProposalForReview, setSelectedProposalForReview] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'word' | 'blocks'>('word');
 
+  const navigate = useNavigate();
   const [isExportingDocx, setIsExportingDocx] = useState(false);
 
   // Selected block object for inspector
@@ -229,6 +231,17 @@ export default function SecFilingsPage() {
         <div className="max-w-[1750px] w-full mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           {/* Title & Document Badge */}
           <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/sec-filings')}
+              className="h-9 px-2.5 text-xs gap-1.5 font-medium bg-slate-50 dark:bg-zinc-800 border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 shadow-2xs shrink-0"
+              title="Return to SEC Docs Hub"
+            >
+              <FolderArchive className="w-3.5 h-3.5 text-blue-600" />
+              <span>SEC Docs Hub</span>
+            </Button>
             <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
               <FileText className="w-5 h-5" />
             </div>

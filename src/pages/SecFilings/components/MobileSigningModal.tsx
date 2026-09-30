@@ -154,7 +154,7 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
 
   useEffect(() => {
     const envelopeId = dispatchResult?.envelopeId || `sec-env-${officer.id || Date.now()}`;
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://portal.zenatech.com';
+    const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://d3ont31k0o7w7h.cloudfront.net';
     const targetUrl =
       dispatchResult?.signingUrl ||
       `${baseUrl}/sec-filings?signEnvelope=${envelopeId}&officerId=${encodeURIComponent(officer.id)}&name=${encodeURIComponent(officerName)}&doc=${encodeURIComponent(documentTitle)}&provider=${provider}`;

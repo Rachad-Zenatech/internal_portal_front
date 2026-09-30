@@ -1,3 +1,4 @@
+import { paginateBlocks } from '../../utils/secFilingPagination';
 import { useState, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -116,167 +117,114 @@ const DEFAULT_COMPANIES: PublicCompanyEntity[] = [
 ];
 
 function DocumentThumbnailPreview({ doc }: { doc: SecDocumentSummary }) {
-  const formName = useMemo(() => {
-    const ft = (doc.formType || '').toUpperCase();
-    if (ft.includes('10-K')) return 'FORM 10-K';
-    if (ft.includes('10-Q')) return 'FORM 10-Q';
-    if (ft.includes('8-K')) return 'FORM 8-K';
-    if (ft.includes('6-K')) return 'FORM 6-K';
-    if (ft.includes('S-1')) return 'FORM S-1';
-    if (ft.includes('14A') || ft.includes('PROXY')) return 'DEF 14A';
-    return doc.formType || 'FORM 10-Q';
-  }, [doc.formType]);
+  const fullDoc = useMemo(() => {
+    return secFilingService.getDocumentContent(doc.id);
+  }, [doc.id]);
 
-  const isChecklist = doc.templateType === 'onboarding' || doc.templateType === 'offboarding';
-  const isProposal = doc.templateType === 'proposal';
+  const page1Blocks = useMemo(() => {
+    if (!fullDoc || !fullDoc.blocks || fullDoc.blocks.length === 0) return [];
+    try {
+      const pages = paginateBlocks(fullDoc.blocks);
+      return pages.length > 0 && pages[0].blocks.length > 0 ? pages[0].blocks : fullDoc.blocks.slice(0, 6);
+    } catch {
+      return fullDoc.blocks.slice(0, 6);
+    }
+  }, [fullDoc]);
 
-  if (isChecklist) {
-    return (
-      <div className="space-y-1.5 text-[6px] leading-[8px] text-slate-700 dark:text-slate-300 font-sans pointer-events-none select-none overflow-hidden h-full flex flex-col justify-between p-0.5">
-        <div className="space-y-1">
-          <div className="flex justify-center mb-1">
-            <img src={ZENATECH_LOGO_DATA_URL} alt="ZenaTech" className="h-4 max-w-[85px] object-contain" />
-          </div>
-          <div className="text-center font-bold text-[7.5px] text-[#0E2841] dark:text-blue-200">
-            {doc.title}
-          </div>
-          <div className="text-[5.5px] text-center text-slate-500">
-            ZenaTech Internal Operations &amp; HR Checklist
-          </div>
-          <div className="h-px w-full bg-slate-200 dark:bg-slate-700 my-1" />
-          <div className="space-y-1 pt-0.5">
-            <div className="flex items-center gap-1 text-[5px]">
-              <div className="w-1.5 h-1.5 border border-slate-400 rounded-2xs bg-blue-500/20" />
-              <span className="font-semibold text-slate-800 dark:text-slate-200">Phase 1: IT &amp; Hardware Provisioning</span>
-            </div>
-            <div className="flex items-center gap-1 text-[5px] pl-2 text-slate-500">
-              <div className="w-1.5 h-1.5 border border-slate-300 rounded-2xs" />
-              <span>Google Workspace &amp; Slack Access Setup</span>
-            </div>
-            <div className="flex items-center gap-1 text-[5px]">
-              <div className="w-1.5 h-1.5 border border-slate-400 rounded-2xs bg-blue-500/20" />
-              <span className="font-semibold text-slate-800 dark:text-slate-200">Phase 2: Security &amp; Compliance Clearances</span>
-            </div>
-            <div className="flex items-center gap-1 text-[5px] pl-2 text-slate-500">
-              <div className="w-1.5 h-1.5 border border-slate-300 rounded-2xs" />
-              <span>NDA &amp; SEC Reporting Governance Sign-off</span>
-            </div>
-          </div>
-        </div>
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-1 flex justify-between text-[4.5px] text-slate-400">
-          <span>Confidential — Internal Use</span>
-          <span>Version 1.0</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (isProposal) {
-    return (
-      <div className="space-y-1.5 text-[6px] leading-[8px] text-slate-700 dark:text-slate-300 font-sans pointer-events-none select-none overflow-hidden h-full flex flex-col justify-between p-0.5">
-        <div className="space-y-1">
-          <div className="flex justify-center mb-1">
-            <img src={ZENATECH_LOGO_DATA_URL} alt="ZenaTech" className="h-4 max-w-[85px] object-contain" />
-          </div>
-          <div className="text-center font-bold text-[7.5px] text-blue-900 dark:text-blue-200">
-            {doc.title}
-          </div>
-          <div className="text-[5.5px] text-center text-slate-500">Executive Project Proposal</div>
-          <div className="h-px w-full bg-slate-200 dark:bg-slate-700 my-1" />
-          <div className="space-y-1 text-[5px] text-slate-600 dark:text-slate-400">
-            <p className="font-semibold text-slate-800 dark:text-slate-200">1. Executive Summary</p>
-            <p className="line-clamp-2">Strategic initiative to scale autonomous AI workflows and drone software integrations.</p>
-            <p className="font-semibold text-slate-800 dark:text-slate-200 pt-0.5">2. Resource Budget &amp; Deliverables</p>
-            <div className="h-1 w-full bg-[#CCECFF]/60 rounded-2xs" />
-          </div>
-        </div>
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-1 flex justify-between text-[4.5px] text-slate-400">
-          <span>Prepared by ZenaTech Leadership</span>
-          <span>FY 2026</span>
-        </div>
-      </div>
-    );
-  }
-
-  // Authentic SEC Filing Cover Page Layout
   return (
-    <div className="text-[5.5px] leading-[7.5px] text-slate-700 dark:text-slate-300 font-serif pointer-events-none select-none overflow-hidden h-full flex flex-col justify-between p-1 bg-white dark:bg-slate-900">
-      {/* 1. Header: Logo & SEC Title */}
-      <div className="space-y-1">
-        <div className="flex justify-center mb-1 shrink-0">
-          <img
-            src={ZENATECH_LOGO_DATA_URL}
-            alt="ZenaTech Logo"
-            className="h-4.5 max-w-[95px] object-contain"
-          />
-        </div>
-
-        <div className="text-center space-y-0.5 font-sans">
-          <div className="text-[5px] font-bold tracking-wider text-[#0E2841] dark:text-blue-200 uppercase">
-            United States
-          </div>
-          <div className="text-[5px] font-bold tracking-wider text-[#0E2841] dark:text-blue-200 uppercase">
-            Securities and Exchange Commission
-          </div>
-          <div className="text-[4.2px] text-slate-500 dark:text-slate-400">
-            Washington, D.C. 20549
-          </div>
-        </div>
-
-        {/* 2. Form Type Banner */}
-        <div className="my-1 py-0.5 px-1 bg-slate-100 dark:bg-slate-800 border-y border-slate-300 dark:border-slate-700 text-center font-sans">
-          <div className="text-[7.5px] font-bold text-[#0E2841] dark:text-white tracking-wide">
-            {formName}
-          </div>
-          <div className="text-[4px] text-slate-600 dark:text-slate-300 leading-tight">
-            {formName.includes('10-K')
-              ? 'ANNUAL REPORT PURSUANT TO SECTION 13 OR 15(d)'
-              : formName.includes('8-K')
-              ? 'CURRENT REPORT PURSUANT TO SECTION 13 OR 15(d)'
-              : formName.includes('6-K')
-              ? 'REPORT OF FOREIGN PRIVATE ISSUER PURSUANT TO RULE 13a-16'
-              : 'QUARTERLY REPORT PURSUANT TO SECTION 13 OR 15(d)'}
-          </div>
-        </div>
-
-        {/* 3. Registrant Details */}
-        <div className="text-center space-y-0.5 pt-0.5">
-          <div className="text-[7.5px] font-bold text-[#0E2841] dark:text-blue-200">
-            ZenaTech, Inc.
-          </div>
-          <div className="text-[4px] italic text-slate-500">
-            (Exact name of registrant as specified in its charter)
-          </div>
-        </div>
-
-        {/* 4. Period & Jurisdiction */}
-        <div className="text-center space-y-0.5 pt-0.5 text-[4.5px] text-slate-600 dark:text-slate-400">
-          <div>
-            <span className="font-semibold text-slate-700 dark:text-slate-300">Period Ended: </span>
-            {doc.period || 'June 30, 2026'}
-          </div>
-          <div className="text-[4px] text-slate-500">
-            Delaware &bull; CIK: 0001987654 &bull; Symbol: ZENA (NASDAQ)
-          </div>
-        </div>
-
-        {/* 5. SEC Checkbox simulation */}
-        <div className="mt-1 p-0.5 rounded-2xs bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-0.5 text-[4px] leading-[5.5px]">
-          <div className="flex items-center gap-1">
-            <span className="font-bold text-blue-600">[&#10003;]</span>
-            <span className="truncate">Section 13 or 15(d) Filer</span>
-          </div>
-          <div className="flex items-center gap-1 text-slate-500">
-            <span>[&#10003;] Accelerated Filer</span>
-            <span>[ ] Shell Co</span>
-          </div>
-        </div>
+    <div className="w-full h-full bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-200 p-2 text-[5.5px] leading-[7.5px] flex flex-col justify-between overflow-hidden select-none pointer-events-none font-sans">
+      <div className="space-y-1 overflow-hidden">
+        {page1Blocks.map((block, idx) => {
+          if (block.type === 'heading') {
+            const alignClass = block.alignment === 'center' ? 'text-center' : block.alignment === 'right' ? 'text-right' : 'text-left';
+            if (block.level === 1) {
+              return (
+                <div key={block.id || idx} className={`font-bold text-[7px] text-[#0E2841] dark:text-blue-300 leading-tight ${alignClass}`}>
+                  {block.text}
+                </div>
+              );
+            }
+            if (block.level === 2) {
+              return (
+                <div key={block.id || idx} className={`font-semibold text-[6px] text-slate-700 dark:text-zinc-300 leading-tight ${alignClass}`}>
+                  {block.text}
+                </div>
+              );
+            }
+            return (
+              <div key={block.id || idx} className={`font-medium text-[5.2px] text-slate-600 dark:text-zinc-400 ${alignClass}`}>
+                {block.text}
+              </div>
+            );
+          }
+          if (block.type === 'image') {
+            return (
+              <div key={block.id || idx} className="flex justify-center my-0.5">
+                <img src={block.url || ZENATECH_LOGO_DATA_URL} alt="" className="h-4 max-w-[80px] object-contain" />
+              </div>
+            );
+          }
+          if (block.type === 'paragraph') {
+            const alignClass = block.alignment === 'center' ? 'text-center' : block.alignment === 'right' ? 'text-right' : 'text-left';
+            return (
+              <p key={block.id || idx} className={`text-[4.8px] leading-[6.5px] text-slate-600 dark:text-zinc-400 line-clamp-2 ${alignClass} ${block.italic ? 'italic' : ''} ${block.bold ? 'font-bold' : ''}`}>
+                {block.text}
+              </p>
+            );
+          }
+          if (block.type === 'callout') {
+            return (
+              <div key={block.id || idx} className="p-1 rounded-2xs border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 my-0.5">
+                {block.title && <div className="font-bold text-[5px] text-blue-900 dark:text-blue-200">{block.title}</div>}
+                <div className="text-[4.5px] text-slate-600 dark:text-zinc-400 line-clamp-2">{block.content}</div>
+              </div>
+            );
+          }
+          if (block.type === 'metadata') {
+            return (
+              <div key={block.id || idx} className="p-1 rounded-2xs border border-slate-200 dark:border-zinc-700 bg-slate-50/50 dark:bg-zinc-800/30 my-0.5 space-y-0.2">
+                <div className="font-bold text-[5px] text-slate-900 dark:text-zinc-100">{block.companyName} • {block.formType}</div>
+                <div className="text-[4.2px] text-slate-500 dark:text-zinc-400">CIK: {block.cik} | Symbol: {block.symbol}</div>
+              </div>
+            );
+          }
+          if (block.type === 'financial_table') {
+            return (
+              <div key={block.id || idx} className="my-0.5 border border-slate-200 dark:border-zinc-700 rounded-2xs overflow-hidden">
+                {block.title && <div className="text-[4.8px] font-bold text-center bg-slate-50 dark:bg-zinc-800 py-0.2 truncate">{block.title}</div>}
+                <div className="grid grid-cols-3 bg-slate-100 dark:bg-zinc-800 text-[3.8px] font-semibold border-b border-slate-200 dark:border-zinc-700 py-0.2 px-0.5">
+                  {block.headers.slice(0, 3).map((h, i) => <div key={i} className="truncate">{h}</div>)}
+                </div>
+                {block.rows.slice(0, 3).map((r, ri) => (
+                  <div key={ri} className="grid grid-cols-3 text-[3.5px] py-0.2 px-0.5 border-b border-slate-100 dark:border-zinc-800/40">
+                    {r.cells.slice(0, 3).map((c, ci) => <div key={ci} className="truncate">{c}</div>)}
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          if (block.type === 'signature') {
+            return (
+              <div key={block.id || idx} className="my-0.5 border-t border-slate-300 dark:border-zinc-700 pt-0.5 space-y-0.5">
+                {block.officers.slice(0, 2).map((off, oi) => (
+                  <div key={oi} className="flex justify-between text-[4.5px]">
+                    <span className="font-mono text-blue-800 dark:text-blue-300">{off.signatureText || `/s/ ${off.name}`}</span>
+                    <span className="text-slate-400">{off.title}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          }
+          if (block.type === 'divider') {
+            return <div key={block.id || idx} className="h-px bg-slate-200 dark:bg-zinc-700 my-0.5" />;
+          }
+          return null;
+        })}
       </div>
 
-      {/* Footer */}
-      <div className="border-t border-slate-200 dark:border-slate-800 pt-0.5 flex justify-between items-center text-[4px] text-slate-400 font-sans">
-        <span>SEC Form {formName.replace('FORM ', '')}</span>
-        <span>Cover Page</span>
+      <div className="border-t border-slate-200 dark:border-zinc-800 pt-0.5 flex items-center justify-between text-[4.2px] text-slate-400 dark:text-zinc-500 font-mono select-none">
+        <span className="truncate max-w-[80px]">{fullDoc?.symbol || 'ZENA'} • {doc.formType || 'SEC Report'}</span>
+        <span>Page 1</span>
       </div>
     </div>
   );
@@ -371,19 +319,19 @@ export default function CreateSecFilingPage() {
   // Handlers
   const handleOpenDoc = (id: string) => {
     secFilingService.openDocument(id);
-    navigate('/sec-filings');
+    navigate('/sec-filings/editor');
   };
 
   const handleCreateFromTemplate = (template: DocumentTemplateDefinition) => {
     const doc = secFilingService.createDocumentFromTemplate(template.id);
     toast.success(`Created "${doc.title}"`);
-    navigate('/sec-filings');
+    navigate('/sec-filings/editor');
   };
 
   const handleStartBlank = () => {
     secFilingService.createDocumentFromTemplate('blank', 'Untitled Document');
     toast.success('Created blank document');
-    navigate('/sec-filings');
+    navigate('/sec-filings/editor');
   };
 
   const handleDuplicate = (id: string) => {
@@ -501,7 +449,7 @@ export default function CreateSecFilingPage() {
       );
 
       setShowImportModal(false);
-      navigate('/sec-filings');
+      navigate('/sec-filings/editor');
     } catch (err: any) {
       console.error('Import error:', err);
       toast.error(err.message || 'Failed to import document file');
@@ -651,7 +599,7 @@ export default function CreateSecFilingPage() {
 
     toast.success('Custom filing instantiated');
     setShowWizardModal(false);
-    navigate('/sec-filings');
+    navigate('/sec-filings/editor');
   };
 
   return (

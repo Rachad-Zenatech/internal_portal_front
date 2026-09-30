@@ -35,7 +35,7 @@ const CreateSecFilingPage = lazy(() => import("./pages/SecFilings/CreateSecFilin
 const SecFilingContributorPage = lazy(() => import("./pages/SecFilings/SecFilingContributorPage"));
 const MobileSignerPage = lazy(() => import("./pages/SecFilings/MobileSignerPage"));
 
-function SecFilingsRoute() {
+function SecFilingsHubRoute() {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const isContributor = searchParams.get('contributor') === 'true';
@@ -50,7 +50,30 @@ function SecFilingsRoute() {
   }
 
   return (
-    <ProtectedRoute>
+    <ProtectedRoute navigationCode="SEC_FILINGS">
+      <AppShell>
+        <CreateSecFilingPage />
+      </AppShell>
+    </ProtectedRoute>
+  );
+}
+
+function SecFilingsEditorRoute() {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isContributor = searchParams.get('contributor') === 'true';
+  const isSignEnvelope = searchParams.has('signEnvelope') || searchParams.has('sign');
+
+  if (isSignEnvelope) {
+    return <MobileSignerPage />;
+  }
+
+  if (isContributor) {
+    return <SecFilingContributorPage />;
+  }
+
+  return (
+    <ProtectedRoute navigationCode="SEC_FILINGS">
       <AppShell>
         <SecFilings />
       </AppShell>
@@ -72,7 +95,9 @@ function App() {
 
           {/* Standalone Contributor Routes: Pure SEC Document Sheet, No AppShell, No Portal Sidebar/Nav */}
           <Route path="/sec-filings/contribute" element={<SecFilingContributorPage />} />
-          <Route path="/sec-filings" element={<SecFilingsRoute />} />
+          <Route path="/sec-filings" element={<SecFilingsHubRoute />} />
+          <Route path="/sec-filings/new" element={<Navigate to="/sec-filings" replace />} />
+          <Route path="/sec-filings/editor" element={<SecFilingsEditorRoute />} />
 
           {/* Main app layout routes */}
           <Route element={<ProtectedRoute><AppShell><Outlet /></AppShell></ProtectedRoute>}>
@@ -88,7 +113,6 @@ function App() {
             <Route path="/consolidated-trial-balance" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE"><ConsolidatedTrailBalance /></ProtectedRoute>} />
             <Route path="/consolidated-trial-balance-matrix" element={<ProtectedRoute navigationCode="CONSOLIDATED_TRIAL_BALANCE_MATRIX"><ConsolidatedTrialBalanceMatrix /></ProtectedRoute>} />
             {/* /sec-filings managed above by SecFilingsRoute */}
-            <Route path="/sec-filings/new" element={<ProtectedRoute navigationCode="SEC_FILINGS"><CreateSecFilingPage /></ProtectedRoute>} />
 
             {/* Configuration Routes */}
             <Route path="/configurations" element={<Navigate to="/configurations/company" replace />} />

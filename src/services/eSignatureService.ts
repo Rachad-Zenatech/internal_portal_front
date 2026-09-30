@@ -103,7 +103,7 @@ export const eSignatureService = {
     const defaultMessage = params.customMessage || `ZenaTech SEC Portal: Please review and electronically sign ${params.documentTitle}.`;
 
     // Construct mobile-friendly direct signature web canvas URL
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://portal.zenatech.com';
+    const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://d3ont31k0o7w7h.cloudfront.net';
     const signingUrl = `${baseUrl}/sec-filings?signEnvelope=${envelopeId}&officerId=${params.officerId}&name=${encodeURIComponent(params.recipientName)}&doc=${encodeURIComponent(params.documentTitle)}&provider=${params.provider}`;
 
     // Emulate carrier dispatch latency and network envelope creation
