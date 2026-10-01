@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../services/apiClient";
 import { BASE_URL } from "../services/apiClient";
@@ -20,7 +20,37 @@ export interface Notification {
 
 export type NotificationListener = (notification: Notification) => void;
 
-const RECONNECT_DELAY_MS = 5000;
+const INITIAL_RECONNECT_DELAY_MS = 3000;
+const MAX_RECONNECT_DELAY_MS = 60000;
+let consecutiveFailures = 0;
+let isStreamHealthy = false;
+
+type StreamStatusListener = (healthy: boolean) => void;
+const statusListeners = new Set<StreamStatusListener>();
+
+function setStreamHealthy(healthy: boolean) {
+  if (isStreamHealthy === healthy) return;
+  isStreamHealthy = healthy;
+  statusListeners.forEach((fn) => {
+    try {
+      fn(healthy);
+    } catch {
+      // Ignore listener errors
+    }
+  });
+}
+
+export function useStreamHealthy() {
+  const [healthy, setHealthy] = useState(isStreamHealthy);
+  useEffect(() => {
+    statusListeners.add(setHealthy);
+    return () => {
+      statusListeners.delete(setHealthy);
+    };
+  }, []);
+  return healthy;
+}
+
 const listeners = new Set<NotificationListener>();
 let eventSource: EventSource | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -45,7 +75,8 @@ function openStream() {
     eventSource = es;
 
     es.onopen = () => {
-      // Connected successfully
+      consecutiveFailures = 0;
+      setStreamHealthy(true);
     };
 
     es.onmessage = (event) => {
@@ -66,16 +97,31 @@ function openStream() {
     };
 
     es.onerror = () => {
+      setStreamHealthy(false);
       if (eventSource === es) {
         es.close();
         eventSource = null;
       }
       if (listeners.size > 0) {
-        scheduleReconnect(RECONNECT_DELAY_MS);
+        consecutiveFailures++;
+        if (consecutiveFailures === 3) {
+          console.warn(
+            "[Notifications] Real-time SSE stream unavailable (HTTP/2 or proxy error). Falling back to periodic background polling."
+          );
+        }
+        // Exponential backoff with jitter
+        const baseDelay = Math.min(
+          INITIAL_RECONNECT_DELAY_MS * Math.pow(1.5, Math.min(consecutiveFailures - 1, 6)),
+          MAX_RECONNECT_DELAY_MS
+        );
+        const jitter = Math.random() * 1000;
+        scheduleReconnect(Math.round(baseDelay + jitter));
       }
     };
   } catch {
-    scheduleReconnect(RECONNECT_DELAY_MS);
+    setStreamHealthy(false);
+    consecutiveFailures++;
+    scheduleReconnect(INITIAL_RECONNECT_DELAY_MS);
   }
 }
 
@@ -97,6 +143,7 @@ function subscribeToNotifications(listener: NotificationListener) {
       es.onerror = null;
       es.close();
     }
+    setStreamHealthy(false);
   };
 }
 
@@ -121,6 +168,7 @@ export function useNotificationStream(options?: { onNotification?: NotificationL
 
 export function useNotifications(options?: { refetchInterval?: number | false }) {
   useNotificationStream();
+  const isHealthy = useStreamHealthy();
   return useQuery({
     queryKey: ["notifications"],
     queryFn: async () => {
@@ -132,12 +180,18 @@ export function useNotifications(options?: { refetchInterval?: number | false })
       }
     },
     staleTime: 30000,
-    refetchInterval: options?.refetchInterval ?? false,
+    refetchInterval:
+      options?.refetchInterval !== undefined
+        ? options.refetchInterval
+        : isHealthy
+        ? false
+        : 30000,
     refetchOnWindowFocus: true,
   });
 }
 
 export function useUnreadNotificationCount(options?: { refetchInterval?: number | false }) {
+  const isHealthy = useStreamHealthy();
   return useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: async () => {
@@ -149,7 +203,12 @@ export function useUnreadNotificationCount(options?: { refetchInterval?: number 
       }
     },
     staleTime: 30000,
-    refetchInterval: options?.refetchInterval ?? false,
+    refetchInterval:
+      options?.refetchInterval !== undefined
+        ? options.refetchInterval
+        : isHealthy
+        ? false
+        : 30000,
     refetchOnWindowFocus: true,
   });
 }

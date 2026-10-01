@@ -88,6 +88,7 @@ export default function SecFilingsPage() {
     canRedo,
     handleCreateProposal,
     handleCreateContributorInvite,
+    handleForkProposal,
     handleSubmitForReview,
     handleMergeProposal,
     handleSelectiveMerge,
@@ -400,22 +401,41 @@ export default function SecFilingsPage() {
 
             {/* Proposal Submit or Merge Control */}
             {activeProposal ? (
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setIsSubmitProposalModalOpen(true)}
-                disabled={activeProposal.status === 'pending_review' || activeProposal.status === 'merged'}
-                className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 font-semibold"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>
-                  {activeProposal.status === 'pending_review'
-                    ? 'Submitted (Under Review)'
-                    : activeProposal.status === 'merged'
-                    ? 'Merged into Main'
-                    : 'Submit Final Changes'}
-                </span>
-              </Button>
+              <div className="flex items-center gap-1.5">
+                {activeProposal.status === 'merged' ? (
+                  <>
+                    <Badge className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border-purple-300 text-xs py-1 px-2.5 gap-1 shadow-2xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
+                      <span>Merged into Main</span>
+                    </Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => handleForkProposal(activeProposal.id)}
+                      className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 font-semibold shadow-xs cursor-pointer"
+                      title="Start a new revision branch off latest Main"
+                    >
+                      <GitBranch className="w-3.5 h-3.5" />
+                      <span>New Revision Branch</span>
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsSubmitProposalModalOpen(true)}
+                    disabled={activeProposal.status === 'pending_review'}
+                    className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white gap-1.5 font-semibold shadow-xs cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>
+                      {activeProposal.status === 'pending_review'
+                        ? 'Submitted (Under Review)'
+                        : 'Submit Final Changes'}
+                    </span>
+                  </Button>
+                )}
+              </div>
             ) : null}
 
             {/* Merge Hub / Review Pending Proposals Button for Lead Controller */}
@@ -817,6 +837,7 @@ export default function SecFilingsPage() {
           setActiveProposalId(id);
           setActiveRole('CONTRIBUTOR');
         }}
+        onForkProposal={handleForkProposal}
       />
 
       <SubmitProposalModal

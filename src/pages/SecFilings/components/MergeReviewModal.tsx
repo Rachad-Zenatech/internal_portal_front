@@ -30,6 +30,7 @@ import type {
   SecChangeProposal,
   SecFilingDocument,
   SecBlockDiff,
+  SecTableCellDiff,
   SecBlock,
   SecHeadingBlock,
   SecParagraphBlock,
@@ -1260,6 +1261,15 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                                 {diff.isSpacingOnly || diff.isTypographyOnly ? (
                                   /* Pure formatting / spacing: show updated formatting seamlessly */
                                   <SecDocBlockRenderer block={isAccepted ? diff.proposedBlock! : diff.originalBlock!} />
+                                ) : diff.originalBlock?.type === 'financial_table' && diff.proposedBlock?.type === 'financial_table' ? (
+                                  /* Financial table with cell revisions: render single integrated table with inline track changes */
+                                  <SecDocBlockRenderer
+                                    block={diff.proposedBlock}
+                                    comparisonBlock={diff.originalBlock}
+                                    tableCellDiffs={diff.tableCellDiffs}
+                                    side="unified-track-changes"
+                                    isAccepted={isAccepted}
+                                  />
                                 ) : (
                                   /* Content change: show red strikethrough original + green proposed revision */
                                   <div className="space-y-1">
@@ -1373,7 +1383,13 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                                 </div>
                               )}
                               <div className={diff.status === 'deleted' ? 'line-through opacity-70' : ''}>
-                                <SecDocBlockRenderer block={leftBlock} />
+                                <SecDocBlockRenderer
+                                  block={leftBlock}
+                                  comparisonBlock={rightBlock}
+                                  tableCellDiffs={diff.tableCellDiffs}
+                                  side="original"
+                                  isAccepted={isAccepted}
+                                />
                               </div>
                             </div>
                           ) : (
@@ -1444,7 +1460,13 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                                   <span className="text-[10px] text-slate-400 font-mono">{rightBlock.section}</span>
                                 </div>
                               )}
-                              <SecDocBlockRenderer block={rightBlock} />
+                              <SecDocBlockRenderer
+                                block={rightBlock}
+                                comparisonBlock={leftBlock}
+                                tableCellDiffs={diff.tableCellDiffs}
+                                side="proposed"
+                                isAccepted={isAccepted}
+                              />
                             </div>
                           ) : (
                             /* Blank space on Right side to perfectly match up with Left document! */
@@ -1537,13 +1559,55 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                       </span>
                     </div>
 
+                    {/* Granular Table Cell Changes Grid for Financial Tables */}
+                    {diff.tableCellDiffs && diff.tableCellDiffs.length > 0 && (
+                      <div className="mb-3 p-3 rounded-lg bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs font-sans shadow-2xs">
+                        <div className="font-bold text-amber-900 dark:text-amber-200 flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1.5">
+                            <Table className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Granular Table Cell Changes ({diff.tableCellDiffs.length}):</span>
+                          </div>
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-mono">
+                            Inspected cell-by-cell
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                          {diff.tableCellDiffs.map((cd, i) => (
+                            <div key={i} className="p-2 rounded bg-white dark:bg-zinc-900 border border-amber-200 dark:border-zinc-800 text-[11px] shadow-2xs">
+                              <div className="font-semibold text-slate-800 dark:text-zinc-200 truncate">{cd.rowLabel}</div>
+                              <div className="text-[10px] text-slate-500 mb-1">{cd.headerLabel}</div>
+                              <div className="flex items-center gap-1 font-mono text-[10px]">
+                                {cd.status === 'cell_modified' ? (
+                                  <>
+                                    <span className="line-through text-red-600 bg-red-50 dark:bg-red-950/60 px-1 py-0.2 rounded border border-red-200">{cd.oldValue || '—'}</span>
+                                    <span className="text-slate-400">→</span>
+                                    <span className="font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 px-1 py-0.2 rounded border border-emerald-200">{cd.newValue || '—'}</span>
+                                  </>
+                                ) : cd.status === 'row_added' ? (
+                                  <span className="text-emerald-700 font-bold bg-emerald-50 px-1 rounded border border-emerald-200">+ Added Row: {cd.newValue}</span>
+                                ) : (
+                                  <span className="text-red-700 font-bold bg-red-50 px-1 rounded border border-red-200">- Deleted Row: {cd.oldValue}</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                       <div className="p-3 rounded-lg bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 space-y-1">
                         <div className="font-semibold text-slate-500 text-[10px] uppercase">
                           Current Main Version
                         </div>
                         {diff.originalBlock ? (
-                          <SecDocBlockRenderer block={diff.originalBlock} />
+                          <SecDocBlockRenderer
+                            block={diff.originalBlock}
+                            comparisonBlock={diff.proposedBlock}
+                            tableCellDiffs={diff.tableCellDiffs}
+                            side="original"
+                            isAccepted={isAccepted}
+                          />
                         ) : (
                           <span className="italic text-slate-400">(Block did not exist)</span>
                         )}
@@ -1554,7 +1618,13 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
                           <span>Proposed by {proposal.author.name}</span>
                         </div>
                         {diff.proposedBlock ? (
-                          <SecDocBlockRenderer block={diff.proposedBlock} />
+                          <SecDocBlockRenderer
+                            block={diff.proposedBlock}
+                            comparisonBlock={diff.originalBlock}
+                            tableCellDiffs={diff.tableCellDiffs}
+                            side="proposed"
+                            isAccepted={isAccepted}
+                          />
                         ) : (
                           <span className="italic text-red-500">(Block deleted)</span>
                         )}
@@ -1648,7 +1718,19 @@ export const MergeReviewModal: React.FC<MergeReviewModalProps> = ({
 /* ------------------------------------------------------------------------- */
 /* SEC DOCUMENT BLOCK RENDERER FOR AUTHENTIC WORD SHEET PRESENTATION         */
 /* ------------------------------------------------------------------------- */
-const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
+const SecDocBlockRenderer: React.FC<{
+  block: SecBlock;
+  comparisonBlock?: SecBlock | null;
+  tableCellDiffs?: SecTableCellDiff[];
+  side?: 'original' | 'proposed' | 'unified-track-changes';
+  isAccepted?: boolean;
+}> = ({
+  block,
+  comparisonBlock: _comparisonBlock,
+  tableCellDiffs = [],
+  side = 'unified-track-changes',
+  isAccepted = false
+}) => {
   if (block.type === 'heading') {
     const b = block as SecHeadingBlock;
     const defaultFontSize =
@@ -1712,38 +1794,111 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
     const firstRowIsHeader = b.rows && b.rows.length > 0 && b.rows[0].type === 'header';
     const showHeaderRow = hasMeaningfulHeader && !firstRowIsHeader;
 
+    const cellDiffMap = new Map<string, SecTableCellDiff>();
+    for (const cd of tableCellDiffs) {
+      cellDiffMap.set(`${cd.rowIndex}_${cd.colIndex}`, cd);
+    }
+
+    const modifiedCellsList = tableCellDiffs.filter((d) => d.status === 'cell_modified');
+    const hasChanges = tableCellDiffs.length > 0;
+
     return (
       <div
         style={{ marginTop: `${b.spacingTop ?? 10}px` }}
         className="w-full overflow-x-auto space-y-2 select-text"
       >
-        {b.title && (
-          <div className="font-bold text-sm text-[#0E2841]">{b.title}</div>
+        {/* Track changes summary ribbon for tables in unified mode */}
+        {side === 'unified-track-changes' && hasChanges && (
+          <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-xs font-sans mb-1.5 shadow-2xs">
+            <div className="flex items-center gap-1 font-bold text-amber-900 dark:text-amber-200">
+              <Table className="w-3.5 h-3.5 text-amber-600" />
+              <span>Table Cell Revisions ({tableCellDiffs.length}):</span>
+            </div>
+            {modifiedCellsList.slice(0, 4).map((cd, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded bg-white dark:bg-zinc-800 border border-amber-300 dark:border-amber-700 shadow-2xs"
+              >
+                <span className="font-semibold text-slate-800 dark:text-zinc-200">{cd.rowLabel}:</span>
+                <span className="line-through text-red-600 dark:text-red-400 font-mono text-[10px]">{cd.oldValue || '—'}</span>
+                <span className="text-slate-400">→</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-300 font-mono text-[10px]">{cd.newValue || '—'}</span>
+              </span>
+            ))}
+            {modifiedCellsList.length > 4 && (
+              <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300">
+                +{modifiedCellsList.length - 4} more
+              </span>
+            )}
+          </div>
         )}
+
+        {b.title && (
+          <div className="font-bold text-sm text-[#0E2841] flex items-center justify-between">
+            <span>{b.title}</span>
+            {hasChanges && side !== 'unified-track-changes' && (
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                side === 'original'
+                  ? 'bg-amber-100 text-amber-800 border-amber-300'
+                  : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+              }`}>
+                {side === 'original' ? 'Baseline Values' : 'Proposed Values'} ({tableCellDiffs.length} cell changes)
+              </span>
+            )}
+          </div>
+        )}
+
         <table className="w-full border-collapse text-xs font-sans">
           <thead>
             {showHeaderRow && (
               <tr className="border-t-2 border-b border-slate-900 bg-slate-50/50">
-                {cleanedHeaders.map((h, i) => (
-                  <th
-                    key={i}
-                    style={{
-                      textAlign: b.columnAlignments?.[i] || (i === 0 ? 'left' : 'center'),
-                      width: b.columnWidths?.[i] || undefined
-                    }}
-                    className="py-1.5 px-2 font-bold text-slate-800 text-[11px]"
-                  >
-                    {h}
-                  </th>
-                ))}
+                {cleanedHeaders.map((h, i) => {
+                  const headerDiff = cellDiffMap.get(`-1_${i}`);
+                  return (
+                    <th
+                      key={i}
+                      style={{
+                        textAlign: b.columnAlignments?.[i] || (i === 0 ? 'left' : 'center'),
+                        width: b.columnWidths?.[i] || undefined
+                      }}
+                      className="py-1.5 px-2 font-bold text-slate-800 text-[11px]"
+                    >
+                      {headerDiff && side === 'unified-track-changes' ? (
+                        <div className="inline-flex items-center gap-1">
+                          <span className="line-through text-red-600 font-normal opacity-80">{headerDiff.oldValue}</span>
+                          <span className="text-slate-400">→</span>
+                          <span className="text-emerald-700 font-bold">{headerDiff.newValue}</span>
+                        </div>
+                      ) : headerDiff && side === 'original' ? (
+                        <span className="bg-amber-100 text-amber-900 px-1 rounded border border-amber-300">{h}</span>
+                      ) : headerDiff && side === 'proposed' ? (
+                        <span className="bg-emerald-100 text-emerald-900 px-1 rounded border border-emerald-300 font-bold">{h}</span>
+                      ) : (
+                        h
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             )}
           </thead>
           <tbody>
             {b.rows.map((row, rIdx) => {
+              const rowAddedDiff = tableCellDiffs.find((d) => d.rowIndex === rIdx && d.status === 'row_added');
+              const rowDeletedDiff = tableCellDiffs.find((d) => d.rowIndex === rIdx && d.status === 'row_deleted');
+
+              let rowHighlightClass = '';
+              if (side === 'unified-track-changes') {
+                if (rowAddedDiff) {
+                  rowHighlightClass = 'bg-emerald-50/80 dark:bg-emerald-950/40 border-l-4 border-l-emerald-500';
+                } else if (rowDeletedDiff) {
+                  rowHighlightClass = 'bg-red-50/80 dark:bg-red-950/40 border-l-4 border-l-red-500 line-through text-red-800 opacity-75';
+                }
+              }
+
               if (row.type === 'section_title' || row.type === 'category_header') {
                 return (
-                  <tr key={row.id} className="border-t border-slate-100 font-bold text-slate-900 bg-slate-50/30">
+                  <tr key={row.id} className={`border-t border-slate-100 font-bold text-slate-900 bg-slate-50/30 ${rowHighlightClass}`}>
                     <td colSpan={b.headers.length} className="py-1 px-2 text-[11px] italic">
                       {row.cells[0]}
                     </td>
@@ -1752,7 +1907,7 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
               }
               if (row.type === 'blank') {
                 return (
-                  <tr key={row.id}>
+                  <tr key={row.id} className={rowHighlightClass}>
                     <td colSpan={b.headers.length} className="h-2"></td>
                   </tr>
                 );
@@ -1762,7 +1917,7 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
               return (
                 <tr
                   key={row.id}
-                  className={`hover:bg-slate-50/60 ${
+                  className={`hover:bg-slate-50/60 ${rowHighlightClass} ${
                     isTotal
                       ? 'border-t border-b-2 border-double border-slate-900 font-bold bg-slate-50/40'
                       : isSubtotal
@@ -1773,6 +1928,63 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
                   {sanitizeTableCells(row.cells).map((cell, cIdx) => {
                     const isDateHeader = isComparativeDateHeaderCell(cell, rIdx, cIdx);
                     const align = row.cellAlignments?.[cIdx] || row.align || (isDateHeader ? 'center' : (b.columnAlignments?.[cIdx] || (cIdx === 0 ? 'left' : 'right')));
+                    const cellDiff = cellDiffMap.get(`${rIdx}_${cIdx}`);
+
+                    let cellContent = (
+                      <span className={isDateHeader ? 'font-bold text-[#0E2841]' : 'text-slate-800'}>
+                        {cell}
+                      </span>
+                    );
+
+                    if (cellDiff && cellDiff.status === 'cell_modified') {
+                      if (side === 'unified-track-changes') {
+                        if (isAccepted) {
+                          cellContent = (
+                            <span
+                              className="inline-flex items-center gap-1 font-bold text-emerald-900 dark:text-emerald-200 bg-emerald-100/90 dark:bg-emerald-950/90 px-1.5 py-0.5 rounded border border-emerald-300 dark:border-emerald-700 shadow-2xs font-mono"
+                              title={`Accepted modification: "${cellDiff.oldValue}" → "${cellDiff.newValue}"`}
+                            >
+                              <span>{cellDiff.newValue || '—'}</span>
+                              <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">✓</span>
+                            </span>
+                          );
+                        } else {
+                          cellContent = (
+                            <div
+                              className="inline-flex items-center gap-1 flex-wrap"
+                              title={`Modified: was "${cellDiff.oldValue}" in Main Document`}
+                            >
+                              <span className="line-through text-red-700 dark:text-red-400 bg-red-100/90 dark:bg-red-950/90 px-1 py-0.5 rounded border border-red-300 dark:border-red-800 text-[10px] font-mono shadow-2xs">
+                                {cellDiff.oldValue || '—'}
+                              </span>
+                              <span className="text-slate-400 text-[10px] font-sans">→</span>
+                              <span className="font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-100/90 dark:bg-emerald-950/90 px-1.5 py-0.5 rounded border border-emerald-400 dark:border-emerald-700 shadow-2xs text-[11px] font-mono">
+                                {cellDiff.newValue || '—'}
+                              </span>
+                            </div>
+                          );
+                        }
+                      } else if (side === 'original') {
+                        cellContent = (
+                          <span
+                            className="inline-block bg-amber-100/95 dark:bg-amber-950/90 text-amber-950 dark:text-amber-200 font-bold px-1.5 py-0.5 rounded border border-amber-400 dark:border-amber-700 shadow-2xs font-mono"
+                            title={`Original Main Value. Proposed change in draft: "${cellDiff.newValue}"`}
+                          >
+                            {cell}
+                          </span>
+                        );
+                      } else if (side === 'proposed') {
+                        cellContent = (
+                          <span
+                            className="inline-block bg-emerald-100/95 dark:bg-emerald-950/90 text-emerald-950 dark:text-emerald-200 font-bold px-1.5 py-0.5 rounded border border-emerald-400 dark:border-emerald-700 shadow-2xs font-mono"
+                            title={`Proposed New Value. Original value in Main was: "${cellDiff.oldValue}"`}
+                          >
+                            {cell}
+                          </span>
+                        );
+                      }
+                    }
+
                     return (
                       <td
                         key={cIdx}
@@ -1780,11 +1992,9 @@ const SecDocBlockRenderer: React.FC<{ block: SecBlock }> = ({ block }) => {
                           textAlign: align,
                           paddingLeft: cIdx === 0 && row.indent ? `${row.indent * 14 + 8}px` : '8px'
                         }}
-                        className={`py-1 px-2 text-[11px] font-mono whitespace-nowrap ${
-                          isDateHeader ? 'font-bold text-[#0E2841]' : 'text-slate-800'
-                        }`}
+                        className="py-1 px-2 text-[11px] font-mono whitespace-nowrap"
                       >
-                        {cell}
+                        {cellContent}
                       </td>
                     );
                   })}

@@ -574,6 +574,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                             onDuplicate={() => onDuplicateBlock(block.id)}
                             onDelete={() => onDeleteBlock(block.id)}
                             diffType={diffInfo?.status}
+                            tableCellDiffs={diffInfo?.tableCellDiffs}
                             viewMode={viewMode}
                             globalSpacing={globalSpacing}
                           />
@@ -661,6 +662,7 @@ export const BlockBuilder: React.FC<BlockBuilderProps> = ({
                       onDuplicate={() => onDuplicateBlock(block.id)}
                       onDelete={() => onDeleteBlock(block.id)}
                       diffType={diffInfo?.status}
+                      tableCellDiffs={diffInfo?.tableCellDiffs}
                       viewMode={viewMode}
                       globalSpacing={globalSpacing}
                     />

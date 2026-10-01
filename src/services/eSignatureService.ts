@@ -55,6 +55,23 @@ export interface ESignConfig {
 const CONFIG_STORAGE_KEY = 'sec_esign_credentials_config';
 
 export const eSignatureService = {
+  /**
+   * Cleans any residual saved envelopes from localStorage to prevent storing e-signatures.
+   */
+  clearSavedEnvelopes(): void {
+    if (typeof localStorage === 'undefined') return;
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('sec_esign_envelope_') || key.startsWith('sec_signature_'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    } catch (e) {}
+  },
+
   getConfig(): ESignConfig {
     if (typeof localStorage === 'undefined') {
       return {
@@ -109,28 +126,7 @@ export const eSignatureService = {
     // Emulate carrier dispatch latency and network envelope creation
     await new Promise((resolve) => setTimeout(resolve, 800));
 
-    // Save envelope session in localStorage for cross-device sync & validation
-    const sessionData = {
-      envelopeId,
-      auditTrailId,
-      officerId: params.officerId,
-      blockId: params.blockId,
-      documentId: params.documentId,
-      recipientName: params.recipientName,
-      recipientTitle: params.recipientTitle,
-      recipientPhone: cleanPhone,
-      recipientEmail: params.recipientEmail,
-      provider: params.provider,
-      deliveryMethod: params.deliveryMethod,
-      signingUrl,
-      createdAt: new Date().toISOString(),
-      status: 'sent_sms'
-    };
-
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(`sec_esign_envelope_${envelopeId}`, JSON.stringify(sessionData));
-    }
-
+    // Transient envelope dispatch - NOT saved in localStorage
     try {
       await apiClient.post('/sec-filings/mobile-signatures/dispatch', {
         envelopeId,
@@ -191,6 +187,15 @@ export const eSignatureService = {
     }
   },
 
+  async deleteEnvelope(envelopeId: string): Promise<boolean> {
+    try {
+      await apiClient.delete(`/sec-filings/mobile-signatures/${envelopeId}`);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
   completeMobileSignature(
     officer: SecSignatureOfficer,
     envelopeId: string,
@@ -229,6 +234,9 @@ export const eSignatureService = {
     return completed;
   }
 };
+
+// Purge any residual saved envelopes on module load
+eSignatureService.clearSavedEnvelopes();
 
 /**
  * Trims transparent whitespace around drawn signatures on canvas

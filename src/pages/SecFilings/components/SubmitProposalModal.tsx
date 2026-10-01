@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Send,
   CheckCircle2,
-  MessageSquare
+  MessageSquare,
+  Table
 } from 'lucide-react';
 import type { SecChangeProposal, SecBlockDiff } from '../../../types/secFiling';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '../../../components/ui/dialog';
@@ -42,6 +43,7 @@ export const SubmitProposalModal: React.FC<SubmitProposalModalProps> = ({
   const modifiedDiffs = diffs.filter((d) => d.status === 'modified');
   const deletedDiffs = diffs.filter((d) => d.status === 'deleted');
   const totalChanges = addedDiffs.length + modifiedDiffs.length + deletedDiffs.length;
+  const totalTableCellDiffs = diffs.reduce((acc, d) => acc + (d.tableCellDiffs?.length || 0), 0);
 
   const handleSubmit = () => {
     onSubmit(submissionNotes);
@@ -97,6 +99,15 @@ export const SubmitProposalModal: React.FC<SubmitProposalModalProps> = ({
                 {totalChanges} total block change{totalChanges === 1 ? '' : 's'}
               </span>
             </div>
+
+            {totalTableCellDiffs > 0 && (
+              <div className="flex items-center gap-1.5 pt-1 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                <Table className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Includes <strong>{totalTableCellDiffs} table cell / row {totalTableCellDiffs === 1 ? 'change' : 'changes'}</strong> across financial tables
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Submission Notes */}

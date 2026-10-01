@@ -54,7 +54,8 @@ import type {
   SecMetadataBlock,
   SecImageBlock,
   SecTableRow,
-  SecBlockSpacing
+  SecBlockSpacing,
+  SecTableCellDiff
 } from '../../../types/secFiling';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -130,6 +131,7 @@ interface BlockItemProps {
   onDelete: () => void;
   isDiffModified?: boolean;
   diffType?: 'added' | 'modified' | 'deleted' | 'unchanged';
+  tableCellDiffs?: SecTableCellDiff[];
   viewMode?: 'word' | 'blocks';
   globalSpacing?: SecBlockSpacing;
 }
@@ -149,6 +151,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
   onDuplicate,
   onDelete,
   diffType,
+  tableCellDiffs,
   viewMode = 'word',
   globalSpacing = 'normal'
 }) => {
@@ -983,6 +986,7 @@ const BlockItemComponent: React.FC<BlockItemProps> = ({
             onUpdate={onUpdate}
             isSelected={isHighlighted}
             tableTemplates={tableTemplates}
+            tableCellDiffs={tableCellDiffs}
           />
         )}
 
@@ -1033,6 +1037,7 @@ export const BlockItem = React.memo(BlockItemComponent, (prev, next) => {
     prev.isSelected === next.isSelected &&
     prev.isMultiSelected === next.isMultiSelected &&
     prev.diffType === next.diffType &&
+    prev.tableCellDiffs === next.tableCellDiffs &&
     prev.viewMode === next.viewMode &&
     prev.globalSpacing === next.globalSpacing &&
     prev.index === next.index &&
@@ -1179,8 +1184,9 @@ const TableCellInput: React.FC<{
   placeholder?: string;
   style?: React.CSSProperties;
   className?: string;
+  title?: string;
   onFocus?: () => void;
-}> = ({ initialValue, onCommit, placeholder, style, className, onFocus }) => {
+}> = ({ initialValue, onCommit, placeholder, style, className, title, onFocus }) => {
   const [val, setVal] = useState(initialValue);
   const debounceRef = useRef<any>(null);
 
@@ -1224,6 +1230,7 @@ const TableCellInput: React.FC<{
       placeholder={placeholder}
       style={style}
       className={className}
+      title={title}
     />
   );
 };
@@ -1236,13 +1243,30 @@ const FinancialTableBlockEditor: React.FC<{
   onUpdate: (u: Partial<SecFinancialTableBlock>) => void;
   isSelected?: boolean;
   tableTemplates?: FinancialTableTemplate[];
-}> = ({ block, onUpdate, isSelected = false, tableTemplates = FINANCIAL_TABLE_TEMPLATES }) => {
+  tableCellDiffs?: SecTableCellDiff[];
+}> = ({
+  block,
+  onUpdate,
+  isSelected = false,
+  tableTemplates = FINANCIAL_TABLE_TEMPLATES,
+  tableCellDiffs = []
+}) => {
   const updateTemplateMutation = useUpdateFinancialTableTemplate();
   const [draggedRowIdx, setDraggedRowIdx] = useState<number | null>(null);
   const [activeCell, setActiveCell] = useState<{ rowIdx: number; colIdx: number } | null>(null);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
   const [templateModalMode, setTemplateModalMode] = useState<'create' | 'update'>('create');
   const [templateModalInitialId, setTemplateModalInitialId] = useState<string | undefined>(undefined);
+
+  const cellDiffMap = useMemo(() => {
+    const map = new Map<string, SecTableCellDiff>();
+    if (tableCellDiffs && tableCellDiffs.length > 0) {
+      for (const cd of tableCellDiffs) {
+        map.set(`${cd.rowIndex}_${cd.colIndex}`, cd);
+      }
+    }
+    return map;
+  }, [tableCellDiffs]);
 
   const matchedTemplate = useMemo(() => {
     return findMatchingTemplate(tableTemplates, undefined, block.title);
@@ -1943,6 +1967,21 @@ const FinancialTableBlockEditor: React.FC<{
         </div>
       </div>
 
+      {/* Draft Diff Notification Banner if any cell was modified in proposal vs main */}
+      {tableCellDiffs && tableCellDiffs.length > 0 && (
+        <div className="flex items-center justify-between px-2.5 py-1.5 my-1.5 rounded-lg bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs shadow-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span className="font-medium">
+              <strong>{tableCellDiffs.length} table {tableCellDiffs.length === 1 ? 'change' : 'changes'}</strong> detected against Main (amber highlights).
+            </span>
+          </div>
+          <span className="text-[11px] text-amber-700 dark:text-amber-300 italic">
+            Hover over highlighted cells to compare with Main
+          </span>
+        </div>
+      )}
+
       {/* Authentic Word Financial Table Grid */}
       <div className="overflow-x-auto w-full my-1">
         <table className="w-full text-[13px] border-collapse">
@@ -1959,6 +1998,8 @@ const FinancialTableBlockEditor: React.FC<{
               {block.headers.map((header, colIdx) => {
                 const align = block.columnAlignments[colIdx] || 'left';
                 const isFirst = colIdx === 0;
+                const headerDiff = cellDiffMap.get(`-1_${colIdx}`);
+                const isHeaderChanged = !!headerDiff;
 
                 return (
                   <th
@@ -1972,9 +2013,13 @@ const FinancialTableBlockEditor: React.FC<{
                         type="text"
                         value={header}
                         placeholder={`Col ${colIdx + 1}`}
+                        title={headerDiff ? `Modified Header (Main value: "${headerDiff.oldValue || '(empty)'}")` : undefined}
                         onChange={(e) => handleHeaderChange(colIdx, e.target.value)}
                         onFocus={() => setActiveColIdx(colIdx)}
-                        style={{ textAlign: align }} className={`w-full bg-transparent font-bold text-[#0E2841] ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} hover:bg-white/60 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500`}
+                        style={{ textAlign: align }}
+                        className={`w-full bg-transparent font-bold text-[#0E2841] ${align === "center" ? "text-center" : align === "right" ? "text-right" : "text-left"} hover:bg-white/60 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                          isHeaderChanged ? 'ring-2 ring-amber-400 bg-amber-50/80 dark:bg-amber-950/50' : ''
+                        }`}
                       />
 
                       {/* Column Sandwich Menu Button */}
@@ -2105,7 +2150,10 @@ const FinancialTableBlockEditor: React.FC<{
               };
               const { isTotal, isSubtotal, isSection, isHeaderLikeRow } = meta;
               let rowClass = 'hover:bg-blue-50/20 dark:hover:bg-zinc-800/40';
-              if (isHeaderLikeRow) {
+              const isRowAdded = cellDiffMap.get(`${rowIdx}_0`)?.status === 'row_added';
+              if (isRowAdded) {
+                rowClass = 'bg-emerald-50/50 dark:bg-emerald-950/30';
+              } else if (isHeaderLikeRow) {
                 rowClass = 'font-bold bg-white dark:bg-zinc-900 text-[#0E2841]';
               } else if (row.shading) {
                 // custom row shading
@@ -2411,6 +2459,14 @@ const FinancialTableBlockEditor: React.FC<{
                     };
                     const { isFirst, align, indentPadding } = cMeta;
 
+                    const cellDiff = cellDiffMap.get(`${rowIdx}_${colIdx}`);
+                    const isCellChanged = !!cellDiff;
+                    const cellTitle = cellDiff?.status === 'cell_modified'
+                      ? `Modified in proposal (Main value: "${cellDiff.oldValue || '(empty)'}")`
+                      : isRowAdded
+                      ? 'New row added in proposal'
+                      : undefined;
+
                     let cellBorderStyle = '';
                     if (isTotal) {
                       cellBorderStyle =
@@ -2428,6 +2484,7 @@ const FinancialTableBlockEditor: React.FC<{
                       >
                         <TableCellInput
                           initialValue={cellValue}
+                          title={cellTitle}
                           onCommit={(val) => handleCellChange(rowIdx, colIdx, val)}
                           onFocus={() => {
                             setActiveColIdx(colIdx);
@@ -2439,7 +2496,9 @@ const FinancialTableBlockEditor: React.FC<{
                             isTotal || row.bold || isHeaderLikeRow
                               ? 'font-bold text-slate-900 dark:text-zinc-100'
                               : 'text-slate-900 dark:text-zinc-200'
-                          } ${row.italic ? 'italic text-slate-700 dark:text-zinc-300' : ''}`}
+                          } ${row.italic ? 'italic text-slate-700 dark:text-zinc-300' : ''} ${
+                            isCellChanged ? 'ring-2 ring-amber-400 bg-amber-50/80 dark:bg-amber-950/50 font-semibold' : ''
+                          }`}
                         />
                       </td>
                     );

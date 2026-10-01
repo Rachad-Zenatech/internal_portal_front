@@ -84,20 +84,20 @@ export default function Dashboard() {
 
         {/* Row 2: Monthly P&L Trend & Financial Position */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 flex flex-col">
+          <div className="lg:col-span-2 flex flex-col min-w-0">
             <RevenueExpenseChart filters={filters} period={period} />
           </div>
-          <div className="flex flex-col">
+          <div className="flex flex-col min-w-0">
             <FinancialPosition filters={filters} />
           </div>
         </div>
 
         {/* Row 3: Bank Account Balances & Account Distribution */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 flex flex-col h-[400px]">
+          <div className="lg:col-span-2 flex flex-col h-[400px] min-w-0">
             <BankBalancesChart filters={filters} />
           </div>
-          <div className="flex flex-col h-[400px]">
+          <div className="flex flex-col h-[400px] min-w-0">
             <AccountTypeDonut filters={filters} />
           </div>
         </div>

@@ -4,6 +4,7 @@ import type {
   SecVersionSnapshot,
   SecBlock,
   SecBlockDiff,
+  SecTableCellDiff,
   SecChangeCategory,
   SecChangeTag,
   SecDocumentSummary
@@ -73,6 +74,147 @@ export function compactFinancialTableBlock(table: SecBlock): SecBlock {
     columnAlignments: [...(table.columnAlignments || [])],
     rows,
   } as any;
+}
+
+export function computeFinancialTableCellDiffs(
+  orig: SecBlock,
+  proposed: SecBlock
+): {
+  tableCellDiffs: SecTableCellDiff[];
+  changeTags: SecChangeTag[];
+  cellCount: number;
+} {
+  if (orig.type !== 'financial_table' || proposed.type !== 'financial_table') {
+    return { tableCellDiffs: [], changeTags: [], cellCount: 0 };
+  }
+
+  const tableCellDiffs: SecTableCellDiff[] = [];
+  const origRows = orig.rows || [];
+  const propRows = proposed.rows || [];
+  const origHeaders = orig.headers || [];
+  const propHeaders = proposed.headers || [];
+
+  const maxR = Math.max(origRows.length, propRows.length);
+  for (let r = 0; r < maxR; r++) {
+    const origR = origRows[r];
+    const propR = propRows[r];
+
+    if (!origR && propR) {
+      // Entire row added in proposal
+      const rowLabel = propR.cells?.[0] || `Row ${r + 1}`;
+      tableCellDiffs.push({
+        rowIndex: r,
+        colIndex: 0,
+        rowId: propR.id,
+        rowLabel,
+        headerLabel: 'Full Row',
+        oldValue: '',
+        newValue: propR.cells?.filter(Boolean).join(' | ') || '(New Row Added)',
+        status: 'row_added'
+      });
+    } else if (origR && !propR) {
+      // Entire row deleted in proposal
+      const rowLabel = origR.cells?.[0] || `Row ${r + 1}`;
+      tableCellDiffs.push({
+        rowIndex: r,
+        colIndex: 0,
+        rowId: origR.id,
+        rowLabel,
+        headerLabel: 'Full Row',
+        oldValue: origR.cells?.filter(Boolean).join(' | ') || '(Row Deleted)',
+        newValue: '',
+        status: 'row_deleted'
+      });
+    } else if (origR && propR) {
+      const maxC = Math.max(origR.cells?.length || 0, propR.cells?.length || 0);
+      const rowLabel = (propR.cells?.[0] || origR.cells?.[0] || `Row ${r + 1}`).trim();
+
+      for (let c = 0; c < maxC; c++) {
+        const rawOld = origR.cells?.[c] ?? '';
+        const rawNew = propR.cells?.[c] ?? '';
+        if (rawOld.trim() !== rawNew.trim()) {
+          const headerLabel = (propHeaders[c] || origHeaders[c] || `Column ${c + 1}`).trim();
+          tableCellDiffs.push({
+            rowIndex: r,
+            colIndex: c,
+            rowId: propR.id || origR.id,
+            rowLabel,
+            headerLabel,
+            oldValue: rawOld,
+            newValue: rawNew,
+            status: 'cell_modified'
+          });
+        }
+      }
+    }
+  }
+
+  // Also check if headers were modified
+  const maxH = Math.max(origHeaders.length, propHeaders.length);
+  for (let c = 0; c < maxH; c++) {
+    const rawOld = origHeaders[c] ?? '';
+    const rawNew = propHeaders[c] ?? '';
+    if (rawOld.trim() !== rawNew.trim()) {
+      tableCellDiffs.push({
+        rowIndex: -1,
+        colIndex: c,
+        rowLabel: 'Table Header',
+        headerLabel: `Column ${c + 1}`,
+        oldValue: rawOld,
+        newValue: rawNew,
+        status: 'cell_modified'
+      });
+    }
+  }
+
+  const changeTags: SecChangeTag[] = [];
+  const modifiedCells = tableCellDiffs.filter((d) => d.status === 'cell_modified');
+  const addedRows = tableCellDiffs.filter((d) => d.status === 'row_added');
+  const deletedRows = tableCellDiffs.filter((d) => d.status === 'row_deleted');
+
+  if (modifiedCells.length > 0) {
+    if (modifiedCells.length === 1) {
+      const single = modifiedCells[0];
+      changeTags.push({
+        category: 'financial_data',
+        label: `${single.rowLabel}: "${single.oldValue || 'empty'}" → "${single.newValue || 'empty'}"`,
+        detail: `${single.rowLabel} [${single.headerLabel}]: "${single.oldValue}" → "${single.newValue}"`
+      });
+    } else if (modifiedCells.length <= 3) {
+      const labels = Array.from(new Set(modifiedCells.map((c) => c.rowLabel).filter(Boolean)));
+      changeTags.push({
+        category: 'financial_data',
+        label: `Table cells: ${labels.join(', ')}`,
+        detail: modifiedCells.map((c) => `${c.rowLabel} [${c.headerLabel}]: "${c.oldValue}" → "${c.newValue}"`).join('; ')
+      });
+    } else {
+      changeTags.push({
+        category: 'financial_data',
+        label: `Financial Table: ${modifiedCells.length} cells modified`,
+        detail: modifiedCells.map((c) => `${c.rowLabel} [${c.headerLabel}]: "${c.oldValue}" → "${c.newValue}"`).join('; ')
+      });
+    }
+  }
+
+  if (addedRows.length > 0) {
+    changeTags.push({
+      category: 'structure',
+      label: `Table: ${addedRows.length} row(s) added`
+    });
+  }
+
+  if (deletedRows.length > 0) {
+    changeTags.push({
+      category: 'structure',
+      label: `Table: ${deletedRows.length} row(s) deleted`
+    });
+  }
+
+  return {
+    tableCellDiffs,
+    changeTags,
+    cellCount: tableCellDiffs.length
+  };
 }
 
 export function sanitizeAndCompactBlocks(blocks: SecBlock[]): SecBlock[] {
@@ -386,6 +528,26 @@ if (typeof window !== 'undefined') {
       flushPendingSaves();
     }
   });
+}
+
+export function getProposalInviteUrl(proposal: SecChangeProposal): string {
+  const baseUrl =
+    typeof window !== 'undefined' && window.location.origin
+      ? `${window.location.origin}/sec-filings/contribute`
+      : '/sec-filings/contribute';
+  const queryParams = new URLSearchParams({
+    contributor: 'true',
+    proposalId: proposal.id,
+    name: proposal.author.name,
+    role: proposal.author.role,
+    section: proposal.assignedSection || 'ALL',
+    title: proposal.title,
+    ...(proposal.changeSummary?.description ? { desc: proposal.changeSummary.description } : {})
+  });
+  if (proposal.inviteToken) {
+    queryParams.set('token', proposal.inviteToken);
+  }
+  return `${baseUrl}?${queryParams.toString()}`;
 }
 
 export const secFilingService = {
@@ -1018,24 +1180,7 @@ export const secFilingService = {
     proposals.unshift(newProposal);
     this.saveProposals(proposals);
 
-    const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://d3ont31k0o7w7h.cloudfront.net';
-    const paramsList = new URLSearchParams();
-    paramsList.set('contributor', 'true');
-    paramsList.set('proposalId', newProposal.id);
-    paramsList.set('token', token);
-    paramsList.set('name', params.contributorName);
-    paramsList.set('role', params.contributorRole);
-    if (params.assignedSection && params.assignedSection !== 'ALL') {
-      paramsList.set('section', params.assignedSection);
-    }
-    if (params.title) {
-      paramsList.set('title', params.title);
-    }
-    if (params.description) {
-      paramsList.set('desc', params.description);
-    }
-
-    const inviteUrl = `${baseUrl}/sec-filings?${paramsList.toString()}`;
+    const inviteUrl = getProposalInviteUrl(newProposal);
 
     broadcastSync("CONTRIBUTOR_INVITED", { proposalId: newProposal.id, name: params.contributorName });
     return { proposal: newProposal, inviteUrl };
@@ -1086,6 +1231,59 @@ export const secFilingService = {
 
     proposals.unshift(newProposal);
     this.saveProposals(proposals);
+    return newProposal;
+  },
+
+  forkProposalFromMerged(
+    sourceProposalId: string,
+    customBlocks?: SecBlock[],
+    customTitle?: string
+  ): SecChangeProposal {
+    const proposals = this.getProposals();
+    const source = proposals.find((p) => p.id === sourceProposalId);
+    if (!source) {
+      throw new Error(`Source proposal ${sourceProposalId} not found`);
+    }
+
+    const currentMain = this.getMainDocument();
+    const newPropId = `prop-contrib-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`;
+    const roundMatch = source.title.match(/\((?:Round|Revision)\s*(\d+)\)/i);
+    let nextTitle = customTitle || source.title;
+    if (!customTitle) {
+      if (roundMatch) {
+        const nextNum = parseInt(roundMatch[1], 10) + 1;
+        nextTitle = source.title.replace(/\((?:Round|Revision)\s*\d+\)/i, `(Round ${nextNum})`);
+      } else {
+        nextTitle = `${source.title} (Round 2)`;
+      }
+    }
+
+    const blocksToUse = customBlocks ? JSON.parse(JSON.stringify(customBlocks)) : JSON.parse(JSON.stringify(currentMain.blocks));
+    const diffs = this.calculateDiffs(currentMain.blocks, blocksToUse);
+
+    const newProposal: SecChangeProposal = {
+      id: newPropId,
+      title: nextTitle,
+      author: { ...source.author },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      status: 'draft',
+      baseVersion: currentMain.version,
+      baseVersionNumber: currentMain.versionNumber,
+      blocks: blocksToUse,
+      assignedSection: source.assignedSection,
+      inviteToken: `inv-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`,
+      changeSummary: {
+        addedCount: diffs.filter((d) => d.status === 'added').length,
+        modifiedCount: diffs.filter((d) => d.status === 'modified').length,
+        deletedCount: diffs.filter((d) => d.status === 'deleted').length,
+        description: `Follow-up revisions based on ${currentMain.version}`
+      }
+    };
+
+    proposals.unshift(newProposal);
+    this.saveProposals(proposals, true);
+    broadcastSync("PROPOSAL_UPDATED", { proposalId: newProposal.id });
     return newProposal;
   },
 
@@ -1506,30 +1704,23 @@ export const secFilingService = {
             });
           }
 
+          let tableCellDiffs: SecTableCellDiff[] | undefined = undefined;
+
           // 5. Financial Statements & Table Rows
           if (orig.type === 'financial_table' && pBlock.type === 'financial_table') {
-            const origHeaders = JSON.stringify(orig.headers);
-            const propHeaders = JSON.stringify(pBlock.headers);
-            const origRows = JSON.stringify(orig.rows);
-            const propRows = JSON.stringify(pBlock.rows);
-
-            if (origHeaders !== propHeaders || origRows !== propRows) {
+            const tableDiffResult = computeFinancialTableCellDiffs(orig, pBlock);
+            if (tableDiffResult.cellCount > 0) {
               categorySet.add('financial_data');
-              let cellChanges = 0;
-              const maxR = Math.max(orig.rows.length, pBlock.rows.length);
-              for (let r = 0; r < maxR; r++) {
-                const r1 = orig.rows[r];
-                const r2 = pBlock.rows[r];
-                if (!r1 || !r2) {
-                  cellChanges += 1;
-                } else if (JSON.stringify(r1.cells) !== JSON.stringify(r2.cells)) {
-                  cellChanges += 1;
-                }
+              tableCellDiffs = tableDiffResult.tableCellDiffs;
+              changeTags.push(...tableDiffResult.changeTags);
+
+              for (const cd of tableDiffResult.tableCellDiffs) {
+                fieldDiffs.push({
+                  field: `${cd.rowLabel} [${cd.headerLabel}]`,
+                  oldValue: cd.oldValue,
+                  newValue: cd.newValue
+                });
               }
-              changeTags.push({
-                category: 'financial_data',
-                label: `Financial Table: ${cellChanges} row/cell values modified`
-              });
             }
           }
 
@@ -1563,6 +1754,7 @@ export const secFilingService = {
             originalBlock: orig,
             proposedBlock: pBlock,
             fieldDiffs,
+            tableCellDiffs,
             changeCategories: categories,
             changeTags,
             isSpacingOnly,

@@ -91,8 +91,8 @@ export default function AccountTypeDonut({ filters }: AccountTypeDonutProps) {
         <CardTitle className="text-lg">Account Type Distribution</CardTitle>
       </CardHeader>
       <CardContent className="flex-1 pb-6 flex flex-col min-h-0">
-        <div className="flex-1 w-full relative min-h-[250px]">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+        <div className="flex-1 w-full relative min-h-[250px] min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={250} initialDimension={{ width: 1, height: 1 }}>
             <PieChart>
               <Pie
                 data={data}

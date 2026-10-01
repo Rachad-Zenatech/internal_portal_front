@@ -178,7 +178,7 @@ export default function TrialBalance() {
           <Card className="p-4 flex flex-col md:flex-row items-end gap-6 border-slate-200 dark:border-zinc-800 shadow-sm rounded-xl bg-white dark:bg-zinc-900">
             <div className="space-y-1.5 w-full md:w-auto md:flex-1">
               <Label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">Company</Label>
-              <Select value={companyId ? String(companyId) : undefined} onValueChange={(val) => setCompanyId(Number(val))} disabled={loadingCards}>
+              <Select value={companyId ? String(companyId) : ""} onValueChange={(val) => setCompanyId(Number(val))} disabled={loadingCards}>
                 <SelectTrigger className="h-10 bg-slate-50/50 dark:bg-zinc-800/50">
                   <SelectValue placeholder={loadingCards ? "Loading..." : "Select Company"} />
                 </SelectTrigger>

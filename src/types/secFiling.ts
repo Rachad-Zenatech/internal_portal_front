@@ -283,6 +283,17 @@ export interface SecChangeTag {
   detail?: string;
 }
 
+export interface SecTableCellDiff {
+  rowIndex: number;
+  colIndex: number;
+  rowId?: string;
+  rowLabel?: string;
+  headerLabel?: string;
+  oldValue: string;
+  newValue: string;
+  status: 'cell_modified' | 'row_added' | 'row_deleted';
+}
+
 export interface SecBlockDiff {
   blockId: string;
   status: 'unchanged' | 'added' | 'modified' | 'deleted';
@@ -298,6 +309,7 @@ export interface SecBlockDiff {
     oldValue: any;
     newValue: any;
   }[];
+  tableCellDiffs?: SecTableCellDiff[];
 }
 
 export interface SecDocumentSummary {

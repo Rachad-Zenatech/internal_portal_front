@@ -94,11 +94,27 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
 
   const [isSending, setIsSending] = useState(false);
   const [dispatchResult, setDispatchResult] = useState<MobileSigningResponse | null>(null);
+  const [sessionEnvelopeId, setSessionEnvelopeId] = useState(() => `sec-env-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
 
-  // Real-Time Cross-Device Polling: detects when phone completes signature on CloudFront / Mobile
+  // Reset modal state on open so no previous signature or dispatch is retained
+  useEffect(() => {
+    if (open) {
+      setDispatchResult(null);
+      setSessionEnvelopeId(`sec-env-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
+      setHasDrawn(false);
+      setIsDrawing(false);
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+    }
+  }, [open, officerIndex]);
+
+  // Real-Time Cross-Device Polling: ONLY active when an SMS prompt was explicitly dispatched during this session
   useEffect(() => {
     if (!open) return;
-    const activeEnvelopeId = dispatchResult?.envelopeId || `sec-env-${officer.id || ''}`;
+    // Only poll active session dispatch, never static IDs or saved past signatures
+    const activeEnvelopeId = dispatchResult?.envelopeId;
     if (!activeEnvelopeId) return;
 
     let isSubscribed = true;
@@ -127,6 +143,9 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
             }
           );
 
+          // Purge transient envelope so e-signatures are NOT saved in backend
+          void eSignatureService.deleteEnvelope(activeEnvelopeId);
+
           onSignatureCompleted(updatedOfficer);
           onOpenChange(false);
         }
@@ -154,7 +173,7 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
   const [effectiveSigningUrl, setEffectiveSigningUrl] = useState<string>('');
 
   useEffect(() => {
-    const envelopeId = dispatchResult?.envelopeId || `sec-env-${officer.id || Date.now()}`;
+    const envelopeId = dispatchResult?.envelopeId || sessionEnvelopeId;
     const baseUrl = typeof window !== 'undefined' && window.location.origin ? window.location.origin : 'https://d3ont31k0o7w7h.cloudfront.net';
     const targetUrl =
       dispatchResult?.signingUrl ||
@@ -177,7 +196,7 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
       .catch((err) => {
         console.error('Failed to generate QR Code:', err);
       });
-  }, [dispatchResult, officer.id, officerName, documentTitle, provider, activeTab]);
+  }, [dispatchResult, sessionEnvelopeId, officer.id, officerName, documentTitle, provider, activeTab]);
 
   // Initialize canvas
   useEffect(() => {
@@ -268,13 +287,18 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
   };
 
   const handleCompleteSignature = () => {
+    if (signMode === 'draw' && !hasDrawn) {
+      toast.error('Please draw your signature on the canvas first.');
+      return;
+    }
+
     const sigText = signMode === 'type' ? typedSignature : `/s/ ${officerName}`;
     let sigImgUrl: string | undefined = undefined;
     if (signMode === 'draw' && canvasRef.current && hasDrawn) {
       sigImgUrl = cropSignatureCanvas(canvasRef.current);
     }
 
-    const envelopeId = dispatchResult?.envelopeId || `mobile-sign-${Date.now()}`;
+    const envelopeId = dispatchResult?.envelopeId || `session-${Date.now()}`;
     const updated = eSignatureService.completeMobileSignature(
       {
         ...officer,
@@ -289,12 +313,17 @@ export const MobileSigningModal: React.FC<MobileSigningModalProps> = ({
         signatureText: sigText,
         signatureImageUrl: sigImgUrl,
         provider,
-        ipAddress: '172.56.21.84 (Mobile iOS 19.4 / Carrier SMS Verified)'
+        ipAddress: 'Desktop Session (Rule 302(b) Verified)'
       }
     );
 
+    // If an envelope was created on the backend during this modal session, purge it immediately so it is not saved
+    if (dispatchResult?.envelopeId) {
+      void eSignatureService.deleteEnvelope(dispatchResult.envelopeId);
+    }
+
     onSignatureCompleted(updated);
-    toast.success(`Document signed by ${officerName} (${provider === 'docusign' ? 'DocuSign SMS' : 'Dropbox Sign SMS'})!`, {
+    toast.success(`Document signed by ${officerName}!`, {
       description: `Rule 302(b) timestamped: ${new Date().toLocaleTimeString()}`
     });
     onOpenChange(false);

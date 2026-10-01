@@ -8,7 +8,8 @@ import {
   ShieldAlert,
   Users,
   Clock,
-  Plus
+  Plus,
+  GitBranch
 } from 'lucide-react';
 import type { SecFilingDocument, SecChangeProposal } from '../../../types/secFiling';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
@@ -46,6 +47,7 @@ interface ContributorInviteModalProps {
     description?: string;
   }) => { proposal: SecChangeProposal; inviteUrl: string };
   onOpenProposal: (proposalId: string) => void;
+  onForkProposal?: (sourceProposalId: string) => SecChangeProposal | null;
 }
 
 export const ContributorInviteModal: React.FC<ContributorInviteModalProps> = ({
@@ -55,7 +57,8 @@ export const ContributorInviteModal: React.FC<ContributorInviteModalProps> = ({
   proposals = [],
   documentSections,
   onCreateInvite,
-  onOpenProposal
+  onOpenProposal,
+  onForkProposal
 }) => {
   const [activeTab, setActiveTab] = useState<'create' | 'existing'>('create');
   const [contributorName, setContributorName] = useState('Sarah Jenkins');
@@ -433,6 +436,24 @@ export const ContributorInviteModal: React.FC<ContributorInviteModalProps> = ({
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        {p.status === 'merged' && onForkProposal && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              const forked = onForkProposal(p.id);
+                              if (forked) {
+                                setCopiedId(forked.id);
+                                setTimeout(() => setCopiedId(null), 2500);
+                              }
+                            }}
+                            className="h-7 px-2.5 text-xs font-semibold gap-1 bg-purple-600 hover:bg-purple-700 text-white cursor-pointer shadow-2xs"
+                            title="Generate a new branch and share link for the next round of changes"
+                          >
+                            <GitBranch className="w-3.5 h-3.5" />
+                            <span>New Revision Link</span>
+                          </Button>
+                        )}
                         <Button
                           type="button"
                           size="sm"
@@ -444,7 +465,7 @@ export const ContributorInviteModal: React.FC<ContributorInviteModalProps> = ({
                           }`}
                         >
                           {isCopied ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-blue-600" />}
-                          <span>{isCopied ? 'Link Copied!' : 'Re-Copy Link'}</span>
+                          <span>{isCopied ? 'Link Copied!' : p.status === 'merged' ? 'Copy Merged Link' : 'Re-Copy Link'}</span>
                         </Button>
 
                         <Button

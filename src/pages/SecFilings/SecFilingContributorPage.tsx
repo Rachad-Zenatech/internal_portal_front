@@ -14,12 +14,16 @@ import {
   Lock,
   Sliders,
   Undo2,
-  Redo2
+  Redo2,
+  GitBranch,
+  Link2,
+  Check
 } from 'lucide-react';
 import type {
   SecFilingDocument
 } from '../../types/secFiling';
 import { useSecFiling } from '../../hooks/useSecFiling';
+import { getProposalInviteUrl } from '../../services/secFilingService';
 import { exportSecFilingToDocx, downloadBlob, printSecFiling } from '../../utils/secFilingExport';
 import { BlockBuilder } from './components/BlockBuilder';
 import { BlockInspector } from './components/BlockInspector';
@@ -118,33 +122,45 @@ export default function SecFilingContributorPage() {
     handleRedo,
     canUndo,
     canRedo,
+    handleForkProposal,
     handleSubmitForReview
   } = useSecFiling();
 
   // Statement templates come from the database; the bundled set is the fallback
-
   // while the request is in flight or if the user lacks SEC_FILINGS_READ.
-
   const { data: templateData } = useFinancialTableTemplates();
 
   const tableTemplates = useMemo(
-
     () => resolveTableTemplates(templateData?.templates),
-
     [templateData]
-
   );
-
 
   const [showOutline, setShowOutline] = useState<boolean>(true);
   const [showInspector, setShowInspector] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'word' | 'blocks'>('word');
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState<boolean>(false);
   const [isExportingDocx, setIsExportingDocx] = useState<boolean>(false);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   // Selected block for inspector
   const selectedBlock = workingBlocks.find((b) => b.id === selectedBlockId) || null;
-  const isSubmitted = activeProposal?.status === 'pending_review' || activeProposal?.status === 'merged';
+  const isPendingReview = activeProposal?.status === 'pending_review';
+  const isMerged = activeProposal?.status === 'merged';
+
+  const handleCopyShareLink = () => {
+    if (activeProposal) {
+      const url = getProposalInviteUrl(activeProposal);
+      navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+      toast.success('Copied review branch link to clipboard!');
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+      toast.success('Copied link to clipboard!');
+    }
+  };
 
   // Contributor initials
   const initials = useMemo(() => {
@@ -349,17 +365,38 @@ export default function SecFilingContributorPage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Primary Action Button: Submit Changes for Review */}
-            {!isSubmitted ? (
-              <Button
-                type="button"
-                onClick={() => setIsSubmitModalOpen(true)}
-                className="h-8 px-3.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Send className="w-3.5 h-3.5 text-white" />
-                <span>Submit for Review</span>
-              </Button>
-            ) : (
+            {/* Copy / Share Link Button */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleCopyShareLink}
+              className="h-8 text-xs gap-1.5 font-medium text-slate-700 border-slate-300 hover:bg-slate-50 cursor-pointer"
+              title="Copy share link for this contributor review branch"
+            >
+              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Link2 className="w-3.5 h-3.5 text-slate-500" />}
+              <span className="hidden md:inline">{copiedLink ? 'Link Copied!' : 'Share Link'}</span>
+            </Button>
+
+            {/* Primary Action Button / Status State */}
+            {isMerged ? (
+              <div className="flex items-center gap-2">
+                <Badge className="bg-purple-100 text-purple-700 border border-purple-300 font-semibold text-xs py-1 px-2.5 gap-1.5 shadow-2xs">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Merged into Main</span>
+                </Badge>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleForkProposal?.()}
+                  className="h-8 px-3 text-xs bg-purple-600 hover:bg-purple-700 text-white font-semibold gap-1.5 shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                  title="Previous changes were merged. Start a new revision draft with a new review link."
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>Start New Revision</span>
+                </Button>
+              </div>
+            ) : isPendingReview ? (
               <div className="flex items-center gap-1.5">
                 <Badge className="bg-emerald-600 text-white font-semibold text-xs py-1 px-2.5 gap-1.5 shadow-2xs">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -370,11 +407,20 @@ export default function SecFilingContributorPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setIsSubmitModalOpen(true)}
-                  className="h-8 text-[11px] text-slate-600 hover:text-slate-900 border-slate-300"
+                  className="h-8 text-[11px] text-slate-600 hover:text-slate-900 border-slate-300 cursor-pointer"
                 >
                   Edit Notes
                 </Button>
               </div>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => setIsSubmitModalOpen(true)}
+                className="h-8 px-3.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold gap-1.5 shadow-xs transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+              >
+                <Send className="w-3.5 h-3.5 text-white" />
+                <span>Submit for Review</span>
+              </Button>
             )}
           </div>
         </div>
@@ -423,20 +469,35 @@ export default function SecFilingContributorPage() {
           </div>
 
           <div className="flex items-center gap-2 self-end lg:self-center shrink-0">
-            {!isSubmitted ? (
+            {isMerged ? (
+              <div className="flex items-center gap-2">
+                <div className="text-right text-xs text-purple-700 font-medium bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200">
+                  ✓ Merged into Main ({mainDoc.version})
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleForkProposal?.()}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-8 px-3 gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>Start New Revision Draft</span>
+                </Button>
+              </div>
+            ) : isPendingReview ? (
+              <div className="text-right text-xs text-emerald-700 font-medium bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                ✓ Awaiting Lead Controller Approval
+              </div>
+            ) : (
               <Button
                 type="button"
                 size="sm"
                 onClick={() => setIsSubmitModalOpen(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8 px-3.5 gap-1.5 shadow-xs"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-8 px-3.5 gap-1.5 shadow-xs cursor-pointer"
               >
                 <Send className="w-3.5 h-3.5" />
                 <span>Submit Final Review</span>
               </Button>
-            ) : (
-              <div className="text-right text-xs text-emerald-700 font-medium bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
-                ✓ Awaiting Lead Controller Approval
-              </div>
             )}
           </div>
         </div>
@@ -490,6 +551,39 @@ export default function SecFilingContributorPage() {
 
         {/* Center Column: The Prominent Word Document Sheet */}
         <div className="flex-1 w-full min-w-0">
+          {isMerged && (
+            <div className="mb-4 p-4 rounded-xl bg-purple-50/90 border border-purple-200 text-purple-900 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-purple-100 text-purple-700 shrink-0 mt-0.5">
+                  <CheckCircle2 className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <div className="font-bold text-sm text-purple-950 flex items-center gap-2">
+                    <span>Previous Changes Merged into Main Document</span>
+                    <Badge className="bg-purple-200 text-purple-800 text-[10px] font-mono border-none">
+                      {activeProposal?.baseVersion || mainDoc.version}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-purple-700 mt-0.5 leading-relaxed">
+                    Your previous changes have been approved and merged into the official filing. You are currently viewing the merged document.
+                    Any new edits you make will automatically fork into a new draft with a fresh link, ready to submit for a new review.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleForkProposal?.()}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs h-8 px-3 gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <GitBranch className="w-3.5 h-3.5" />
+                  <span>Start New Revision Draft</span>
+                </Button>
+              </div>
+            </div>
+          )}
+
           <BlockBuilder
             tableTemplates={tableTemplates}
             blocks={workingBlocks}

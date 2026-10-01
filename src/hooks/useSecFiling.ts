@@ -12,7 +12,7 @@ import type {
   SecFinancialTableBlock,
   SecTableRow
 } from '../types/secFiling';
-import { secFilingService, setStorageFailureListener } from '../services/secFilingService';
+import { secFilingService, setStorageFailureListener, getProposalInviteUrl } from '../services/secFilingService';
 import { useAuth } from '../lib/AuthContext';
 import { toast } from 'sonner';
 import { ZENATECH_LOGO_DATA_URL } from '../data/zenatechLogoAsset';
@@ -151,9 +151,49 @@ export function useSecFiling() {
     [mainDoc.blocks]
   );
 
+  const handleForkProposal = useCallback(
+    (sourceProposalId?: string, customBlocks?: SecBlock[], customTitle?: string) => {
+      const targetId = sourceProposalId || activeProposalId;
+      if (!targetId) return null;
+      try {
+        const forked = secFilingService.forkProposalFromMerged(targetId, customBlocks, customTitle);
+        setProposals(secFilingService.getProposals());
+        setActiveProposalId(forked.id);
+
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('proposalId', forked.id);
+          url.searchParams.set('title', forked.title);
+          window.history.replaceState({}, '', url.toString());
+
+          const inviteUrl = getProposalInviteUrl(forked);
+          if (navigator.clipboard) {
+            navigator.clipboard.writeText(inviteUrl).catch(() => {});
+          }
+        }
+
+        toast.success(`Started new revision draft: "${forked.title}"`, {
+          description: 'A new share link has been created and copied to clipboard. Ready for a new review!'
+        });
+        return forked;
+      } catch (err: any) {
+        toast.error(err.message || 'Failed to start new proposal draft');
+        return null;
+      }
+    },
+    [activeProposalId]
+  );
+
   const applyWorkingBlocks = useCallback(
     (newBlocks: SecBlock[]) => {
       if (activeProposal) {
+        // If this proposal was already merged into Main, auto-fork into a new proposal
+        // so edits are not lost, merged history remains immutable, and a new link is established!
+        if (activeProposal.status === 'merged') {
+          handleForkProposal(activeProposal.id, newBlocks);
+          return;
+        }
+
         const updatedProposal: SecChangeProposal = {
           ...activeProposal,
           blocks: newBlocks,
@@ -180,7 +220,7 @@ export function useSecFiling() {
         setMainDoc(updatedMain);
       }
     },
-    [activeProposal, mainDoc, user]
+    [activeProposal, mainDoc, user, handleForkProposal]
   );
 
   const setWorkingBlocks = useCallback(
@@ -872,6 +912,16 @@ export function useSecFiling() {
         return;
       }
 
+      const currentProp = secFilingService.getProposals().find((p) => p.id === targetProposalId);
+      if (currentProp && currentProp.status === 'merged') {
+        toast.info('This proposal was already merged into Main. Starting a new revision draft...');
+        const forked = handleForkProposal(targetProposalId);
+        if (forked) {
+          toast.info('You are now on a new revision draft with a new link. Submit when your new changes are ready.');
+        }
+        return;
+      }
+
       const result = secFilingService.submitProposalForReview(targetProposalId, notes);
       setProposals(secFilingService.getProposals());
 
@@ -889,7 +939,7 @@ export function useSecFiling() {
       }
       toast.success('Proposed changes submitted to Lead Controller for review and merging!');
     },
-    [ensureActiveProposalId]
+    [ensureActiveProposalId, handleForkProposal]
   );
 
   const handleMergeProposal = useCallback(
@@ -1162,6 +1212,7 @@ export function useSecFiling() {
     redoCount: redoStack.length,
     handleCreateProposal,
     handleCreateContributorInvite,
+    handleForkProposal,
     handleSubmitForReview,
     handleMergeProposal,
     handleSelectiveMerge,

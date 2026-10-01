@@ -101,9 +101,9 @@ export default function RevenueExpenseChart({
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-lg capitalize">{period} P&L Trend</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 pt-2">
-        <div className="h-full min-h-[300px] w-full">
-          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <CardContent className="flex-1 pt-2 min-h-0 flex flex-col">
+        <div className="flex-1 w-full min-h-[300px] min-w-0">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={300} initialDimension={{ width: 1, height: 1 }}>
             <ComposedChart
               data={chartData}
               margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
