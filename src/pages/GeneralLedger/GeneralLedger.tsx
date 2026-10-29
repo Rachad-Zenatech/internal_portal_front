@@ -1,4 +1,4 @@
-// src/pages/GeneralLedger.tsx
+// src/pages/GeneralLedger/GeneralLedger.tsx
 
 import { useEffect, useMemo, useState } from "react";
 import type { CompanyGLCard, GLExtractionFormat } from "@/types/gl";
@@ -10,7 +10,7 @@ import {
   useAssignFormat,
   useGLUploadQueue,
 } from "@/hooks/useGL";
-import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
+import { GLUploadQueuePanel } from "@/components/GeneralLedger/GLUploadQueuePanel";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 
 import { Card, CardContent } from "@/components/ui/card";

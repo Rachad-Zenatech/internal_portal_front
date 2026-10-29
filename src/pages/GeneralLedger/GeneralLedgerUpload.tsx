@@ -1,4 +1,4 @@
-// src/pages/GeneralLedgerUpload.tsx
+// src/pages/GeneralLedger/GeneralLedgerUpload.tsx
 
 import {
   type ChangeEvent,
@@ -45,7 +45,7 @@ import {
 } from "@/hooks/useGL";
 import { useChartOfAccounts } from "@/hooks/useChartOfAccount";
 import { GLService } from "@/services/glService";
-import { GLUploadQueuePanel } from "@/components/GLUploadQueuePanel";
+import { GLUploadQueuePanel } from "@/components/GeneralLedger/GLUploadQueuePanel";
 import { GLSplitCompareDialog } from "@/components/GeneralLedger/GLSplitCompareDialog";
 import { useGlobalProgress } from "@/lib/GlobalProgressContext";
 

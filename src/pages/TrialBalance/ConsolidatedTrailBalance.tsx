@@ -1,4 +1,4 @@
-// src/pages/ConsolidatedTrailBalance.tsx
+// src/pages/TrialBalance/ConsolidatedTrailBalance.tsx
 
 import { Fragment, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Download, Check, X, Search, Info, ChevronsLeft, ChevronLeft, ChevronsRight } from "lucide-react";

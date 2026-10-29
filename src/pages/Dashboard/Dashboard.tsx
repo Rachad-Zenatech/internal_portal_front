@@ -1,4 +1,4 @@
-// src/pages/Dashboard.tsx
+// src/pages/Dashboard/Dashboard.tsx
 
 import { useState } from "react";
 import SummaryCards from "@/components/Dashboard/SummaryCards";

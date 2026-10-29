@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useConsolidatedMatrix } from "../hooks/useGL";
+import { useConsolidatedMatrix } from "../../hooks/useGL";
 import { Network, Layers, Building2, Settings2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";

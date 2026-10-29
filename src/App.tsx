@@ -2,24 +2,24 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from "rea
 import { lazy, Suspense } from "react";
 import { AuthProvider } from "./lib/AuthContext";
 import { GlobalProgressProvider } from "./lib/GlobalProgressContext";
-import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedRoute from "./components/common/ProtectedRoute";
 
 import AppShell from "./components/AppShell/AppShell";
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const BankStatements = lazy(() => import("./pages/BankStatements"));
-const GeneralLedger = lazy(() => import("./pages/GeneralLedger"));
-const Reports = lazy(() => import("./pages/Reports"));
-const TrialBalance = lazy(() => import("./pages/TrialBalance"));
-const UploadFile = lazy(() => import("./pages/UploadFiles"));
-const ConsolidatedTrailBalance = lazy(() => import("./pages/ConsolidatedTrailBalance"));
-const ConsolidatedTrialBalanceMatrix = lazy(() => import("./pages/ConsolidatedTrialBalanceMatrix"));
+const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
+const BankStatements = lazy(() => import("./pages/BankStatements/BankStatements"));
+const GeneralLedger = lazy(() => import("./pages/GeneralLedger/GeneralLedger"));
+const Reports = lazy(() => import("./pages/Reports/Reports"));
+const TrialBalance = lazy(() => import("./pages/TrialBalance/TrialBalance"));
+const UploadFile = lazy(() => import("./pages/UploadFiles/UploadFiles"));
+const ConsolidatedTrailBalance = lazy(() => import("./pages/TrialBalance/ConsolidatedTrailBalance"));
+const ConsolidatedTrialBalanceMatrix = lazy(() => import("./pages/TrialBalance/ConsolidatedTrialBalanceMatrix"));
 const ChartOfAccounts = lazy(() => import("./pages/Configurations/ChartOfAccounts"));
 const CompanySettings = lazy(() => import("./pages/Configurations/CompanySettings"));
 const BankSettings = lazy(() => import("./pages/Configurations/BankSettings"));
 const BankAccountSettings = lazy(() => import("./pages/Configurations/BankAccountSettings"));
 const BankFeedRules = lazy(() => import("./pages/Configurations/BankFeedRules"));
 const BusinessContacts = lazy(() => import("./pages/Configurations/BusinessContacts"));
-const BankStatementPreview = lazy(() => import("./pages/BankStatementPreview"));
+const BankStatementPreview = lazy(() => import("./pages/BankStatements/BankStatementPreview"));
 const Users = lazy(() => import("./pages/Configurations/Users"));
 const Roles = lazy(() => import("./pages/Configurations/Roles"));
 const UserRoleAssignment = lazy(() => import("./pages/Configurations/UserRoleAssignment"));
@@ -27,8 +27,8 @@ const RoleGroupPermissions = lazy(() => import("./pages/Configurations/RoleGroup
 const RoleApiPermissions = lazy(() => import("./pages/Configurations/RoleApiPermissions"));
 const RoleMcpToolPermissions = lazy(() => import("./pages/Configurations/RoleMcpToolPermissions"));
 const XgboostModel = lazy(() => import("./pages/Configurations/XgboostModel"));
-const GeneralLedgerUpload = lazy(() => import("./pages/GeneralLedgerUpload"));
-const CompanyGeneralLedger = lazy(() => import("./pages/CompanyGeneralLedger"));
+const GeneralLedgerUpload = lazy(() => import("./pages/GeneralLedger/GeneralLedgerUpload"));
+const CompanyGeneralLedger = lazy(() => import("./pages/GeneralLedger/CompanyGeneralLedger"));
 const AuditLog = lazy(() => import("./pages/Log/AuditLog"));
 const SecFilings = lazy(() => import("./pages/SecFilings/SecFilingsPage"));
 const CreateSecFilingPage = lazy(() => import("./pages/SecFilings/CreateSecFilingPage"));
@@ -80,8 +80,8 @@ function SecFilingsEditorRoute() {
     </ProtectedRoute>
   );
 }
-const Login = lazy(() => import("./pages/Login"));
-const PendingAccess = lazy(() => import("./pages/PendingAccess"));
+const Login = lazy(() => import("./pages/Auth/Login"));
+const PendingAccess = lazy(() => import("./pages/Auth/PendingAccess"));
 
 function App() {
   return (

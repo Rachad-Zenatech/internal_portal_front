@@ -1,4 +1,4 @@
-// src/pages/CompanyGeneralLedger.tsx
+// src/pages/GeneralLedger/CompanyGeneralLedger.tsx
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
