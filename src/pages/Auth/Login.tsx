@@ -29,6 +29,19 @@ export default function Login() {
         return;
       }
 
+      if (error === "sso_session_expired" || error === "sso_failed") {
+        hasProcessedLogin.current = true;
+        setTimeout(() => {
+          toast.error(
+            error === "sso_session_expired"
+              ? "Your sign-in session expired. Please sign in again."
+              : "Microsoft sign-in failed. Please try again."
+          );
+        }, 100);
+        navigate("/login", { replace: true });
+        return;
+      }
+
       if (error === "account_deactivated") {
         hasProcessedLogin.current = true;
         setTimeout(() => {
