@@ -1,138 +1,84 @@
-# Claude Project Skill
+# Agent Guidelines & Repository Rules
 
-Lean rules for this enterprise internal portal.
+This document defines the execution guidelines for all AI agents working on this codebase.
+Architectural standards are in `.agents/rules/` and loaded only when relevant.
 
-<!-- project-structure:start -->
-## Project Structure
+---
 
-```text
-src/
-  assets/                   # Images and icons
-  components/               # Reusable UI, one folder per feature
-    AppShell/               # Layout chrome: sidebar, top bar, navigation, notifications
-    Bank/                   # Bank statement upload, queue, list and detail widgets
-    ChartOfAccounts/        # Chart of accounts table and dialogs
-    Configurations/         # Bank feed rule and business contact forms/dialogs
-    Dashboard/              # Dashboard charts, cards and tables
-    GeneralLedger/          # GL upload queue panel and split-compare dialog
-    Onboarding/             # Onboarding tour
-    common/                 # Shared by several pages: error boundary, route guard
-    ui/                     # shadcn/ui primitives (button, dialog, ...); don't put feature code here
-  data/                     # Static data / catalogs
-  hooks/                    # Custom React hooks
-  lib/                      # App-wide helpers: auth context, env, storage, utils
-  pages/                    # One folder per feature/route group
-    Auth/                   # Login and pending-access screens
-    BankStatements/         # Bank statement list, upload and preview/review
-    Configurations/         # Business settings (company, banks, bank feed rules, business contacts, chart of accounts), users, roles, permissions and XGBoost model views
-    Dashboard/              # Home dashboard
-    GeneralLedger/          # General ledger views and GL upload/import
-    Log/                    # Audit log
-    Reports/                # Financial reports
-    SecFilings/             # SEC filing editor, contributors and mobile signing (with its own components/)
-    TrialBalance/           # Trial balance and consolidated trial balance views
-    UploadFiles/            # File upload archive
-  services/                 # API calls: apiClient + one <feature>Service.ts per backend area
-  template/                 # Bank reconciliation Excel template (not imported by code)
-  types/                    # TypeScript types, one file per feature
-  utils/                    # Pure helper functions
-  App.tsx                   # Web routes (lazy-loaded pages)
-  main.tsx                  # Web entry: providers and router
-```
+## 0. AI Agent Efficiency & Execution Budget
 
-### Where new code goes
+These rules apply to every AI coding agent working in this repository.
 
-* **New page:** `src/pages/<Feature>/`. Pages that belong together share a folder; a `.native.tsx` variant sits next to its web file.
-* **Components:** used by one feature go in `src/components/<Feature>/`; used by several go in `src/components/common/`. `src/components/ui/` is only for shadcn primitives.
-* **New API calls** go in `src/services/<feature>Service.ts` through `apiClient`, not `fetch` inside components (some older pages still do this; move those calls when you touch them). Types go in `src/types/<feature>.ts`.
-* **Don't add loose files** to `src/pages/` or `src/components/`.
-* **When you move a file,** update every import to it (and the imports inside it), then run `npm run build` (`tsc -b && vite build`).
-<!-- project-structure:end -->
+### 0.1 Minimize Context Consumption
 
-## Stack
+- Do not scan the entire repository for individual assignments.
+- Use the existing Project Structure documentation to locate relevant files.
+- Read only files necessary to complete the requested task.
+- Do not repeatedly read files already inspected.
+- Do not load large documentation files unless directly relevant.
+- Prefer targeted searches over broad searches.
+- Before opening a source file, search `.agents/code-map.md` for the file or function name (grep it; do not read the whole map) and read only the line range you need.
+- Do not read files over 400 lines in full, and do not re-read a line range already read in the same task.
+- After adding, moving or renaming functions, regenerate the map: `node .agents/gen_code_map.mjs`.
+- Do not summarize or re-analyze the entire codebase unnecessarily.
 
-- React, TypeScript, Vite, Tailwind, shadcn UI, React Query.
-- API calls go through `src/services/apiClient.ts`; shared API/domain types live in `src/types/*`.
-- Services and hooks must not export shared types; use `import type`.
+### 0.2 Planning Restrictions
 
-## Frontend
+- Use a short implementation plan.
+- Identify the specific files requiring changes.
+- Do not perform extensive architectural analysis for routine changes.
+- Do not propose unrelated improvements.
+- Do not create multiple alternative implementation plans unless requested.
 
-- Put reusable backend shapes in `src/types`; keep one-off props local.
-- Prefer shadcn components from `src/components/ui`.
-- Services are API wrappers only; hooks only coordinate React Query/server state.
-- Use theme tokens and shadcn variants for dark mode.
-- Preserve finance math: bank/income add; expenses/credit cards subtract; liability increases are negative.
+### 0.3 Agent and Subagent Restrictions
 
-## Backend
+- Do not spawn subagents by default.
+- Do not use parallel agents for routine assignments.
+- Only use subagents when explicitly authorized.
+- Do not delegate simple code changes or file inspections.
 
-- Keep explicit request/response schemas aligned with frontend `src/types`.
-- Preserve route groups: `/accounting`, `/bank_statement`, `/dashboard`, `/reports`, `/upload-files`.
-- Uploads use multipart form data, stable IDs/metadata, and S3-swappable local storage.
-- Avoid destructive accounting operations unless route and UI explicitly say replace.
+### 0.4 Tool Execution Restrictions
 
-## Change impact (verify the whole flow)
+- Avoid repeated tool calls that retrieve identical information.
+- Do not repeatedly execute the same failed command without changing the underlying cause.
+- Do not run the entire test suite for small changes.
+- Do not repeatedly inspect unchanged files.
+- Do not perform unnecessary browser research.
+- Do not automatically expand the scope of an assignment.
 
-- Trace every change end to end before finishing: component/page → `src/hooks` → `src/services` → `apiClient` → backend route, and back through the `src/types` contract.
-- When changing a shared contract (a type in `src/types`, a service request/response shape, or a hook return), find EVERY consumer and verify each — a changed shape silently breaks callers that still typecheck through `any`.
-- Exercise the real runtime path, not just `npm run build`: load the affected screen against the running backend and confirm the request succeeds (watch the network/console for 4xx/5xx), not just that it compiles.
-- Keep frontend and backend in lockstep: a backend contract change means updating `src/types` first, then services/hooks/components; confirm the live API response actually matches the type.
-- Report which flows and screens you checked and the result; if one could not be exercised (needs auth, data, an upload), say so explicitly.
+### 0.5 Implementation Scope
 
-## Checks
+- Modify only files necessary for the assignment.
+- Preserve existing architecture and coding conventions.
+- Do not refactor unrelated services.
+- Do not rename or reorganize existing modules without authorization.
+- Do not introduce additional dependencies without justification.
+- Ask before performing destructive database or infrastructure operations.
 
-- Frontend: run `npm run build` after code changes.
-- Run `npm run lint` after broad/shared changes.
-- Backend: run the backend suite or touched endpoint tests.
+### 0.6 Verification
 
-### Server-Sent Events (SSE) & Real-Time Event Streaming
-* **"Wait for Event" Model Only (Mandatory):**
-  * **NEVER** use polling loops (`check -> sleep -> check`) or database polling heartbeats inside SSE streaming endpoints.
-  * **NEVER** query the database repeatedly inside SSE stream generators.
-  * **Always** use `await event_queue.get()` (or `asyncio.wait_for(q.get(), timeout=30.0)` for lightweight ping) to suspend the coroutine at the event loop level with zero CPU/DB overhead until a published event arrives.
+- Run targeted tests for modified functionality.
+- Run py_compile or tsc/build for touched files.
+- Run git diff --check.
+- Do not repeat successful verification commands.
+- Report pre-existing failures separately from new failures.
 
-* **Architecture Recommendation:**
-  > **SSE + event-driven backend + 30–60 second lightweight heartbeat + automatic reconnect.**
-  >
-  > Don't use the heartbeat to poll the database.
-  >
-  > That gives you:
-  > ```text
-  > No notification
-  >       ↓
-  > Server mostly waits
-  >       ↓
-  > Tiny heartbeat occasionally
-  >       ↓
-  > Notification occurs
-  >       ↓
-  > Immediate SSE event
-  > ```
-  > That is a much better balance between server load and connection reliability.
-  > And your CloudFront test strongly suggests that completely silent SSE connections are not viable in your current setup.
+### 0.7 Completion Rules
 
-  * Standard SSE generator implementation (with lightweight zero-DB heartbeat):
-    ```python
-    async def event_generator():
-        q = asyncio.Queue()
-        broadcaster.add_listener(q)
-        try:
-            yield ": connected
+Stop when:
+1. The requested implementation is complete.
+2. Relevant verification has been performed.
+3. Outstanding failures have been documented.
 
-"
-            while True:
-                try:
-                    msg = await asyncio.wait_for(q.get(), timeout=30.0)
-                    if msg.user_id == "*" or str(msg.user_id).lower() == str(user_id).lower():
-                        yield f"data: {msg.model_dump_json()}
+Do not continue exploring, optimizing, refactoring or improving the application without authorization.
 
-"
-                except asyncio.TimeoutError:
-                    # Lightweight keep-alive comment/ping to prevent CloudFront/proxy timeouts without querying the database
-                    yield ": ping
+### 0.8 Final Response
 
-"
-        except (asyncio.CancelledError, GeneratorExit):
-            pass
-        finally:
-            broadcaster.remove_listener(q)
-    ```
+Provide a concise report containing:
+- Files modified.
+- Changes implemented.
+- Tests executed.
+- Test results.
+- Outstanding issues.
+
+Do not produce lengthy explanations unless requested.
