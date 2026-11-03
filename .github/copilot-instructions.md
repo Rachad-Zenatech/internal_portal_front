@@ -1,98 +1,87 @@
-# Copilot Project Instructions
+# Agent Guidelines & Repository Rules
 
-Use these instructions for suggestions in this enterprise internal portal.
+This document defines the execution guidelines for all AI agents working on **Internal Portal Frontend** (React/TypeScript frontend, Vite web).
+Architectural standards are in `.agents/rules/` and loaded only when relevant:
 
-<!-- project-structure:start -->
-## Project Structure
+- `.agents/rules/project-guidelines.md` - Apply when modifying frontend code: stack, architecture conventions, real-time/SSE rules, platform parity and checks for this project.
 
-```text
-src/
-  assets/                   # Images and icons
-  components/               # Reusable UI, one folder per feature
-    AppShell/               # Layout chrome: sidebar, top bar, navigation, notifications
-    Bank/                   # Bank statement upload, queue, list and detail widgets
-    ChartOfAccounts/        # Chart of accounts table and dialogs
-    Configurations/         # Bank feed rule and business contact forms/dialogs
-    Dashboard/              # Dashboard charts, cards and tables
-    GeneralLedger/          # GL upload queue panel and split-compare dialog
-    Onboarding/             # Onboarding tour
-    common/                 # Shared by several pages: error boundary, route guard
-    ui/                     # shadcn/ui primitives (button, dialog, ...); don't put feature code here
-  data/                     # Static data / catalogs
-  hooks/                    # Custom React hooks
-  lib/                      # App-wide helpers: auth context, env, storage, utils
-  pages/                    # One folder per feature/route group
-    Auth/                   # Login and pending-access screens
-    BankStatements/         # Bank statement list, upload and preview/review
-    Configurations/         # Business settings (company, banks, bank feed rules, business contacts, chart of accounts), users, roles, permissions and XGBoost model views
-    Dashboard/              # Home dashboard
-    GeneralLedger/          # General ledger views and GL upload/import
-    Log/                    # Audit log
-    Reports/                # Financial reports
-    SecFilings/             # SEC filing editor, contributors and mobile signing (with its own components/)
-    TrialBalance/           # Trial balance and consolidated trial balance views
-    UploadFiles/            # File upload archive
-  services/                 # API calls: apiClient + one <feature>Service.ts per backend area
-  template/                 # Bank reconciliation Excel template (not imported by code)
-  types/                    # TypeScript types, one file per feature
-  utils/                    # Pure helper functions
-  App.tsx                   # Web routes (lazy-loaded pages)
-  main.tsx                  # Web entry: providers and router
-```
+---
 
-### Where new code goes
+## 0. AI Agent Efficiency & Execution Budget
 
-* **New page:** `src/pages/<Feature>/`. Pages that belong together share a folder; a `.native.tsx` variant sits next to its web file.
-* **Components:** used by one feature go in `src/components/<Feature>/`; used by several go in `src/components/common/`. `src/components/ui/` is only for shadcn primitives.
-* **New API calls** go in `src/services/<feature>Service.ts` through `apiClient`, not `fetch` inside components (some older pages still do this; move those calls when you touch them). Types go in `src/types/<feature>.ts`.
-* **Don't add loose files** to `src/pages/` or `src/components/`.
-* **When you move a file,** update every import to it (and the imports inside it), then run `npm run build` (`tsc -b && vite build`).
-<!-- project-structure:end -->
+These rules apply to every AI coding agent working in this repository.
 
-## Architecture
+### 0.1 Minimize Context Consumption
 
-- Frontend uses React, TypeScript, Vite, Tailwind, shadcn UI, React Query.
-- API clients live in `src/services`.
-- Shared TypeScript types live in `src/types`.
-- UI components live in `src/components`; pages live in `src/pages`.
+- Do not scan the entire repository for individual assignments.
+- Use the existing Project Structure documentation to locate relevant files.
+- Read only files necessary to complete the requested task.
+- Do not repeatedly read files already inspected.
+- Do not load large documentation files unless directly relevant.
+- Prefer targeted searches over broad searches.
+- Before opening a source file, search `.agents/code-map.md` for the file or function name (grep it; do not read the whole map) and read only the line range you need.
+- For orientation (directory layout, what each area does), read `.agents/project-index.md` first; it is a short overview. Use `.agents/code-map.md` only for symbol-level lookups.
+- Do not read files over 400 lines in full, and do not re-read a line range already read in the same task.
+- After adding, moving or renaming functions, regenerate the map: `node .agents/gen_code_map.mjs`.
+- Do not summarize or re-analyze the entire codebase unnecessarily.
 
-## Type Placement
+### 0.2 Planning Restrictions
 
-- Put reusable API/domain types in `src/types`.
-- Do not define or export shared types from `src/services` or `src/hooks`.
-- Use `import type` for type-only imports.
-- Local component props can stay beside the component.
+- Use a short implementation plan.
+- Identify the specific files requiring changes.
+- Do not perform extensive architectural analysis for routine changes.
+- Do not propose unrelated improvements.
+- Do not create multiple alternative implementation plans unless requested.
 
-## Frontend Patterns
+### 0.3 Agent and Subagent Restrictions
 
-- Use `apiClient` from `src/services/apiClient.ts` for HTTP calls.
-- Keep services focused on endpoint calls.
-- Keep hooks focused on React Query.
-- Prefer shadcn UI components over raw controls for app screens.
-- Use theme classes that work in dark mode: `bg-card`, `text-foreground`, `text-muted-foreground`, `border-border`.
-- Use lucide icons when an icon is needed.
-- Run `npm run build` after TypeScript or UI changes.
+- Do not spawn subagents by default.
+- Do not use parallel agents for routine assignments.
+- Only use subagents when explicitly authorized.
+- Do not delegate simple code changes or file inspections.
 
-## Finance Rules
+### 0.4 Tool Execution Restrictions
 
-- Expenses subtract.
-- Income adds.
-- Credit Card subtracts.
-- Bank adds.
-- Liability increases should display as negative/red.
-- Never replace/delete accounting data unless the user explicitly asks for a replacement flow.
+- Avoid repeated tool calls that retrieve identical information.
+- Do not repeatedly execute the same failed command without changing the underlying cause.
+- Do not run the entire test suite for small changes.
+- Do not repeatedly inspect unchanged files.
+- Do not perform unnecessary browser research.
+- Do not automatically expand the scope of an assignment.
 
-## Backend Contract Rules
+### 0.5 Implementation Scope
 
-- Keep frontend `src/types` synced with backend schemas.
-- Preserve route groups: `/accounting`, `/bank_statement`, `/dashboard`, `/reports`, `/upload-files`.
-- File uploads should use multipart form data and stable metadata.
-- Local upload storage is acceptable now, but keep it swappable for S3.
+- Modify only files necessary for the assignment.
+- Preserve existing architecture and coding conventions.
+- Do not refactor unrelated services.
+- Do not rename or reorganize existing modules without authorization.
+- Do not introduce additional dependencies without justification.
+- Ask before performing destructive database or infrastructure operations.
 
-## Change Impact
+### 0.6 Verification
 
-- Trace every change end to end before finishing: component/page → `src/hooks` → `src/services` → `apiClient` → backend route, and back through the `src/types` contract.
-- When changing a shared contract (a type in `src/types`, a service request/response shape, or a hook return), find EVERY consumer and verify each — a changed shape silently breaks callers that still typecheck through `any`.
-- Exercise the real runtime path, not just `npm run build`: load the affected screen against the running backend and confirm the request succeeds (watch the network/console for 4xx/5xx), not just that it compiles.
-- Keep frontend and backend in lockstep: a backend contract change means updating `src/types` first, then services/hooks/components; confirm the live API response actually matches the type.
-- Report which flows and screens were checked and the result; if one could not be exercised (needs auth, data, an upload), say so explicitly.
+- Run `npm run build` after TypeScript or component changes.
+- Run `npm run lint` after broad or shared changes.
+- Run git diff --check.
+- Do not repeat successful verification commands.
+- Report pre-existing failures separately from new failures.
+
+### 0.7 Completion Rules
+
+Stop when:
+1. The requested implementation is complete.
+2. Relevant verification has been performed.
+3. Outstanding failures have been documented.
+
+Do not continue exploring, optimizing, refactoring or improving the application without authorization.
+
+### 0.8 Final Response
+
+Provide a concise report containing:
+- Files modified.
+- Changes implemented.
+- Tests executed.
+- Test results.
+- Outstanding issues.
+
+Do not produce lengthy explanations unless requested.
