@@ -1,5 +1,6 @@
 # Agent Guidelines & Repository Rules
 
+<<<<<<< Updated upstream
 This document defines the execution guidelines for all AI agents working on **Internal Portal Frontend** (React/TypeScript frontend, Vite web).
 Architectural standards are in `.agents/rules/` and loaded only when relevant:
 
@@ -7,11 +8,24 @@ Architectural standards are in `.agents/rules/` and loaded only when relevant:
 
 ---
 
-## 0. AI Agent Efficiency & Execution Budget
+## 0. MANDATORY ORIENTATION GATE (READ BEFORE ANY FILE ACCESS)
+
+Every AI agent working in this repository MUST follow this sequence before touching or reading code:
+1. **Never scan, glob, or read arbitrary source files or directories.**
+2. **First step for orientation:** Read `.agents/project-index.md` to identify the relevant module and directory layout.
+3. **Second step for symbols & functions:** Grep `.agents/code-map.md` for the exact function, class, or route name.
+4. **Third step for reading code:** Read ONLY the specific line range identified in `.agents/code-map.md` (never read entire files >400 lines).
+5. **After adding, moving, or renaming functions:** Regenerate the map immediately via `node .agents/gen_code_map.mjs`.
+
+Violating this order wastes context budget and violates repository execution rules.
+
+---
+
+## 0.1 AI Agent Efficiency & Execution Budget
 
 These rules apply to every AI coding agent working in this repository.
 
-### 0.1 Minimize Context Consumption
+### 0.1.1 Minimize Context Consumption
 
 - Do not scan the entire repository for individual assignments.
 - Use the existing Project Structure documentation to locate relevant files.
@@ -66,6 +80,68 @@ These rules apply to every AI coding agent working in this repository.
 - Do not repeat successful verification commands.
 - Report pre-existing failures separately from new failures.
 
+=======
+This document defines the execution guidelines for all AI agents working on this codebase.
+Architectural standards are in `.agents/rules/` and loaded only when relevant.
+
+---
+
+## 0. AI Agent Efficiency & Execution Budget
+
+These rules apply to every AI coding agent working in this repository.
+
+### 0.1 Minimize Context Consumption
+
+- Do not scan the entire repository for individual assignments.
+- Use the existing Project Structure documentation to locate relevant files.
+- Read only files necessary to complete the requested task.
+- Do not repeatedly read files already inspected.
+- Do not load large documentation files unless directly relevant.
+- Prefer targeted searches over broad searches.
+- Do not summarize or re-analyze the entire codebase unnecessarily.
+
+### 0.2 Planning Restrictions
+
+- Use a short implementation plan.
+- Identify the specific files requiring changes.
+- Do not perform extensive architectural analysis for routine changes.
+- Do not propose unrelated improvements.
+- Do not create multiple alternative implementation plans unless requested.
+
+### 0.3 Agent and Subagent Restrictions
+
+- Do not spawn subagents by default.
+- Do not use parallel agents for routine assignments.
+- Only use subagents when explicitly authorized.
+- Do not delegate simple code changes or file inspections.
+
+### 0.4 Tool Execution Restrictions
+
+- Avoid repeated tool calls that retrieve identical information.
+- Do not repeatedly execute the same failed command without changing the underlying cause.
+- Do not run the entire test suite for small changes.
+- Do not repeatedly inspect unchanged files.
+- Do not perform unnecessary browser research.
+- Do not automatically expand the scope of an assignment.
+
+### 0.5 Implementation Scope
+
+- Modify only files necessary for the assignment.
+- Preserve existing architecture and coding conventions.
+- Do not refactor unrelated services.
+- Do not rename or reorganize existing modules without authorization.
+- Do not introduce additional dependencies without justification.
+- Ask before performing destructive database or infrastructure operations.
+
+### 0.6 Verification
+
+- Run targeted tests for modified functionality.
+- Run py_compile or tsc/build for touched files.
+- Run git diff --check.
+- Do not repeat successful verification commands.
+- Report pre-existing failures separately from new failures.
+
+>>>>>>> Stashed changes
 ### 0.7 Completion Rules
 
 Stop when:
