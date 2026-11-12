@@ -1,5 +1,9 @@
 {
   "limit": 500,
+  "block_limits": {
+    "jsx_return": 80,
+    "py_function": 120
+  },
   "files": {
     "src/components/Bank/StatementPreviewReview.tsx": {
       "max_lines": 978,
@@ -112,6 +116,292 @@
     "src/utils/secFilingExport.ts": {
       "max_lines": 972,
       "reason": "Over the limit when the check was introduced; split it when you next work on it."
+    }
+  },
+  "blocks": {
+    "src/components/AppShell/ConnectionStatusLight.tsx#ConnectionStatusLight": {
+      "max_lines": 93,
+      "kind": "jsx_return"
+    },
+    "src/components/AppShell/FloatingChat.tsx#FloatingChat": {
+      "max_lines": 161,
+      "kind": "jsx_return"
+    },
+    "src/components/AppShell/Sidebar.tsx#Sidebar": {
+      "max_lines": 150,
+      "kind": "jsx_return"
+    },
+    "src/components/AppShell/TopBar.tsx#TopBar": {
+      "max_lines": 357,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/BankStatementQueuePanel.tsx#BankStatementQueuePanel": {
+      "max_lines": 162,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/StatementDetail.tsx#StatementDetail": {
+      "max_lines": 131,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/StatementList.tsx#StatementList": {
+      "max_lines": 89,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/StatementPreviewReview.tsx#CheckTable": {
+      "max_lines": 88,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/StatementPreviewReview.tsx#DepositTable": {
+      "max_lines": 82,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/StatementPreviewReview.tsx#StatementPreviewReview": {
+      "max_lines": 256,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/Summary.tsx#SummaryPage": {
+      "max_lines": 226,
+      "kind": "jsx_return"
+    },
+    "src/components/Bank/UploadStatement.tsx#UploadStatement": {
+      "max_lines": 146,
+      "kind": "jsx_return"
+    },
+    "src/components/ChartOfAccounts/COATable.tsx#COATable": {
+      "max_lines": 217,
+      "kind": "jsx_return"
+    },
+    "src/components/Configurations/BankFeedRuleForm.tsx#BankFeedRuleForm": {
+      "max_lines": 226,
+      "kind": "jsx_return"
+    },
+    "src/components/Configurations/ImportBankFeedRulesDialog.tsx#ImportBankFeedRulesDialog": {
+      "max_lines": 82,
+      "kind": "jsx_return"
+    },
+    "src/components/GeneralLedger/GLSplitCompareDialog.tsx#GLSplitCompareDialog": {
+      "max_lines": 272,
+      "kind": "jsx_return"
+    },
+    "src/components/GeneralLedger/GLUploadQueuePanel.tsx#GLUploadQueuePanel": {
+      "max_lines": 211,
+      "kind": "jsx_return"
+    },
+    "src/components/Onboarding/OnboardingTour.tsx#DemoUpload": {
+      "max_lines": 142,
+      "kind": "jsx_return"
+    },
+    "src/components/Onboarding/OnboardingTour.tsx#OnboardingTour": {
+      "max_lines": 263,
+      "kind": "jsx_return"
+    },
+    "src/components/Onboarding/OnboardingTour.tsx#OriginalFormatTrainingPreview": {
+      "max_lines": 239,
+      "kind": "jsx_return"
+    },
+    "src/components/Onboarding/OnboardingTour.tsx#PracticeTaskPanel": {
+      "max_lines": 145,
+      "kind": "jsx_return"
+    },
+    "src/components/Onboarding/OnboardingTour.tsx#TrainingPreview": {
+      "max_lines": 124,
+      "kind": "jsx_return"
+    },
+    "src/components/ui/calendar.tsx#Calendar": {
+      "max_lines": 151,
+      "kind": "jsx_return"
+    },
+    "src/pages/BankStatements/BankStatements.tsx#BankStatements": {
+      "max_lines": 93,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/BankAccountSettings.tsx#BankAccountSettings": {
+      "max_lines": 164,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/BankFeedRules.tsx#BankFeedRules": {
+      "max_lines": 250,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/BankSettings.tsx#BankSettings": {
+      "max_lines": 150,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/CompanySettings.tsx#CompanySettings": {
+      "max_lines": 201,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/RoleApiPermissions.tsx#RoleApiPermissions": {
+      "max_lines": 173,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/RoleGroupPermissions.tsx#RoleGroupPermissions": {
+      "max_lines": 198,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/RoleMcpToolPermissions.tsx#RoleMcpToolPermissions": {
+      "max_lines": 158,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/Roles.tsx#Roles": {
+      "max_lines": 354,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/UserRoleAssignment.tsx#UserRoleAssignment": {
+      "max_lines": 127,
+      "kind": "jsx_return"
+    },
+    "src/pages/Configurations/Users.tsx#Users": {
+      "max_lines": 212,
+      "kind": "jsx_return"
+    },
+    "src/pages/Dashboard/Dashboard.tsx#Dashboard": {
+      "max_lines": 82,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/CompanyGeneralLedger.tsx#AccountTransactionGroup": {
+      "max_lines": 96,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/CompanyGeneralLedger.tsx#CompanyGeneralLedger": {
+      "max_lines": 142,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedger.tsx#GeneralLedger": {
+      "max_lines": 174,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedger.tsx#GLDataTable": {
+      "max_lines": 85,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedgerUpload.tsx#AccountSuggestionReview": {
+      "max_lines": 375,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedgerUpload.tsx#DraggableWorkbookPreview": {
+      "max_lines": 140,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedgerUpload.tsx#GeneralLedgerUpload": {
+      "max_lines": 906,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedgerUpload.tsx#ReviewAccountGroup": {
+      "max_lines": 303,
+      "kind": "jsx_return"
+    },
+    "src/pages/GeneralLedger/GeneralLedgerUpload.tsx#ReviewFinderPanel": {
+      "max_lines": 165,
+      "kind": "jsx_return"
+    },
+    "src/pages/Log/AuditLog.tsx#AuditLog": {
+      "max_lines": 205,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/BlockBuilder.tsx#BlockBuilder": {
+      "max_lines": 646,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/BlockInspector.tsx#BlockInspector": {
+      "max_lines": 694,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/BlockItem.tsx#BlockItemComponent": {
+      "max_lines": 763,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/BlockItem.tsx#FinancialTableBlockEditor": {
+      "max_lines": 835,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/BlockItem.tsx#ImageBlockEditor": {
+      "max_lines": 86,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/BlockItem.tsx#SignatureBlockEditor": {
+      "max_lines": 168,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/ContributorInviteModal.tsx#ContributorInviteModal": {
+      "max_lines": 375,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/DocumentOutline.tsx#DocumentOutlineComponent": {
+      "max_lines": 188,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/MediaBucketModal.tsx#MediaBucketModal": {
+      "max_lines": 430,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/MergeReviewModal.tsx#MergeReviewModal": {
+      "max_lines": 1155,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/MergeReviewModal.tsx#SecDocBlockRenderer": {
+      "max_lines": 210,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/MobileSigningModal.tsx#MobileSigningModal": {
+      "max_lines": 561,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/SubmitProposalModal.tsx#SubmitProposalModal": {
+      "max_lines": 109,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/TableTemplateModal.tsx#TableTemplateModal": {
+      "max_lines": 305,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/components/VersionHistoryModal.tsx#VersionHistoryModal": {
+      "max_lines": 89,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/CreateSecFilingPage.tsx#CreateSecFilingPage": {
+      "max_lines": 1103,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/CreateSecFilingPage.tsx#DocumentThumbnailPreview": {
+      "max_lines": 97,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/MobileSignerPage.tsx#MobileSignerPage": {
+      "max_lines": 138,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/SecFilingContributorPage.tsx#SecFilingContributorPage": {
+      "max_lines": 444,
+      "kind": "jsx_return"
+    },
+    "src/pages/SecFilings/SecFilingsPage.tsx#SecFilingsPage": {
+      "max_lines": 629,
+      "kind": "jsx_return"
+    },
+    "src/pages/TrialBalance/ConsolidatedTrailBalance.tsx#ConsolidatedTrialBalance": {
+      "max_lines": 352,
+      "kind": "jsx_return"
+    },
+    "src/pages/TrialBalance/ConsolidatedTrailBalance.tsx#ReconcilingTable": {
+      "max_lines": 165,
+      "kind": "jsx_return"
+    },
+    "src/pages/TrialBalance/ConsolidatedTrialBalanceMatrix.tsx#ConsolidatedTrialBalanceMatrix": {
+      "max_lines": 159,
+      "kind": "jsx_return"
+    },
+    "src/pages/TrialBalance/ConsolidatedTrialBalanceMatrix.tsx#MatrixTable": {
+      "max_lines": 106,
+      "kind": "jsx_return"
+    },
+    "src/pages/TrialBalance/TrialBalance.tsx#TrialBalance": {
+      "max_lines": 328,
+      "kind": "jsx_return"
+    },
+    "src/pages/UploadFiles/UploadFiles.tsx#UploadFiles": {
+      "max_lines": 298,
+      "kind": "jsx_return"
     }
   }
 }
