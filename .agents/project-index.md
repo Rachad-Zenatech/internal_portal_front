@@ -149,7 +149,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/pages/TrialBalance/TrialBalance.tsx (469 lines) - Helper functions
 - src/pages/UploadFiles/UploadFiles.tsx (531 lines) - upload files (pages  upload files)
 - src/services/api.ts (6 lines) - api (services)
-- src/services/apiClient.ts (150 lines) - api client (services)
+- src/services/apiClient.ts (152 lines) - api client (services)
 - src/services/bankAccountService.ts (11 lines) - src/services/bankAccountService.ts
 - src/services/bankService.ts (134 lines) - bank service (services)
 - src/services/chartOfAccountService.ts (60 lines) - src/services/chartOfAccountService.ts

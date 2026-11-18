@@ -52,11 +52,13 @@ async function monitoredFetch(endpoint: string, options: RequestInit): Promise<R
           recentPerformanceReports.delete(key);
         }
       }
-      const method = options.method ?? "GET";
+      const method = (options.method ?? "GET").toUpperCase();
       const path = endpoint.split("?", 1)[0];
       const fingerprint = `${method}:${path}`;
       const lastReportedAt = recentPerformanceReports.get(fingerprint) ?? 0;
+      const canReport = Number.isFinite(durationMs) && statusCode >= 0 && statusCode <= 599;
       if (
+        canReport &&
         performanceReportTimes.length < MAX_PERFORMANCE_REPORTS_PER_MINUTE &&
         now - lastReportedAt >= PERFORMANCE_DEDUPLICATION_MS
       ) {

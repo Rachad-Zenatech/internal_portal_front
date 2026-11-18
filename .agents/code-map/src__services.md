@@ -7,10 +7,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/services/api.ts (6 lines) - api (services)
 - `getAnnualReport` (export function) L3
 
-## src/services/apiClient.ts (150 lines) - api client (services)
+## src/services/apiClient.ts (152 lines) - api client (services)
 - `BASE_URL` (export const) L4
 - `monitoredFetch` (function) L15
-- `apiClient` (export const) L82
+- `apiClient` (export const) L84
 
 ## src/services/bankAccountService.ts (11 lines) - src/services/bankAccountService.ts
 - `getBankAccount` (export const) L5
