@@ -5,13 +5,13 @@
 Scan this index first to locate the right file and description without loading symbol trees or line numbers.
 For function and route definitions with their line numbers, grep `.agents/code-map/` (listed in `.agents/code-map.md`).
 
-- src/App.tsx (151 lines) - app
+- src/App.tsx (153 lines) - app
 - src/components/AppShell/AppShell.tsx (62 lines) - app shell (components  app shell)
 - src/components/AppShell/Breadcrumbs.tsx (71 lines) - Define custom mapping for breadcrumb names to ensure they look pretty
 - src/components/AppShell/ConnectionStatusLight.tsx (263 lines) - connection status light (components  app shell)
 - src/components/AppShell/FloatingChat.tsx (322 lines) - floating chat (components  app shell)
 - src/components/AppShell/GlobalProgressOverlay.tsx (143 lines) - global progress overlay (components  app shell)
-- src/components/AppShell/Navigation.tsx (106 lines) - navigation (components  app shell)
+- src/components/AppShell/Navigation.tsx (107 lines) - navigation (components  app shell)
 - src/components/AppShell/SessionTimeout.tsx (185 lines) - session timeout (components  app shell)
 - src/components/AppShell/Sidebar.tsx (256 lines) - sidebar (components  app shell)
 - src/components/AppShell/ThemeSwitch.tsx (41 lines) - theme switch (components  app shell)
@@ -80,6 +80,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/data/initialSecFilingData.ts (16111 lines) - Auto-generated full-fidelity SEC Filing document based on ZenaTech_June_30_2026_v22_REVIEW_COPY.docx
 - src/data/secDocumentTemplates.ts (1022 lines) - sec document templates (data)
 - src/data/zenatechLogoAsset.ts (4 lines) - zenatech logo asset (data)
+- src/hooks/useAiOverview.ts (13 lines) - use ai overview (hooks)
 - src/hooks/useBank.ts (362 lines) - use bank (hooks)
 - src/hooks/useBankAccount.ts (17 lines) - use bank account (hooks)
 - src/hooks/useBankFeedRule.ts (89 lines) - use bank feed rule (hooks)
@@ -104,6 +105,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/pages/Auth/PendingAccess.tsx (62 lines) - If user somehow gets another role, maybe redirect them to home
 - src/pages/BankStatements/BankStatementPreview.tsx (219 lines) - bank statement preview (pages  bank statements)
 - src/pages/BankStatements/BankStatements.tsx (193 lines) - Drawer and Upload State
+- src/pages/Configurations/AiStatusPage.tsx (86 lines) - ai status page (pages  configurations)
 - src/pages/Configurations/BankAccountSettings.tsx (358 lines) - bank account settings (pages  configurations)
 - src/pages/Configurations/BankFeedRules.tsx (556 lines) - bank feed rules (pages  configurations)
 - src/pages/Configurations/BankSettings.tsx (339 lines) - bank settings (pages  configurations)
@@ -121,6 +123,12 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/pages/Configurations/XgboostModel.tsx (143 lines) - xgboost model (pages  configurations)
 - src/pages/Configurations/XgboostTransactionExplorer.tsx (65 lines) - xgboost transaction explorer (pages  configurations)
 - src/pages/Configurations/XgboostTree.tsx (44 lines) - xgboost tree (pages  configurations)
+- src/pages/Configurations/aiStatus/AiCoresGrid.tsx (78 lines) - ai cores grid (pages  configurations ai status)
+- src/pages/Configurations/aiStatus/AiErrorsDialog.tsx (110 lines) - ai errors dialog (pages  configurations ai status)
+- src/pages/Configurations/aiStatus/AiFeatureMatrix.tsx (203 lines) - ai feature matrix (pages  configurations ai status)
+- src/pages/Configurations/aiStatus/AiPipelineTelemetry.tsx (179 lines) - ai pipeline telemetry (pages  configurations ai status)
+- src/pages/Configurations/aiStatus/AiSummaryCards.tsx (140 lines) - ai summary cards (pages  configurations ai status)
+- src/pages/Configurations/aiStatus/statusStyles.ts (31 lines) - status styles (pages  configurations ai status)
 - src/pages/Dashboard/Dashboard.tsx (115 lines) - src/pages/Dashboard/Dashboard.tsx
 - src/pages/GeneralLedger/CompanyGeneralLedger.tsx (457 lines) - src/pages/GeneralLedger/CompanyGeneralLedger.tsx
 - src/pages/GeneralLedger/GeneralLedger.tsx (624 lines) - src/pages/GeneralLedger/GeneralLedger.tsx
@@ -165,6 +173,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/services/secFilingTemplateService.ts (37 lines) - src/services/secFilingTemplateService.ts
 - src/services/uploadArchiveService.ts (22 lines) - upload archive service (services)
 - src/types/aiAssistant.ts (5 lines) - ai assistant (types)
+- src/types/aiOverview.ts (152 lines) - ai overview (types)
 - src/types/bank.ts (182 lines) - bank (types)
 - src/types/bankAccount.ts (11 lines) - bank account (types)
 - src/types/bankFeedRule.ts (39 lines) - bank feed rule (types)

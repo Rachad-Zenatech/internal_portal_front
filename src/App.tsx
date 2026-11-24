@@ -5,7 +5,6 @@ import { GlobalProgressProvider } from "./lib/GlobalProgressContext";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 
 import AppShell from "./components/AppShell/AppShell";
-import { lazy } from "react";
 const AiStatusPage = lazy(() => import("./pages/Configurations/AiStatusPage"));
 const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
 const BankStatements = lazy(() => import("./pages/BankStatements/BankStatements"));

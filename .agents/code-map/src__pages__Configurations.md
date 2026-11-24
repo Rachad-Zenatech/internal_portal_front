@@ -4,6 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
+## src/pages/Configurations/AiStatusPage.tsx (86 lines) - ai status page (pages  configurations)
+- `AiStatusPage` (export function) L21
+
 ## src/pages/Configurations/BankAccountSettings.tsx (358 lines) - bank account settings (pages  configurations)
 - `errorMessage` (function) L31
 - `BankAccountSettings` (export function) L35

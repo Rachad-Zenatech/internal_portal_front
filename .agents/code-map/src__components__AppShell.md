@@ -23,7 +23,7 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/components/AppShell/GlobalProgressOverlay.tsx (143 lines) - global progress overlay (components  app shell)
 - `GlobalProgressOverlay` (export function) L9
 
-## src/components/AppShell/Navigation.tsx (106 lines) - navigation (components  app shell)
+## src/components/AppShell/Navigation.tsx (107 lines) - navigation (components  app shell)
 - `navigation` (export const) L14
 
 ## src/components/AppShell/SessionTimeout.tsx (185 lines) - session timeout (components  app shell)

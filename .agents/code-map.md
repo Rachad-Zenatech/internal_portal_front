@@ -20,11 +20,12 @@ to find the right file.
 | .agents/code-map/src__components__Onboarding.md | 1 | 2 KB |
 | .agents/code-map/src__components__ui.md | 33 | 7 KB |
 | .agents/code-map/src__data.md | 4 | 2 KB |
-| .agents/code-map/src__hooks.md | 15 | 9 KB |
+| .agents/code-map/src__hooks.md | 16 | 9 KB |
 | .agents/code-map/src__lib.md | 4 | 1 KB |
 | .agents/code-map/src__pages__Auth.md | 2 | 1 KB |
 | .agents/code-map/src__pages__BankStatements.md | 2 | 1 KB |
-| .agents/code-map/src__pages__Configurations.md | 17 | 6 KB |
+| .agents/code-map/src__pages__Configurations.md | 18 | 6 KB |
+| .agents/code-map/src__pages__Configurations__aiStatus.md | 6 | 2 KB |
 | .agents/code-map/src__pages__Dashboard.md | 1 | 1 KB |
 | .agents/code-map/src__pages__GeneralLedger.md | 3 | 12 KB |
 | .agents/code-map/src__pages__Log.md | 1 | 1 KB |
@@ -34,5 +35,5 @@ to find the right file.
 | .agents/code-map/src__pages__TrialBalance.md | 3 | 2 KB |
 | .agents/code-map/src__pages__UploadFiles.md | 1 | 1 KB |
 | .agents/code-map/src__services.md | 16 | 4 KB |
-| .agents/code-map/src__types.md | 16 | 8 KB |
+| .agents/code-map/src__types.md | 17 | 9 KB |
 | .agents/code-map/src__utils.md | 4 | 2 KB |

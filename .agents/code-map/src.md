@@ -4,9 +4,9 @@
 
 Each symbol shows its start line (`L<n>`); read from there to the next symbol's line, not the whole file.
 
-## src/App.tsx (151 lines) - app
-- `SecFilingsHubRoute` (function) L38
-- `SecFilingsEditorRoute` (function) L61
-- `App` (function) L86
+## src/App.tsx (153 lines) - app
+- `SecFilingsHubRoute` (function) L39
+- `SecFilingsEditorRoute` (function) L62
+- `App` (function) L87
 
 ## src/main.tsx (61 lines) - Automatically reload once if a new deployment removed old hashed chunks
