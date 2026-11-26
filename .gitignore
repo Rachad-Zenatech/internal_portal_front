@@ -49,5 +49,5 @@ temp/
 *.db
 
 
-
 .env
+.env.*
