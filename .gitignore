@@ -51,3 +51,4 @@ temp/
 
 .env
 .env.*
+!.env.production
