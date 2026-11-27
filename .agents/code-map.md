@@ -10,7 +10,7 @@ to find the right file.
 | Folder map | Files | Size |
 | --- | --- | --- |
 | .agents/code-map/src.md | 2 | 1 KB |
-| .agents/code-map/src__components__AppShell.md | 10 | 2 KB |
+| .agents/code-map/src__components__AppShell.md | 12 | 3 KB |
 | .agents/code-map/src__components__Bank.md | 7 | 3 KB |
 | .agents/code-map/src__components__ChartOfAccounts.md | 3 | 1 KB |
 | .agents/code-map/src__components__common.md | 2 | 1 KB |
@@ -20,7 +20,7 @@ to find the right file.
 | .agents/code-map/src__components__Onboarding.md | 1 | 2 KB |
 | .agents/code-map/src__components__ui.md | 33 | 7 KB |
 | .agents/code-map/src__data.md | 4 | 2 KB |
-| .agents/code-map/src__hooks.md | 16 | 9 KB |
+| .agents/code-map/src__hooks.md | 17 | 9 KB |
 | .agents/code-map/src__lib.md | 4 | 1 KB |
 | .agents/code-map/src__pages__Auth.md | 2 | 1 KB |
 | .agents/code-map/src__pages__BankStatements.md | 2 | 1 KB |
@@ -34,6 +34,6 @@ to find the right file.
 | .agents/code-map/src__pages__SecFilings__components.md | 13 | 8 KB |
 | .agents/code-map/src__pages__TrialBalance.md | 3 | 2 KB |
 | .agents/code-map/src__pages__UploadFiles.md | 1 | 1 KB |
-| .agents/code-map/src__services.md | 16 | 4 KB |
-| .agents/code-map/src__types.md | 17 | 9 KB |
+| .agents/code-map/src__services.md | 17 | 5 KB |
+| .agents/code-map/src__types.md | 18 | 9 KB |
 | .agents/code-map/src__utils.md | 4 | 2 KB |

@@ -23,6 +23,19 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/components/AppShell/GlobalProgressOverlay.tsx (143 lines) - global progress overlay (components  app shell)
 - `GlobalProgressOverlay` (export function) L9
 
+## src/components/AppShell/MessageHubServerCard.tsx (145 lines) - message hub server card (components  app shell)
+- `formatHubLastSeen` (export function) L5
+- `HubServerStatusBadge` (export function) L17
+- `HubMetricTile` (function) L51
+- `OnlineServerCard` (export function) L93
+- `OfflineServerRow` (export function) L131
+
+## src/components/AppShell/MessageHubStatusDropdown.tsx (193 lines) - message hub status dropdown (components  app shell)
+- `getStatusDotClass` (function) L9
+- `HubDropdownHeader` (function) L21
+- `HubDropdownFooter` (function) L88
+- `MessageHubStatusDropdown` (export function) L109
+
 ## src/components/AppShell/Navigation.tsx (107 lines) - navigation (components  app shell)
 - `navigation` (export const) L14
 
@@ -38,10 +51,10 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/components/AppShell/ThemeSwitch.tsx (41 lines) - theme switch (components  app shell)
 - `ThemeSwitch` (export function) L5
 
-## src/components/AppShell/TopBar.tsx (483 lines) - top bar (components  app shell)
-- `TopBarClock` (function) L31
-- `TopBar` (export function) L62
-    - `navigate` (fn) L71
-    - `handleClickOutside` (fn) L97
-    - `getIcon` (fn) L106
-    - `handleResultClick` (fn) L116
+## src/components/AppShell/TopBar.tsx (477 lines) - top bar (components  app shell)
+- `TopBarClock` (function) L32
+- `TopBar` (export function) L63
+    - `navigate` (fn) L72
+    - `handleClickOutside` (fn) L98
+    - `getIcon` (fn) L107
+    - `handleResultClick` (fn) L117

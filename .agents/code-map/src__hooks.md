@@ -136,6 +136,9 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/hooks/useHeartbeat.ts (44 lines) - Track user activity
 - `useHeartbeat` (export function) L4
 
+## src/hooks/useMessageHubStatus.ts (78 lines) - use message hub status (hooks)
+- `useMessageHubStatus` (export function) L13
+
 ## src/hooks/useNotifications.ts (285 lines) - use notifications (hooks)
 - `Notification` (export interface) L6
 - `NotificationListener` (export type) L21

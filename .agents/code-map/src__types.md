@@ -160,6 +160,12 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/types/mediaBucket.ts (11 lines) - media bucket (types)
 - `MediaBucketItem` (export interface) L1
 
+## src/types/messageHub.ts (61 lines) - message hub (types)
+- `HubQueueOrStreamItem` (export interface) L1
+- `HubChannelGroupStatus` (export interface) L10
+- `HubConnectedServer` (export interface) L19
+- `MessageHubStatusResponse` (export interface) L35
+
 ## src/types/onboarding.ts (6 lines) - onboarding (types)
 - `OnboardingCompletion` (export interface) L1
 

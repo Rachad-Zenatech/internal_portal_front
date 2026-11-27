@@ -11,11 +11,13 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/components/AppShell/ConnectionStatusLight.tsx (263 lines) - connection status light (components  app shell)
 - src/components/AppShell/FloatingChat.tsx (322 lines) - floating chat (components  app shell)
 - src/components/AppShell/GlobalProgressOverlay.tsx (143 lines) - global progress overlay (components  app shell)
+- src/components/AppShell/MessageHubServerCard.tsx (145 lines) - message hub server card (components  app shell)
+- src/components/AppShell/MessageHubStatusDropdown.tsx (193 lines) - message hub status dropdown (components  app shell)
 - src/components/AppShell/Navigation.tsx (107 lines) - navigation (components  app shell)
 - src/components/AppShell/SessionTimeout.tsx (185 lines) - session timeout (components  app shell)
 - src/components/AppShell/Sidebar.tsx (256 lines) - sidebar (components  app shell)
 - src/components/AppShell/ThemeSwitch.tsx (41 lines) - theme switch (components  app shell)
-- src/components/AppShell/TopBar.tsx (483 lines) - top bar (components  app shell)
+- src/components/AppShell/TopBar.tsx (477 lines) - top bar (components  app shell)
 - src/components/Bank/BankStatementPreviewWrapper.tsx (77 lines) - bank statement preview wrapper (components  bank)
 - src/components/Bank/BankStatementQueuePanel.tsx (284 lines) - bank statement queue panel (components  bank)
 - src/components/Bank/StatementDetail.tsx (371 lines) - statement detail (components  bank)
@@ -91,6 +93,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/hooks/useFinancialTableTemplates.ts (56 lines) - use financial table templates (hooks)
 - src/hooks/useGL.ts (366 lines) - use g l (hooks)
 - src/hooks/useHeartbeat.ts (44 lines) - Track user activity
+- src/hooks/useMessageHubStatus.ts (78 lines) - use message hub status (hooks)
 - src/hooks/useNotifications.ts (285 lines) - use notifications (hooks)
 - src/hooks/useOnboarding.ts (9 lines) - use onboarding (hooks)
 - src/hooks/useSearch.ts (16 lines) - use search (hooks)
@@ -167,6 +170,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/services/glService.ts (782 lines) - src/services/glService.ts
 - src/services/helper.ts (17 lines) - helper (services)
 - src/services/mediaBucketService.ts (124 lines) - media bucket service (services)
+- src/services/messageHubService.ts (185 lines) - Backends that serve /api/message-hub/status; asked when this app's own backend is down
 - src/services/onboardingService.ts (12 lines) - onboarding service (services)
 - src/services/queryKeys.ts (27 lines) - All React Query cache keys live here so that invalidation calls in
 - src/services/secFilingService.ts (1890 lines) - sec filing service (services)
@@ -184,6 +188,7 @@ For function and route definitions with their line numbers, grep `.agents/code-m
 - src/types/gl.ts (768 lines) - gl (types)
 - src/types/glCompare.ts (59 lines) - gl compare (types)
 - src/types/mediaBucket.ts (11 lines) - media bucket (types)
+- src/types/messageHub.ts (61 lines) - message hub (types)
 - src/types/onboarding.ts (6 lines) - onboarding (types)
 - src/types/search.ts (8 lines) - search (types)
 - src/types/secFiling.ts (330 lines) - sec filing (types)

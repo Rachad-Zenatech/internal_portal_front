@@ -57,6 +57,17 @@ Each symbol shows its start line (`L<n>`); read from there to the next symbol's 
 ## src/services/mediaBucketService.ts (124 lines) - media bucket service (services)
 - `mediaBucketService` (export const) L20
 
+## src/services/messageHubService.ts (185 lines) - Backends that serve /api/message-hub/status; asked when this app's own backend is down
+- `CURRENT_APP_ID` (export const) L8
+- `HUB_SERVERS` (export const) L10
+- `forceServerOffline` (export function) L27
+- `buildOfflineServer` (function) L51
+- `buildAllOfflineFallback` (export function) L94
+- `fetchWithTimeout` (function) L126
+- `fetchMessageHubStatus` (export function) L136
+- `testMessageHub` (export function) L178
+- `getMessageHubStreamUrl` (export function) L182
+
 ## src/services/onboardingService.ts (12 lines) - onboarding service (services)
 - `OnboardingService` (export const) L4
 
